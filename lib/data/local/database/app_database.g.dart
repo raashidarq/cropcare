@@ -15,7 +15,6 @@ class $AppStateTableTable extends AppStateTable
     'id',
     aliasedName,
     false,
-    check: () => id.equals(1),
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
@@ -163,7 +162,9 @@ class $AppStateTableTable extends AppStateTable
 
 class AppStateTableData extends DataClass
     implements Insertable<AppStateTableData> {
-  /// Singleton enforced by CHECK (id = 1) — modelled as a named check.
+  /// Singleton enforced at the app layer (INSERT with id=1 only).
+  /// A CHECK constraint cannot be expressed via Drift's column DSL without
+  /// recursive getter issues; enforcement is handled by the repository.
   final int id;
   final int onboardingCompleted;
 
@@ -447,6 +448,17 @@ class $LocalUserTableTable extends LocalUserTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sessionRefreshTokenMeta =
+      const VerificationMeta('sessionRefreshToken');
+  @override
+  late final GeneratedColumn<String> sessionRefreshToken =
+      GeneratedColumn<String>(
+        'session_refresh_token',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _sessionExpiresAtMeta = const VerificationMeta(
     'sessionExpiresAt',
   );
@@ -487,6 +499,7 @@ class $LocalUserTableTable extends LocalUserTable
     phoneNumber,
     isGuest,
     sessionToken,
+    sessionRefreshToken,
     sessionExpiresAt,
     createdAt,
     updatedAt,
@@ -538,6 +551,15 @@ class $LocalUserTableTable extends LocalUserTable
         sessionToken.isAcceptableOrUnknown(
           data['session_token']!,
           _sessionTokenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('session_refresh_token')) {
+      context.handle(
+        _sessionRefreshTokenMeta,
+        sessionRefreshToken.isAcceptableOrUnknown(
+          data['session_refresh_token']!,
+          _sessionRefreshTokenMeta,
         ),
       );
     }
@@ -595,6 +617,10 @@ class $LocalUserTableTable extends LocalUserTable
         DriftSqlType.string,
         data['${effectivePrefix}session_token'],
       ),
+      sessionRefreshToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_refresh_token'],
+      ),
       sessionExpiresAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}session_expires_at'],
@@ -624,6 +650,7 @@ class LocalUserTableData extends DataClass
   final String? phoneNumber;
   final int isGuest;
   final String? sessionToken;
+  final String? sessionRefreshToken;
   final String? sessionExpiresAt;
 
   /// ISO8601 — NOT NULL
@@ -635,6 +662,7 @@ class LocalUserTableData extends DataClass
     this.phoneNumber,
     required this.isGuest,
     this.sessionToken,
+    this.sessionRefreshToken,
     this.sessionExpiresAt,
     required this.createdAt,
     required this.updatedAt,
@@ -652,6 +680,9 @@ class LocalUserTableData extends DataClass
     map['is_guest'] = Variable<int>(isGuest);
     if (!nullToAbsent || sessionToken != null) {
       map['session_token'] = Variable<String>(sessionToken);
+    }
+    if (!nullToAbsent || sessionRefreshToken != null) {
+      map['session_refresh_token'] = Variable<String>(sessionRefreshToken);
     }
     if (!nullToAbsent || sessionExpiresAt != null) {
       map['session_expires_at'] = Variable<String>(sessionExpiresAt);
@@ -674,6 +705,9 @@ class LocalUserTableData extends DataClass
       sessionToken: sessionToken == null && nullToAbsent
           ? const Value.absent()
           : Value(sessionToken),
+      sessionRefreshToken: sessionRefreshToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionRefreshToken),
       sessionExpiresAt: sessionExpiresAt == null && nullToAbsent
           ? const Value.absent()
           : Value(sessionExpiresAt),
@@ -693,6 +727,9 @@ class LocalUserTableData extends DataClass
       phoneNumber: serializer.fromJson<String?>(json['phoneNumber']),
       isGuest: serializer.fromJson<int>(json['isGuest']),
       sessionToken: serializer.fromJson<String?>(json['sessionToken']),
+      sessionRefreshToken: serializer.fromJson<String?>(
+        json['sessionRefreshToken'],
+      ),
       sessionExpiresAt: serializer.fromJson<String?>(json['sessionExpiresAt']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
@@ -707,6 +744,7 @@ class LocalUserTableData extends DataClass
       'phoneNumber': serializer.toJson<String?>(phoneNumber),
       'isGuest': serializer.toJson<int>(isGuest),
       'sessionToken': serializer.toJson<String?>(sessionToken),
+      'sessionRefreshToken': serializer.toJson<String?>(sessionRefreshToken),
       'sessionExpiresAt': serializer.toJson<String?>(sessionExpiresAt),
       'createdAt': serializer.toJson<String>(createdAt),
       'updatedAt': serializer.toJson<String>(updatedAt),
@@ -719,6 +757,7 @@ class LocalUserTableData extends DataClass
     Value<String?> phoneNumber = const Value.absent(),
     int? isGuest,
     Value<String?> sessionToken = const Value.absent(),
+    Value<String?> sessionRefreshToken = const Value.absent(),
     Value<String?> sessionExpiresAt = const Value.absent(),
     String? createdAt,
     String? updatedAt,
@@ -728,6 +767,9 @@ class LocalUserTableData extends DataClass
     phoneNumber: phoneNumber.present ? phoneNumber.value : this.phoneNumber,
     isGuest: isGuest ?? this.isGuest,
     sessionToken: sessionToken.present ? sessionToken.value : this.sessionToken,
+    sessionRefreshToken: sessionRefreshToken.present
+        ? sessionRefreshToken.value
+        : this.sessionRefreshToken,
     sessionExpiresAt: sessionExpiresAt.present
         ? sessionExpiresAt.value
         : this.sessionExpiresAt,
@@ -747,6 +789,9 @@ class LocalUserTableData extends DataClass
       sessionToken: data.sessionToken.present
           ? data.sessionToken.value
           : this.sessionToken,
+      sessionRefreshToken: data.sessionRefreshToken.present
+          ? data.sessionRefreshToken.value
+          : this.sessionRefreshToken,
       sessionExpiresAt: data.sessionExpiresAt.present
           ? data.sessionExpiresAt.value
           : this.sessionExpiresAt,
@@ -763,6 +808,7 @@ class LocalUserTableData extends DataClass
           ..write('phoneNumber: $phoneNumber, ')
           ..write('isGuest: $isGuest, ')
           ..write('sessionToken: $sessionToken, ')
+          ..write('sessionRefreshToken: $sessionRefreshToken, ')
           ..write('sessionExpiresAt: $sessionExpiresAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -777,6 +823,7 @@ class LocalUserTableData extends DataClass
     phoneNumber,
     isGuest,
     sessionToken,
+    sessionRefreshToken,
     sessionExpiresAt,
     createdAt,
     updatedAt,
@@ -790,6 +837,7 @@ class LocalUserTableData extends DataClass
           other.phoneNumber == this.phoneNumber &&
           other.isGuest == this.isGuest &&
           other.sessionToken == this.sessionToken &&
+          other.sessionRefreshToken == this.sessionRefreshToken &&
           other.sessionExpiresAt == this.sessionExpiresAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -801,6 +849,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   final Value<String?> phoneNumber;
   final Value<int> isGuest;
   final Value<String?> sessionToken;
+  final Value<String?> sessionRefreshToken;
   final Value<String?> sessionExpiresAt;
   final Value<String> createdAt;
   final Value<String> updatedAt;
@@ -811,6 +860,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     this.phoneNumber = const Value.absent(),
     this.isGuest = const Value.absent(),
     this.sessionToken = const Value.absent(),
+    this.sessionRefreshToken = const Value.absent(),
     this.sessionExpiresAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -822,6 +872,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     this.phoneNumber = const Value.absent(),
     this.isGuest = const Value.absent(),
     this.sessionToken = const Value.absent(),
+    this.sessionRefreshToken = const Value.absent(),
     this.sessionExpiresAt = const Value.absent(),
     required String createdAt,
     required String updatedAt,
@@ -835,6 +886,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     Expression<String>? phoneNumber,
     Expression<int>? isGuest,
     Expression<String>? sessionToken,
+    Expression<String>? sessionRefreshToken,
     Expression<String>? sessionExpiresAt,
     Expression<String>? createdAt,
     Expression<String>? updatedAt,
@@ -846,6 +898,8 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
       if (phoneNumber != null) 'phone_number': phoneNumber,
       if (isGuest != null) 'is_guest': isGuest,
       if (sessionToken != null) 'session_token': sessionToken,
+      if (sessionRefreshToken != null)
+        'session_refresh_token': sessionRefreshToken,
       if (sessionExpiresAt != null) 'session_expires_at': sessionExpiresAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -859,6 +913,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     Value<String?>? phoneNumber,
     Value<int>? isGuest,
     Value<String?>? sessionToken,
+    Value<String?>? sessionRefreshToken,
     Value<String?>? sessionExpiresAt,
     Value<String>? createdAt,
     Value<String>? updatedAt,
@@ -870,6 +925,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       isGuest: isGuest ?? this.isGuest,
       sessionToken: sessionToken ?? this.sessionToken,
+      sessionRefreshToken: sessionRefreshToken ?? this.sessionRefreshToken,
       sessionExpiresAt: sessionExpiresAt ?? this.sessionExpiresAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -895,6 +951,11 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     if (sessionToken.present) {
       map['session_token'] = Variable<String>(sessionToken.value);
     }
+    if (sessionRefreshToken.present) {
+      map['session_refresh_token'] = Variable<String>(
+        sessionRefreshToken.value,
+      );
+    }
     if (sessionExpiresAt.present) {
       map['session_expires_at'] = Variable<String>(sessionExpiresAt.value);
     }
@@ -918,6 +979,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
           ..write('phoneNumber: $phoneNumber, ')
           ..write('isGuest: $isGuest, ')
           ..write('sessionToken: $sessionToken, ')
+          ..write('sessionRefreshToken: $sessionRefreshToken, ')
           ..write('sessionExpiresAt: $sessionExpiresAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -4953,6 +5015,7 @@ typedef $$LocalUserTableTableCreateCompanionBuilder =
       Value<String?> phoneNumber,
       Value<int> isGuest,
       Value<String?> sessionToken,
+      Value<String?> sessionRefreshToken,
       Value<String?> sessionExpiresAt,
       required String createdAt,
       required String updatedAt,
@@ -4965,6 +5028,7 @@ typedef $$LocalUserTableTableUpdateCompanionBuilder =
       Value<String?> phoneNumber,
       Value<int> isGuest,
       Value<String?> sessionToken,
+      Value<String?> sessionRefreshToken,
       Value<String?> sessionExpiresAt,
       Value<String> createdAt,
       Value<String> updatedAt,
@@ -5034,6 +5098,11 @@ class $$LocalUserTableTableFilterComposer
 
   ColumnFilters<String> get sessionToken => $composableBuilder(
     column: $table.sessionToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionRefreshToken => $composableBuilder(
+    column: $table.sessionRefreshToken,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5112,6 +5181,11 @@ class $$LocalUserTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionRefreshToken => $composableBuilder(
+    column: $table.sessionRefreshToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get sessionExpiresAt => $composableBuilder(
     column: $table.sessionExpiresAt,
     builder: (column) => ColumnOrderings(column),
@@ -5155,6 +5229,11 @@ class $$LocalUserTableTableAnnotationComposer
 
   GeneratedColumn<String> get sessionToken => $composableBuilder(
     column: $table.sessionToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sessionRefreshToken => $composableBuilder(
+    column: $table.sessionRefreshToken,
     builder: (column) => column,
   );
 
@@ -5230,6 +5309,7 @@ class $$LocalUserTableTableTableManager
                 Value<String?> phoneNumber = const Value.absent(),
                 Value<int> isGuest = const Value.absent(),
                 Value<String?> sessionToken = const Value.absent(),
+                Value<String?> sessionRefreshToken = const Value.absent(),
                 Value<String?> sessionExpiresAt = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
@@ -5240,6 +5320,7 @@ class $$LocalUserTableTableTableManager
                 phoneNumber: phoneNumber,
                 isGuest: isGuest,
                 sessionToken: sessionToken,
+                sessionRefreshToken: sessionRefreshToken,
                 sessionExpiresAt: sessionExpiresAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -5252,6 +5333,7 @@ class $$LocalUserTableTableTableManager
                 Value<String?> phoneNumber = const Value.absent(),
                 Value<int> isGuest = const Value.absent(),
                 Value<String?> sessionToken = const Value.absent(),
+                Value<String?> sessionRefreshToken = const Value.absent(),
                 Value<String?> sessionExpiresAt = const Value.absent(),
                 required String createdAt,
                 required String updatedAt,
@@ -5262,6 +5344,7 @@ class $$LocalUserTableTableTableManager
                 phoneNumber: phoneNumber,
                 isGuest: isGuest,
                 sessionToken: sessionToken,
+                sessionRefreshToken: sessionRefreshToken,
                 sessionExpiresAt: sessionExpiresAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

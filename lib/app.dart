@@ -3,16 +3,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'application/onboarding/app_state_cubit.dart';
 import 'application/onboarding/app_state_state.dart';
+import 'domain/entities/local_user.dart';
+import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'presentation/home/home_screen.dart';
 import 'presentation/onboarding/localization/localization_provider.dart';
 import 'presentation/onboarding/splash_screen.dart';
 
 class CropCareApp extends StatelessWidget {
   final AppStateCubit appStateCubit;
+  final LocalUser user;
+  final GetSupportedCropsUseCase getSupportedCropsUseCase;
 
   const CropCareApp({
     super.key,
     required this.appStateCubit,
+    required this.user,
+    required this.getSupportedCropsUseCase,
   });
 
   @override
@@ -40,7 +46,10 @@ class CropCareApp extends StatelessWidget {
                       body: Center(child: CircularProgressIndicator()),
                     )
                   : isCompleted
-                      ? const HomeScreen()
+                      ? HomeScreen(
+                          user: user,
+                          getSupportedCropsUseCase: getSupportedCropsUseCase,
+                        )
                       : const SplashScreen(),
             ),
           );

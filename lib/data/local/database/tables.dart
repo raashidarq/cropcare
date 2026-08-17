@@ -50,6 +50,7 @@ class LocalUserTable extends Table {
   IntColumn get isGuest => integer().withDefault(const Constant(1))();
 
   TextColumn get sessionToken => text().nullable()();
+  TextColumn get sessionRefreshToken => text().nullable()();
   TextColumn get sessionExpiresAt => text().nullable()();
 
   /// ISO8601 — NOT NULL
