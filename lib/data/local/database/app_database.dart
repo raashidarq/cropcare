@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -43,8 +43,9 @@ class AppDatabase extends _$AppDatabase {
           await _createIndexes(customStatement);
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Future migrations go here.
-          // Example: if (from < 2) { await m.addColumn(...); }
+          if (from < 2) {
+            await m.addColumn(localUserTable, localUserTable.email);
+          }
         },
       );
 

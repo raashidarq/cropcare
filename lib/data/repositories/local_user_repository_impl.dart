@@ -59,6 +59,7 @@ class LocalUserRepositoryImpl implements LocalUserRepository {
     return LocalUser(
       id: row.id,
       remoteUserId: row.remoteUserId,
+      email: row.email,
       phoneNumber: row.phoneNumber,
       isGuest: row.isGuest == 1,
       sessionToken: row.sessionToken,

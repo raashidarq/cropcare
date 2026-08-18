@@ -45,6 +45,7 @@ class LocalUserTable extends Table {
   TextColumn get id => text()();
 
   TextColumn get remoteUserId => text().nullable()();
+  TextColumn get email => text().nullable()();
   TextColumn get phoneNumber => text().nullable()();
 
   IntColumn get isGuest => integer().withDefault(const Constant(1))();

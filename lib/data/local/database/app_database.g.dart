@@ -414,6 +414,15 @@ class $LocalUserTableTable extends LocalUserTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _phoneNumberMeta = const VerificationMeta(
     'phoneNumber',
   );
@@ -496,6 +505,7 @@ class $LocalUserTableTable extends LocalUserTable
   List<GeneratedColumn> get $columns => [
     id,
     remoteUserId,
+    email,
     phoneNumber,
     isGuest,
     sessionToken,
@@ -528,6 +538,12 @@ class $LocalUserTableTable extends LocalUserTable
           data['remote_user_id']!,
           _remoteUserIdMeta,
         ),
+      );
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
       );
     }
     if (data.containsKey('phone_number')) {
@@ -605,6 +621,10 @@ class $LocalUserTableTable extends LocalUserTable
         DriftSqlType.string,
         data['${effectivePrefix}remote_user_id'],
       ),
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      ),
       phoneNumber: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}phone_number'],
@@ -647,6 +667,7 @@ class LocalUserTableData extends DataClass
   /// Local UUID; becomes server user id after auth.
   final String id;
   final String? remoteUserId;
+  final String? email;
   final String? phoneNumber;
   final int isGuest;
   final String? sessionToken;
@@ -659,6 +680,7 @@ class LocalUserTableData extends DataClass
   const LocalUserTableData({
     required this.id,
     this.remoteUserId,
+    this.email,
     this.phoneNumber,
     required this.isGuest,
     this.sessionToken,
@@ -673,6 +695,9 @@ class LocalUserTableData extends DataClass
     map['id'] = Variable<String>(id);
     if (!nullToAbsent || remoteUserId != null) {
       map['remote_user_id'] = Variable<String>(remoteUserId);
+    }
+    if (!nullToAbsent || email != null) {
+      map['email'] = Variable<String>(email);
     }
     if (!nullToAbsent || phoneNumber != null) {
       map['phone_number'] = Variable<String>(phoneNumber);
@@ -698,6 +723,9 @@ class LocalUserTableData extends DataClass
       remoteUserId: remoteUserId == null && nullToAbsent
           ? const Value.absent()
           : Value(remoteUserId),
+      email: email == null && nullToAbsent
+          ? const Value.absent()
+          : Value(email),
       phoneNumber: phoneNumber == null && nullToAbsent
           ? const Value.absent()
           : Value(phoneNumber),
@@ -724,6 +752,7 @@ class LocalUserTableData extends DataClass
     return LocalUserTableData(
       id: serializer.fromJson<String>(json['id']),
       remoteUserId: serializer.fromJson<String?>(json['remoteUserId']),
+      email: serializer.fromJson<String?>(json['email']),
       phoneNumber: serializer.fromJson<String?>(json['phoneNumber']),
       isGuest: serializer.fromJson<int>(json['isGuest']),
       sessionToken: serializer.fromJson<String?>(json['sessionToken']),
@@ -741,6 +770,7 @@ class LocalUserTableData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'remoteUserId': serializer.toJson<String?>(remoteUserId),
+      'email': serializer.toJson<String?>(email),
       'phoneNumber': serializer.toJson<String?>(phoneNumber),
       'isGuest': serializer.toJson<int>(isGuest),
       'sessionToken': serializer.toJson<String?>(sessionToken),
@@ -754,6 +784,7 @@ class LocalUserTableData extends DataClass
   LocalUserTableData copyWith({
     String? id,
     Value<String?> remoteUserId = const Value.absent(),
+    Value<String?> email = const Value.absent(),
     Value<String?> phoneNumber = const Value.absent(),
     int? isGuest,
     Value<String?> sessionToken = const Value.absent(),
@@ -764,6 +795,7 @@ class LocalUserTableData extends DataClass
   }) => LocalUserTableData(
     id: id ?? this.id,
     remoteUserId: remoteUserId.present ? remoteUserId.value : this.remoteUserId,
+    email: email.present ? email.value : this.email,
     phoneNumber: phoneNumber.present ? phoneNumber.value : this.phoneNumber,
     isGuest: isGuest ?? this.isGuest,
     sessionToken: sessionToken.present ? sessionToken.value : this.sessionToken,
@@ -782,6 +814,7 @@ class LocalUserTableData extends DataClass
       remoteUserId: data.remoteUserId.present
           ? data.remoteUserId.value
           : this.remoteUserId,
+      email: data.email.present ? data.email.value : this.email,
       phoneNumber: data.phoneNumber.present
           ? data.phoneNumber.value
           : this.phoneNumber,
@@ -805,6 +838,7 @@ class LocalUserTableData extends DataClass
     return (StringBuffer('LocalUserTableData(')
           ..write('id: $id, ')
           ..write('remoteUserId: $remoteUserId, ')
+          ..write('email: $email, ')
           ..write('phoneNumber: $phoneNumber, ')
           ..write('isGuest: $isGuest, ')
           ..write('sessionToken: $sessionToken, ')
@@ -820,6 +854,7 @@ class LocalUserTableData extends DataClass
   int get hashCode => Object.hash(
     id,
     remoteUserId,
+    email,
     phoneNumber,
     isGuest,
     sessionToken,
@@ -834,6 +869,7 @@ class LocalUserTableData extends DataClass
       (other is LocalUserTableData &&
           other.id == this.id &&
           other.remoteUserId == this.remoteUserId &&
+          other.email == this.email &&
           other.phoneNumber == this.phoneNumber &&
           other.isGuest == this.isGuest &&
           other.sessionToken == this.sessionToken &&
@@ -846,6 +882,7 @@ class LocalUserTableData extends DataClass
 class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   final Value<String> id;
   final Value<String?> remoteUserId;
+  final Value<String?> email;
   final Value<String?> phoneNumber;
   final Value<int> isGuest;
   final Value<String?> sessionToken;
@@ -857,6 +894,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   const LocalUserTableCompanion({
     this.id = const Value.absent(),
     this.remoteUserId = const Value.absent(),
+    this.email = const Value.absent(),
     this.phoneNumber = const Value.absent(),
     this.isGuest = const Value.absent(),
     this.sessionToken = const Value.absent(),
@@ -869,6 +907,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   LocalUserTableCompanion.insert({
     required String id,
     this.remoteUserId = const Value.absent(),
+    this.email = const Value.absent(),
     this.phoneNumber = const Value.absent(),
     this.isGuest = const Value.absent(),
     this.sessionToken = const Value.absent(),
@@ -883,6 +922,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   static Insertable<LocalUserTableData> custom({
     Expression<String>? id,
     Expression<String>? remoteUserId,
+    Expression<String>? email,
     Expression<String>? phoneNumber,
     Expression<int>? isGuest,
     Expression<String>? sessionToken,
@@ -895,6 +935,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (remoteUserId != null) 'remote_user_id': remoteUserId,
+      if (email != null) 'email': email,
       if (phoneNumber != null) 'phone_number': phoneNumber,
       if (isGuest != null) 'is_guest': isGuest,
       if (sessionToken != null) 'session_token': sessionToken,
@@ -910,6 +951,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
   LocalUserTableCompanion copyWith({
     Value<String>? id,
     Value<String?>? remoteUserId,
+    Value<String?>? email,
     Value<String?>? phoneNumber,
     Value<int>? isGuest,
     Value<String?>? sessionToken,
@@ -922,6 +964,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     return LocalUserTableCompanion(
       id: id ?? this.id,
       remoteUserId: remoteUserId ?? this.remoteUserId,
+      email: email ?? this.email,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       isGuest: isGuest ?? this.isGuest,
       sessionToken: sessionToken ?? this.sessionToken,
@@ -941,6 +984,9 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     }
     if (remoteUserId.present) {
       map['remote_user_id'] = Variable<String>(remoteUserId.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
     }
     if (phoneNumber.present) {
       map['phone_number'] = Variable<String>(phoneNumber.value);
@@ -976,6 +1022,7 @@ class LocalUserTableCompanion extends UpdateCompanion<LocalUserTableData> {
     return (StringBuffer('LocalUserTableCompanion(')
           ..write('id: $id, ')
           ..write('remoteUserId: $remoteUserId, ')
+          ..write('email: $email, ')
           ..write('phoneNumber: $phoneNumber, ')
           ..write('isGuest: $isGuest, ')
           ..write('sessionToken: $sessionToken, ')
@@ -5012,6 +5059,7 @@ typedef $$LocalUserTableTableCreateCompanionBuilder =
     LocalUserTableCompanion Function({
       required String id,
       Value<String?> remoteUserId,
+      Value<String?> email,
       Value<String?> phoneNumber,
       Value<int> isGuest,
       Value<String?> sessionToken,
@@ -5025,6 +5073,7 @@ typedef $$LocalUserTableTableUpdateCompanionBuilder =
     LocalUserTableCompanion Function({
       Value<String> id,
       Value<String?> remoteUserId,
+      Value<String?> email,
       Value<String?> phoneNumber,
       Value<int> isGuest,
       Value<String?> sessionToken,
@@ -5083,6 +5132,11 @@ class $$LocalUserTableTableFilterComposer
 
   ColumnFilters<String> get remoteUserId => $composableBuilder(
     column: $table.remoteUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get email => $composableBuilder(
+    column: $table.email,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5166,6 +5220,11 @@ class $$LocalUserTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get phoneNumber => $composableBuilder(
     column: $table.phoneNumber,
     builder: (column) => ColumnOrderings(column),
@@ -5218,6 +5277,9 @@ class $$LocalUserTableTableAnnotationComposer
     column: $table.remoteUserId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
 
   GeneratedColumn<String> get phoneNumber => $composableBuilder(
     column: $table.phoneNumber,
@@ -5306,6 +5368,7 @@ class $$LocalUserTableTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String?> remoteUserId = const Value.absent(),
+                Value<String?> email = const Value.absent(),
                 Value<String?> phoneNumber = const Value.absent(),
                 Value<int> isGuest = const Value.absent(),
                 Value<String?> sessionToken = const Value.absent(),
@@ -5317,6 +5380,7 @@ class $$LocalUserTableTableTableManager
               }) => LocalUserTableCompanion(
                 id: id,
                 remoteUserId: remoteUserId,
+                email: email,
                 phoneNumber: phoneNumber,
                 isGuest: isGuest,
                 sessionToken: sessionToken,
@@ -5330,6 +5394,7 @@ class $$LocalUserTableTableTableManager
               ({
                 required String id,
                 Value<String?> remoteUserId = const Value.absent(),
+                Value<String?> email = const Value.absent(),
                 Value<String?> phoneNumber = const Value.absent(),
                 Value<int> isGuest = const Value.absent(),
                 Value<String?> sessionToken = const Value.absent(),
@@ -5341,6 +5406,7 @@ class $$LocalUserTableTableTableManager
               }) => LocalUserTableCompanion.insert(
                 id: id,
                 remoteUserId: remoteUserId,
+                email: email,
                 phoneNumber: phoneNumber,
                 isGuest: isGuest,
                 sessionToken: sessionToken,
