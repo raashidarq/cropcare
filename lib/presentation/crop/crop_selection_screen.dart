@@ -34,9 +34,7 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.tr('select_crop_title')),
-      ),
+      appBar: AppBar(title: Text(context.tr('select_crop_title'))),
       body: FutureBuilder<List<Crop>>(
         future: _cropsFuture,
         builder: (context, snapshot) {
@@ -73,10 +71,7 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                   ),
                   leading: CircleAvatar(
                     backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.grass,
-                      color: theme.colorScheme.primary,
-                    ),
+                    child: Icon(Icons.grass, color: theme.colorScheme.primary),
                   ),
                   title: Text(
                     localizedName,
@@ -89,10 +84,8 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CaptureScreen(
-                          cropId: crop.id,
-                          user: widget.user,
-                        ),
+                        builder: (_) =>
+                            CaptureScreen(cropId: crop.id, user: widget.user),
                       ),
                     );
                   },

@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../application/scan/scan_cubit.dart';
 import '../../application/scan/scan_state.dart';
+import '../../data/local/database/app_database.dart';
+import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/local_user.dart';
+import '../../domain/usecases/scan/capture_scan_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
 import 'scan_result_screen.dart';
 
@@ -49,10 +52,17 @@ class _CaptureScreenState extends State<CaptureScreen> {
       );
     }
 
-    return _CaptureView(
-      cropId: widget.cropId,
-      user: widget.user,
-      picker: _picker,
+    return BlocProvider<ScanCubit>(
+      create: (_) => ScanCubit(
+        captureScanUseCase: CaptureScanUseCase(
+          ScanRepositoryImpl(AppDatabase()),
+        ),
+      )..initializePermission(widget.cropId),
+      child: _CaptureView(
+        cropId: widget.cropId,
+        user: widget.user,
+        picker: _picker,
+      ),
     );
   }
 }
@@ -90,10 +100,7 @@ class _CaptureViewState extends State<_CaptureView> {
         imageQuality: 90,
       );
       if (photo != null) {
-        cubit.photoCaptured(
-          cropId: widget.cropId,
-          tempImagePath: photo.path,
-        );
+        cubit.photoCaptured(cropId: widget.cropId, tempImagePath: photo.path);
       }
     } catch (_) {
       // In test environments or desktop where native camera UI is unavailable, ignore gracefully
@@ -105,9 +112,7 @@ class _CaptureViewState extends State<_CaptureView> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.tr('capture_photo')),
-      ),
+      appBar: AppBar(title: Text(context.tr('capture_photo'))),
       body: BlocConsumer<ScanCubit, ScanState>(
         listener: (context, state) {
           if (state is ScanCreated) {
@@ -170,7 +175,9 @@ class _CaptureViewState extends State<_CaptureView> {
                     OutlinedButton(
                       key: const Key('re_request_permission_button'),
                       onPressed: () {
-                        context.read<ScanCubit>().requestPermission(widget.cropId);
+                        context.read<ScanCubit>().requestPermission(
+                          widget.cropId,
+                        );
                       },
                       child: Text(context.tr('grant_permission')),
                     ),
@@ -241,7 +248,11 @@ class _CaptureViewState extends State<_CaptureView> {
                       File(state.tempImagePath),
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const Center(
-                        child: Icon(Icons.image, size: 80, color: Colors.white54),
+                        child: Icon(
+                          Icons.image,
+                          size: 80,
+                          color: Colors.white54,
+                        ),
                       ),
                     ),
                   ),
@@ -273,8 +284,8 @@ class _CaptureViewState extends State<_CaptureView> {
                           label: Text(context.tr('use_photo')),
                           onPressed: () {
                             context.read<ScanCubit>().confirmPhoto(
-                                  userId: widget.user.id,
-                                );
+                              userId: widget.user.id,
+                            );
                           },
                         ),
                       ),
@@ -294,9 +305,7 @@ class _CaptureViewState extends State<_CaptureView> {
           }
 
           if (state is ScanError) {
-            return Center(
-              child: Text('Error: ${state.message}'),
-            );
+            return Center(child: Text('Error: ${state.message}'));
           }
 
           return const SizedBox.shrink();
