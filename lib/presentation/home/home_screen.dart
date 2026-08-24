@@ -8,8 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/history/history_cubit.dart';
 import '../../application/history/history_state.dart';
-import '../../data/local/database/app_database.dart';
-import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/crop.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/entities/scan.dart';
@@ -149,8 +147,6 @@ class _HomeScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('home_title')),

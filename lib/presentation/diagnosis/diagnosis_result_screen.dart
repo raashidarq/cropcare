@@ -132,7 +132,6 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isHealthy = widget.diagnosis.isHealthy;
     final isLowConfidence = !isHealthy &&
         (widget.diagnosis.confidence < 0.80 ||

@@ -115,7 +115,7 @@ class RunDiagnosisUseCase {
         inferredAt: DateTime.now().toIso8601String(),
       );
 
-      return diagnosisRepository.createDiagnosis(diagnosis);
+      return await diagnosisRepository.createDiagnosis(diagnosis);
     } catch (e) {
       // Inference threw — record as analysis_failed
       final failedDiagnosis = Diagnosis(
