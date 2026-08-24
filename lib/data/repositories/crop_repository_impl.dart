@@ -11,17 +11,120 @@ class CropRepositoryImpl implements CropRepository {
 
   @override
   Future<List<Crop>> getSupportedCrops() async {
-    final crops = await db.select(db.cropTable).get();
-    if (crops.isEmpty) {
-      await _seedCrops();
-      final seeded = await db.select(db.cropTable).get();
-      return seeded.map(_mapToEntity).toList();
-    }
+    await seedCrops();
+    final crops = await (db.select(db.cropTable)
+          ..where((t) => t.isSupported.equals(1)))
+        .get();
     return crops.map(_mapToEntity).toList();
   }
 
-  Future<void> _seedCrops() async {
+  /// Seeds or updates all supported crop definitions.
+  Future<void> seedCrops() async {
     final seedCrops = [
+      CropTableCompanion.insert(
+        id: 'apple',
+        nameEn: 'Apple',
+        nameSi: const Value('ඇපල්'),
+        nameTa: const Value('ஆப்பிள்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/apple.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'blueberry',
+        nameEn: 'Blueberry',
+        nameSi: const Value('බ්ලූබෙරි'),
+        nameTa: const Value('புளூபெர்ரி'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/blueberry.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'cherry',
+        nameEn: 'Cherry',
+        nameSi: const Value('චෙරි'),
+        nameTa: const Value('செர்ரி'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/cherry.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'corn',
+        nameEn: 'Corn (Maize)',
+        nameSi: const Value('ඉරිඟු'),
+        nameTa: const Value('சோளம்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/corn.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'grape',
+        nameEn: 'Grape',
+        nameSi: const Value('මිදි'),
+        nameTa: const Value('திராட்சை'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/grape.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'orange',
+        nameEn: 'Orange (Citrus)',
+        nameSi: const Value('දොඩම්'),
+        nameTa: const Value('ஆரஞ்சு'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/orange.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'peach',
+        nameEn: 'Peach',
+        nameSi: const Value('පීච්'),
+        nameTa: const Value('பீச்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/peach.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'chili',
+        nameEn: 'Chili / Bell Pepper',
+        nameSi: const Value('මිරිස්'),
+        nameTa: const Value('மிளகாய்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/chili.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'potato',
+        nameEn: 'Potato',
+        nameSi: const Value('අර්තාපල් (අල)'),
+        nameTa: const Value('உருளைக்கிழங்கு'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/potato.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'raspberry',
+        nameEn: 'Raspberry',
+        nameSi: const Value('රාස්ප්බෙරි'),
+        nameTa: const Value('ராஸ்பெர்ரி'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/raspberry.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'soybean',
+        nameEn: 'Soybean',
+        nameSi: const Value('සෝයා බෝංචි'),
+        nameTa: const Value('சோயாபீன்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/soybean.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'squash',
+        nameEn: 'Squash',
+        nameSi: const Value('වට්ටක්කා'),
+        nameTa: const Value('சுரைக்காய்'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/squash.png'),
+      ),
+      CropTableCompanion.insert(
+        id: 'strawberry',
+        nameEn: 'Strawberry',
+        nameSi: const Value('ස්ට්‍රෝබෙරි'),
+        nameTa: const Value('ஸ்ட்ராபெர்ரி'),
+        isSupported: const Value(1),
+        iconAsset: const Value('assets/icons/strawberry.png'),
+      ),
       CropTableCompanion.insert(
         id: 'tomato',
         nameEn: 'Tomato',
@@ -29,14 +132,6 @@ class CropRepositoryImpl implements CropRepository {
         nameTa: const Value('தக்காளி'),
         isSupported: const Value(1),
         iconAsset: const Value('assets/icons/tomato.png'),
-      ),
-      CropTableCompanion.insert(
-        id: 'chili',
-        nameEn: 'Chili',
-        nameSi: const Value('මිරිස්'),
-        nameTa: const Value('மிළගායි'),
-        isSupported: const Value(1),
-        iconAsset: const Value('assets/icons/chili.png'),
       ),
       CropTableCompanion.insert(
         id: 'paddy',

@@ -1,6 +1,12 @@
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:drift/drift.dart';
+
+import '../../domain/entities/crop.dart';
+import '../../domain/entities/diagnosis.dart';
 import '../../domain/entities/scan.dart';
+import '../../domain/entities/scan_history_item.dart';
 import '../../domain/repositories/scan_repository.dart';
 import '../local/database/app_database.dart';
 
@@ -60,6 +66,63 @@ class ScanRepositoryImpl implements ScanRepository {
     return _mapToEntity(row);
   }
 
+  @override
+  Future<void> updateScanStatus(String scanId, ScanStatus status) async {
+    final nowIso = DateTime.now().toIso8601String();
+    await (db.update(db.scanTable)..where((tbl) => tbl.id.equals(scanId))).write(
+      ScanTableCompanion(
+        status: Value(status.value),
+        updatedAt: Value(nowIso),
+      ),
+    );
+  }
+
+  @override
+  Future<List<ScanHistoryItem>> getScanHistory() async {
+    final scanRows = await (db.select(db.scanTable)
+          ..orderBy([(t) => OrderingTerm.desc(t.capturedAt)]))
+        .get();
+
+    final historyItems = <ScanHistoryItem>[];
+
+    for (final scanRow in scanRows) {
+      final scanEntity = _mapToEntity(scanRow);
+
+      final diagRow = await (db.select(db.diagnosisTable)
+            ..where((t) => t.scanId.equals(scanRow.id)))
+          .getSingleOrNull();
+
+      final cropRow = await (db.select(db.cropTable)
+            ..where((t) => t.id.equals(scanRow.cropId)))
+          .getSingleOrNull();
+
+      Diagnosis? diagnosisEntity;
+      if (diagRow != null) {
+        diagnosisEntity = _mapDiagnosisToEntity(diagRow);
+      }
+
+      Crop? cropEntity;
+      if (cropRow != null) {
+        cropEntity = Crop(
+          id: cropRow.id,
+          nameEn: cropRow.nameEn,
+          nameSi: cropRow.nameSi,
+          nameTa: cropRow.nameTa,
+          isSupported: cropRow.isSupported == 1,
+          iconAsset: cropRow.iconAsset,
+        );
+      }
+
+      historyItems.add(ScanHistoryItem(
+        scan: scanEntity,
+        diagnosis: diagnosisEntity,
+        crop: cropEntity,
+      ));
+    }
+
+    return historyItems;
+  }
+
   Scan _mapToEntity(ScanTableData row) {
     return Scan(
       id: row.id,
@@ -74,4 +137,49 @@ class ScanRepositoryImpl implements ScanRepository {
       updatedAt: DateTime.parse(row.updatedAt),
     );
   }
+
+  Diagnosis _mapDiagnosisToEntity(DiagnosisTableData row) {
+    List<AlternativePrediction> alternatives = [];
+    if (row.alternativesJson != null) {
+      try {
+        final decoded = jsonDecode(row.alternativesJson!) as List<dynamic>;
+        alternatives = decoded
+            .map((e) => AlternativePrediction(
+                  diseaseId: e['disease_id'] as String,
+                  confidence: (e['confidence'] as num).toDouble(),
+                ))
+            .toList();
+      } catch (_) {}
+    }
+
+    return Diagnosis(
+      id: row.id,
+      scanId: row.scanId,
+      diseaseId: row.diseaseId,
+      modelVersionId: row.modelVersionId,
+      confidence: row.confidence,
+      resultState: _resultStateFromString(row.resultState),
+      severity: row.severity,
+      alternatives: alternatives,
+      treatmentSource: row.treatmentSource == 'LLM'
+          ? TreatmentSource.llm
+          : TreatmentSource.localFallback,
+      treatmentGuidelineId: row.treatmentGuidelineId,
+      inferredAt: row.inferredAt,
+    );
+  }
+
+  DiagnosisResultState _resultStateFromString(String value) {
+    switch (value) {
+      case 'CONFIDENT':
+        return DiagnosisResultState.confident;
+      case 'LOW_CONFIDENCE':
+        return DiagnosisResultState.lowConfidence;
+      case 'UNSUPPORTED':
+        return DiagnosisResultState.unsupported;
+      default:
+        return DiagnosisResultState.analysisFailed;
+    }
+  }
 }
+

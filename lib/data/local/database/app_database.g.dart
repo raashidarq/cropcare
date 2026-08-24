@@ -4817,6 +4817,478 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
   }
 }
 
+class $EscalationTableTable extends EscalationTable
+    with TableInfo<$EscalationTableTable, EscalationTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EscalationTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scanIdMeta = const VerificationMeta('scanId');
+  @override
+  late final GeneratedColumn<String> scanId = GeneratedColumn<String>(
+    'scan_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES scan (id)',
+    ),
+  );
+  static const VerificationMeta _diagnosisIdMeta = const VerificationMeta(
+    'diagnosisId',
+  );
+  @override
+  late final GeneratedColumn<String> diagnosisId = GeneratedColumn<String>(
+    'diagnosis_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES diagnosis (id)',
+    ),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sharedViaMeta = const VerificationMeta(
+    'sharedVia',
+  );
+  @override
+  late final GeneratedColumn<String> sharedVia = GeneratedColumn<String>(
+    'shared_via',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('WHATSAPP'),
+  );
+  static const VerificationMeta _sharedAtMeta = const VerificationMeta(
+    'sharedAt',
+  );
+  @override
+  late final GeneratedColumn<String> sharedAt = GeneratedColumn<String>(
+    'shared_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<String> createdAt = GeneratedColumn<String>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scanId,
+    diagnosisId,
+    notes,
+    sharedVia,
+    sharedAt,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'escalation';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EscalationTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scan_id')) {
+      context.handle(
+        _scanIdMeta,
+        scanId.isAcceptableOrUnknown(data['scan_id']!, _scanIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scanIdMeta);
+    }
+    if (data.containsKey('diagnosis_id')) {
+      context.handle(
+        _diagnosisIdMeta,
+        diagnosisId.isAcceptableOrUnknown(
+          data['diagnosis_id']!,
+          _diagnosisIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_diagnosisIdMeta);
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('shared_via')) {
+      context.handle(
+        _sharedViaMeta,
+        sharedVia.isAcceptableOrUnknown(data['shared_via']!, _sharedViaMeta),
+      );
+    }
+    if (data.containsKey('shared_at')) {
+      context.handle(
+        _sharedAtMeta,
+        sharedAt.isAcceptableOrUnknown(data['shared_at']!, _sharedAtMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EscalationTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EscalationTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      scanId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scan_id'],
+      )!,
+      diagnosisId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diagnosis_id'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      sharedVia: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}shared_via'],
+      )!,
+      sharedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}shared_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $EscalationTableTable createAlias(String alias) {
+    return $EscalationTableTable(attachedDatabase, alias);
+  }
+}
+
+class EscalationTableData extends DataClass
+    implements Insertable<EscalationTableData> {
+  final String id;
+  final String scanId;
+  final String diagnosisId;
+  final String? notes;
+  final String sharedVia;
+  final String? sharedAt;
+  final String createdAt;
+  const EscalationTableData({
+    required this.id,
+    required this.scanId,
+    required this.diagnosisId,
+    this.notes,
+    required this.sharedVia,
+    this.sharedAt,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scan_id'] = Variable<String>(scanId);
+    map['diagnosis_id'] = Variable<String>(diagnosisId);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['shared_via'] = Variable<String>(sharedVia);
+    if (!nullToAbsent || sharedAt != null) {
+      map['shared_at'] = Variable<String>(sharedAt);
+    }
+    map['created_at'] = Variable<String>(createdAt);
+    return map;
+  }
+
+  EscalationTableCompanion toCompanion(bool nullToAbsent) {
+    return EscalationTableCompanion(
+      id: Value(id),
+      scanId: Value(scanId),
+      diagnosisId: Value(diagnosisId),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      sharedVia: Value(sharedVia),
+      sharedAt: sharedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sharedAt),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory EscalationTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EscalationTableData(
+      id: serializer.fromJson<String>(json['id']),
+      scanId: serializer.fromJson<String>(json['scanId']),
+      diagnosisId: serializer.fromJson<String>(json['diagnosisId']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      sharedVia: serializer.fromJson<String>(json['sharedVia']),
+      sharedAt: serializer.fromJson<String?>(json['sharedAt']),
+      createdAt: serializer.fromJson<String>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'scanId': serializer.toJson<String>(scanId),
+      'diagnosisId': serializer.toJson<String>(diagnosisId),
+      'notes': serializer.toJson<String?>(notes),
+      'sharedVia': serializer.toJson<String>(sharedVia),
+      'sharedAt': serializer.toJson<String?>(sharedAt),
+      'createdAt': serializer.toJson<String>(createdAt),
+    };
+  }
+
+  EscalationTableData copyWith({
+    String? id,
+    String? scanId,
+    String? diagnosisId,
+    Value<String?> notes = const Value.absent(),
+    String? sharedVia,
+    Value<String?> sharedAt = const Value.absent(),
+    String? createdAt,
+  }) => EscalationTableData(
+    id: id ?? this.id,
+    scanId: scanId ?? this.scanId,
+    diagnosisId: diagnosisId ?? this.diagnosisId,
+    notes: notes.present ? notes.value : this.notes,
+    sharedVia: sharedVia ?? this.sharedVia,
+    sharedAt: sharedAt.present ? sharedAt.value : this.sharedAt,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  EscalationTableData copyWithCompanion(EscalationTableCompanion data) {
+    return EscalationTableData(
+      id: data.id.present ? data.id.value : this.id,
+      scanId: data.scanId.present ? data.scanId.value : this.scanId,
+      diagnosisId: data.diagnosisId.present
+          ? data.diagnosisId.value
+          : this.diagnosisId,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      sharedVia: data.sharedVia.present ? data.sharedVia.value : this.sharedVia,
+      sharedAt: data.sharedAt.present ? data.sharedAt.value : this.sharedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EscalationTableData(')
+          ..write('id: $id, ')
+          ..write('scanId: $scanId, ')
+          ..write('diagnosisId: $diagnosisId, ')
+          ..write('notes: $notes, ')
+          ..write('sharedVia: $sharedVia, ')
+          ..write('sharedAt: $sharedAt, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    scanId,
+    diagnosisId,
+    notes,
+    sharedVia,
+    sharedAt,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EscalationTableData &&
+          other.id == this.id &&
+          other.scanId == this.scanId &&
+          other.diagnosisId == this.diagnosisId &&
+          other.notes == this.notes &&
+          other.sharedVia == this.sharedVia &&
+          other.sharedAt == this.sharedAt &&
+          other.createdAt == this.createdAt);
+}
+
+class EscalationTableCompanion extends UpdateCompanion<EscalationTableData> {
+  final Value<String> id;
+  final Value<String> scanId;
+  final Value<String> diagnosisId;
+  final Value<String?> notes;
+  final Value<String> sharedVia;
+  final Value<String?> sharedAt;
+  final Value<String> createdAt;
+  final Value<int> rowid;
+  const EscalationTableCompanion({
+    this.id = const Value.absent(),
+    this.scanId = const Value.absent(),
+    this.diagnosisId = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.sharedVia = const Value.absent(),
+    this.sharedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EscalationTableCompanion.insert({
+    required String id,
+    required String scanId,
+    required String diagnosisId,
+    this.notes = const Value.absent(),
+    this.sharedVia = const Value.absent(),
+    this.sharedAt = const Value.absent(),
+    required String createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       scanId = Value(scanId),
+       diagnosisId = Value(diagnosisId),
+       createdAt = Value(createdAt);
+  static Insertable<EscalationTableData> custom({
+    Expression<String>? id,
+    Expression<String>? scanId,
+    Expression<String>? diagnosisId,
+    Expression<String>? notes,
+    Expression<String>? sharedVia,
+    Expression<String>? sharedAt,
+    Expression<String>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scanId != null) 'scan_id': scanId,
+      if (diagnosisId != null) 'diagnosis_id': diagnosisId,
+      if (notes != null) 'notes': notes,
+      if (sharedVia != null) 'shared_via': sharedVia,
+      if (sharedAt != null) 'shared_at': sharedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EscalationTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? scanId,
+    Value<String>? diagnosisId,
+    Value<String?>? notes,
+    Value<String>? sharedVia,
+    Value<String?>? sharedAt,
+    Value<String>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return EscalationTableCompanion(
+      id: id ?? this.id,
+      scanId: scanId ?? this.scanId,
+      diagnosisId: diagnosisId ?? this.diagnosisId,
+      notes: notes ?? this.notes,
+      sharedVia: sharedVia ?? this.sharedVia,
+      sharedAt: sharedAt ?? this.sharedAt,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (scanId.present) {
+      map['scan_id'] = Variable<String>(scanId.value);
+    }
+    if (diagnosisId.present) {
+      map['diagnosis_id'] = Variable<String>(diagnosisId.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (sharedVia.present) {
+      map['shared_via'] = Variable<String>(sharedVia.value);
+    }
+    if (sharedAt.present) {
+      map['shared_at'] = Variable<String>(sharedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<String>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EscalationTableCompanion(')
+          ..write('id: $id, ')
+          ..write('scanId: $scanId, ')
+          ..write('diagnosisId: $diagnosisId, ')
+          ..write('notes: $notes, ')
+          ..write('sharedVia: $sharedVia, ')
+          ..write('sharedAt: $sharedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4832,6 +5304,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ImageValidationTableTable imageValidationTable =
       $ImageValidationTableTable(this);
   late final $DiagnosisTableTable diagnosisTable = $DiagnosisTableTable(this);
+  late final $EscalationTableTable escalationTable = $EscalationTableTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4846,6 +5321,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scanTable,
     imageValidationTable,
     diagnosisTable,
+    escalationTable,
   ];
 }
 
@@ -7453,6 +7929,26 @@ final class $$ScanTableTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$EscalationTableTable, List<EscalationTableData>>
+  _escalationTableRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.escalationTable,
+    aliasName: 'scan__id__escalation__scan_id',
+  );
+
+  $$EscalationTableTableProcessedTableManager get escalationTableRefs {
+    final manager = $$EscalationTableTableTableManager(
+      $_db,
+      $_db.escalationTable,
+    ).filter((f) => f.scanId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _escalationTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ScanTableTableFilterComposer
@@ -7591,6 +8087,31 @@ class $$ScanTableTableFilterComposer
           }) => $$DiagnosisTableTableFilterComposer(
             $db: $db,
             $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> escalationTableRefs(
+    Expression<bool> Function($$EscalationTableTableFilterComposer f) f,
+  ) {
+    final $$EscalationTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.escalationTable,
+      getReferencedColumn: (t) => t.scanId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EscalationTableTableFilterComposer(
+            $db: $db,
+            $table: $db.escalationTable,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7834,6 +8355,31 @@ class $$ScanTableTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> escalationTableRefs<T extends Object>(
+    Expression<T> Function($$EscalationTableTableAnnotationComposer a) f,
+  ) {
+    final $$EscalationTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.escalationTable,
+      getReferencedColumn: (t) => t.scanId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EscalationTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.escalationTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ScanTableTableTableManager
@@ -7854,6 +8400,7 @@ class $$ScanTableTableTableManager
             bool cropId,
             bool imageValidationTableRefs,
             bool diagnosisTableRefs,
+            bool escalationTableRefs,
           })
         > {
   $$ScanTableTableTableManager(_$AppDatabase db, $ScanTableTable table)
@@ -7933,12 +8480,14 @@ class $$ScanTableTableTableManager
                 cropId = false,
                 imageValidationTableRefs = false,
                 diagnosisTableRefs = false,
+                escalationTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (imageValidationTableRefs) db.imageValidationTable,
                     if (diagnosisTableRefs) db.diagnosisTable,
+                    if (escalationTableRefs) db.escalationTable,
                   ],
                   addJoins:
                       <
@@ -8029,6 +8578,27 @@ class $$ScanTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (escalationTableRefs)
+                        await $_getPrefetchedData<
+                          ScanTableData,
+                          $ScanTableTable,
+                          EscalationTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ScanTableTableReferences
+                              ._escalationTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ScanTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).escalationTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.scanId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8054,6 +8624,7 @@ typedef $$ScanTableTableProcessedTableManager =
         bool cropId,
         bool imageValidationTableRefs,
         bool diagnosisTableRefs,
+        bool escalationTableRefs,
       })
     >;
 typedef $$ImageValidationTableTableCreateCompanionBuilder =
@@ -8514,6 +9085,26 @@ final class $$DiagnosisTableTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$EscalationTableTable, List<EscalationTableData>>
+  _escalationTableRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.escalationTable,
+    aliasName: 'diagnosis__id__escalation__diagnosis_id',
+  );
+
+  $$EscalationTableTableProcessedTableManager get escalationTableRefs {
+    final manager = $$EscalationTableTableTableManager(
+      $_db,
+      $_db.escalationTable,
+    ).filter((f) => f.diagnosisId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _escalationTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$DiagnosisTableTableFilterComposer
@@ -8656,6 +9247,31 @@ class $$DiagnosisTableTableFilterComposer
               ),
         );
     return composer;
+  }
+
+  Expression<bool> escalationTableRefs(
+    Expression<bool> Function($$EscalationTableTableFilterComposer f) f,
+  ) {
+    final $$EscalationTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.escalationTable,
+      getReferencedColumn: (t) => t.diagnosisId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EscalationTableTableFilterComposer(
+            $db: $db,
+            $table: $db.escalationTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -8940,6 +9556,31 @@ class $$DiagnosisTableTableAnnotationComposer
         );
     return composer;
   }
+
+  Expression<T> escalationTableRefs<T extends Object>(
+    Expression<T> Function($$EscalationTableTableAnnotationComposer a) f,
+  ) {
+    final $$EscalationTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.escalationTable,
+      getReferencedColumn: (t) => t.diagnosisId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EscalationTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.escalationTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$DiagnosisTableTableTableManager
@@ -8960,6 +9601,7 @@ class $$DiagnosisTableTableTableManager
             bool diseaseId,
             bool modelVersionId,
             bool treatmentGuidelineId,
+            bool escalationTableRefs,
           })
         > {
   $$DiagnosisTableTableTableManager(
@@ -9049,10 +9691,13 @@ class $$DiagnosisTableTableTableManager
                 diseaseId = false,
                 modelVersionId = false,
                 treatmentGuidelineId = false,
+                escalationTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [],
+                  explicitlyWatchedTables: [
+                    if (escalationTableRefs) db.escalationTable,
+                  ],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -9133,7 +9778,29 @@ class $$DiagnosisTableTableTableManager
                         return state;
                       },
                   getPrefetchedDataCallback: (items) async {
-                    return [];
+                    return [
+                      if (escalationTableRefs)
+                        await $_getPrefetchedData<
+                          DiagnosisTableData,
+                          $DiagnosisTableTable,
+                          EscalationTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DiagnosisTableTableReferences
+                              ._escalationTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DiagnosisTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).escalationTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.diagnosisId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
                 );
               },
@@ -9158,7 +9825,464 @@ typedef $$DiagnosisTableTableProcessedTableManager =
         bool diseaseId,
         bool modelVersionId,
         bool treatmentGuidelineId,
+        bool escalationTableRefs,
       })
+    >;
+typedef $$EscalationTableTableCreateCompanionBuilder =
+    EscalationTableCompanion Function({
+      required String id,
+      required String scanId,
+      required String diagnosisId,
+      Value<String?> notes,
+      Value<String> sharedVia,
+      Value<String?> sharedAt,
+      required String createdAt,
+      Value<int> rowid,
+    });
+typedef $$EscalationTableTableUpdateCompanionBuilder =
+    EscalationTableCompanion Function({
+      Value<String> id,
+      Value<String> scanId,
+      Value<String> diagnosisId,
+      Value<String?> notes,
+      Value<String> sharedVia,
+      Value<String?> sharedAt,
+      Value<String> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$EscalationTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $EscalationTableTable,
+          EscalationTableData
+        > {
+  $$EscalationTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ScanTableTable _scanIdTable(_$AppDatabase db) =>
+      db.scanTable.createAlias('escalation__scan_id__scan__id');
+
+  $$ScanTableTableProcessedTableManager get scanId {
+    final $_column = $_itemColumn<String>('scan_id')!;
+
+    final manager = $$ScanTableTableTableManager(
+      $_db,
+      $_db.scanTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_scanIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DiagnosisTableTable _diagnosisIdTable(_$AppDatabase db) =>
+      db.diagnosisTable.createAlias('escalation__diagnosis_id__diagnosis__id');
+
+  $$DiagnosisTableTableProcessedTableManager get diagnosisId {
+    final $_column = $_itemColumn<String>('diagnosis_id')!;
+
+    final manager = $$DiagnosisTableTableTableManager(
+      $_db,
+      $_db.diagnosisTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_diagnosisIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EscalationTableTableFilterComposer
+    extends Composer<_$AppDatabase, $EscalationTableTable> {
+  $$EscalationTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sharedVia => $composableBuilder(
+    column: $table.sharedVia,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sharedAt => $composableBuilder(
+    column: $table.sharedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ScanTableTableFilterComposer get scanId {
+    final $$ScanTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.scanId,
+      referencedTable: $db.scanTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScanTableTableFilterComposer(
+            $db: $db,
+            $table: $db.scanTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiagnosisTableTableFilterComposer get diagnosisId {
+    final $$DiagnosisTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableFilterComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EscalationTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $EscalationTableTable> {
+  $$EscalationTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sharedVia => $composableBuilder(
+    column: $table.sharedVia,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sharedAt => $composableBuilder(
+    column: $table.sharedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ScanTableTableOrderingComposer get scanId {
+    final $$ScanTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.scanId,
+      referencedTable: $db.scanTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScanTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.scanTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiagnosisTableTableOrderingComposer get diagnosisId {
+    final $$DiagnosisTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EscalationTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EscalationTableTable> {
+  $$EscalationTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get sharedVia =>
+      $composableBuilder(column: $table.sharedVia, builder: (column) => column);
+
+  GeneratedColumn<String> get sharedAt =>
+      $composableBuilder(column: $table.sharedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ScanTableTableAnnotationComposer get scanId {
+    final $$ScanTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.scanId,
+      referencedTable: $db.scanTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScanTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scanTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiagnosisTableTableAnnotationComposer get diagnosisId {
+    final $$DiagnosisTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EscalationTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EscalationTableTable,
+          EscalationTableData,
+          $$EscalationTableTableFilterComposer,
+          $$EscalationTableTableOrderingComposer,
+          $$EscalationTableTableAnnotationComposer,
+          $$EscalationTableTableCreateCompanionBuilder,
+          $$EscalationTableTableUpdateCompanionBuilder,
+          (EscalationTableData, $$EscalationTableTableReferences),
+          EscalationTableData,
+          PrefetchHooks Function({bool scanId, bool diagnosisId})
+        > {
+  $$EscalationTableTableTableManager(
+    _$AppDatabase db,
+    $EscalationTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EscalationTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EscalationTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EscalationTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> scanId = const Value.absent(),
+                Value<String> diagnosisId = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> sharedVia = const Value.absent(),
+                Value<String?> sharedAt = const Value.absent(),
+                Value<String> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EscalationTableCompanion(
+                id: id,
+                scanId: scanId,
+                diagnosisId: diagnosisId,
+                notes: notes,
+                sharedVia: sharedVia,
+                sharedAt: sharedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String scanId,
+                required String diagnosisId,
+                Value<String?> notes = const Value.absent(),
+                Value<String> sharedVia = const Value.absent(),
+                Value<String?> sharedAt = const Value.absent(),
+                required String createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => EscalationTableCompanion.insert(
+                id: id,
+                scanId: scanId,
+                diagnosisId: diagnosisId,
+                notes: notes,
+                sharedVia: sharedVia,
+                sharedAt: sharedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EscalationTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({scanId = false, diagnosisId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (scanId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.scanId,
+                                referencedTable:
+                                    $$EscalationTableTableReferences
+                                        ._scanIdTable(db),
+                                referencedColumn:
+                                    $$EscalationTableTableReferences
+                                        ._scanIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (diagnosisId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.diagnosisId,
+                                referencedTable:
+                                    $$EscalationTableTableReferences
+                                        ._diagnosisIdTable(db),
+                                referencedColumn:
+                                    $$EscalationTableTableReferences
+                                        ._diagnosisIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EscalationTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EscalationTableTable,
+      EscalationTableData,
+      $$EscalationTableTableFilterComposer,
+      $$EscalationTableTableOrderingComposer,
+      $$EscalationTableTableAnnotationComposer,
+      $$EscalationTableTableCreateCompanionBuilder,
+      $$EscalationTableTableUpdateCompanionBuilder,
+      (EscalationTableData, $$EscalationTableTableReferences),
+      EscalationTableData,
+      PrefetchHooks Function({bool scanId, bool diagnosisId})
     >;
 
 class $AppDatabaseManager {
@@ -9185,4 +10309,6 @@ class $AppDatabaseManager {
       $$ImageValidationTableTableTableManager(_db, _db.imageValidationTable);
   $$DiagnosisTableTableTableManager get diagnosisTable =>
       $$DiagnosisTableTableTableManager(_db, _db.diagnosisTable);
+  $$EscalationTableTableTableManager get escalationTable =>
+      $$EscalationTableTableTableManager(_db, _db.escalationTable);
 }

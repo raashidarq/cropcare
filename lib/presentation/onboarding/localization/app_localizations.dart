@@ -49,6 +49,48 @@ class AppLocalizations {
       'coming_soon': 'Coming Soon',
       'coming_soon_desc': 'This feature will be available in a future update.',
       'start_scan': 'Scan Crop',
+      'diagnosis_result_title': 'Diagnosis Result',
+      'treatment_guidance_title': 'Treatment Guidance',
+      'treatment_summary': 'Summary',
+      'treatment_what_to_do': 'What to Do',
+      'treatment_what_to_avoid': 'What to Avoid',
+      'recheck_after_days': 'Recheck in',
+      'days': 'days',
+      'treatment_source_llm': 'AI-generated advice (Gemini)',
+      'treatment_observations_label': 'Add observations (Optional)',
+      'treatment_observations_hint':
+          'e.g. Started 3 days ago, leaves turning yellow from bottom, watered daily...',
+      'get_treatment_btn': 'Get AI Recommendation',
+      'offline_connection_msg':
+          'Cannot reach CropCare AI. Please check your internet or Wi-Fi connection.',
+      'retry_btn': 'Retry',
+      'healthy_crop_msg':
+          'Your plant appears healthy! Keep up your current crop management practices.',
+      'ai_disclaimer':
+          'AI-assisted prediction — verify before extensive chemical application.',
+      'scan_again': 'Scan Again',
+      'get_expert_help': 'WhatsApp Share with Expert',
+      'disease_detected': 'Disease Detected',
+      'confidence': 'Confidence',
+      'severity': 'Severity',
+      'fetching_treatment': 'Consulting AI Agronomist...',
+      'low_confidence_advisory':
+          'Low confidence AI result (<80%). We suggest consulting an agricultural expert via WhatsApp.',
+      'escalation_title': 'Escalate to Expert',
+      'escalation_subtitle':
+          'Share leaf photo and diagnosis details with an agronomist on WhatsApp',
+      'farmer_notes_label': 'Observations / Notes for Expert',
+      'farmer_notes_hint':
+          'e.g. Field location, duration of symptoms, fertilizer used...',
+      'share_whatsapp_btn': 'Share via WhatsApp with Expert',
+      'scan_history_title': 'Scan History',
+      'scan_history_empty':
+          'No scans yet. Tap "Scan Crop" above to start your first diagnosis!',
+      'filter_all': 'All',
+      'filter_low_conf': 'Low Confidence',
+      'filter_shared': 'Shared',
+      'filter_healthy': 'Healthy',
+      'scans_count': 'scans',
     },
     'si': {
       'app_title': 'CropCare',
@@ -99,6 +141,48 @@ class AppLocalizations {
       'coming_soon': 'ළඟදීම',
       'coming_soon_desc': 'මෙම විශේෂාංගය ළඟදීම ලබා ගත හැක.',
       'start_scan': 'බෝගය පරීක්ෂා කරන්න',
+      'diagnosis_result_title': 'රෝග නිර්ණය ප්‍රතිඵලය',
+      'treatment_guidance_title': 'ප්‍රතිකාර මාර්ගෝපදේශය',
+      'treatment_summary': 'සාරාංශය',
+      'treatment_what_to_do': 'කළ යුතු දේ',
+      'treatment_what_to_avoid': 'නොකළ යුතු දේ',
+      'recheck_after_days': 'නැවත පරීක්ෂා කරන්න',
+      'days': 'දිනකින්',
+      'treatment_source_llm': 'AI මගින් ජනනය කරන ලද උපදෙස්',
+      'treatment_observations_label': 'ඔබගේ නිරීක්ෂණ ඇතුළත් කරන්න (අවශ්‍ය නම් පමණි)',
+      'treatment_observations_hint':
+          'උදා: දින 3කට පෙර ආරම්භ විය, පහළ කොළ කහ පැහැ වේ, වර්ෂාව ලැබුණි...',
+      'get_treatment_btn': 'AI නිර්දේශ ලබාගන්න',
+      'offline_connection_msg':
+          'CropCare AI සම්බන්ධ කරගත නොහැක. කරුණාකර ඔබගේ අන්තර්ජාල හෝ Wi-Fi සම්බන්ධතාවය පරීක්ෂා කරන්න.',
+      'retry_btn': 'නැවත උත්සාහ කරන්න',
+      'healthy_crop_msg':
+          'ඔබේ ශාකය නිරෝගීව පෙනේ! නිසි වගා පිළිවෙත් දිගටම කරගෙන යන්න.',
+      'ai_disclaimer':
+          'AI මගින් උපකල්පනය කරන ලද්දකි — රසායනික ද්‍රව්‍ය යෙදීමට පෙර තහවුරු කරගන්න.',
+      'scan_again': 'නැවත ස්කෑන් කරන්න',
+      'get_expert_help': 'විශේෂඥයෙකුට WhatsApp මගින් යවන්න',
+      'disease_detected': 'හඳුනාගත් රෝගය',
+      'confidence': 'විශ්වාසනීයත්වය',
+      'severity': 'බරපතලකම',
+      'fetching_treatment': 'AI කෘෂි විශේෂඥයාගෙන් උපදෙස් ලබාගනිමින්...',
+      'low_confidence_advisory':
+          'අඩු විශ්වාසනීයත්වයක් සහිත AI ප්‍රතිඵලයකි (<80%). කෘෂිකර්ම විශේෂඥයෙකුගෙන් විමසීමට නිර්දේශ කරමු.',
+      'escalation_title': 'විශේෂඥ උපදෙස් ලබාගැනීම',
+      'escalation_subtitle':
+          'පත්‍රයේ ඡායාරූපය සහ රෝග විස්තර WhatsApp මගින් කෘෂි විශේෂඥයෙකුට යවන්න',
+      'farmer_notes_label': 'විශේෂඥයා සඳහා ඔබේ නිරීක්ෂණ',
+      'farmer_notes_hint':
+          'උදා: වගා බිමේ පිහිටීම, රෝග ලක්ෂණ පැවති කාලය, යෙදූ පොහොර...',
+      'share_whatsapp_btn': 'WhatsApp මගින් විශේෂඥයාට යවන්න',
+      'scan_history_title': 'පසුගිය පරික්ශණ',
+      'scan_history_empty':
+          'තවමත් කිසිදු පරික්ශණයක් කර නොමැත. ආරම්භ කිරීමට "බෝගය පරීක්ෂා කරන්න" ඔබන්න!',
+      'filter_all': 'සියල්ල',
+      'filter_low_conf': 'අඩු විශ්වාසනීය',
+      'filter_shared': 'යවන ලද',
+      'filter_healthy': 'නිරෝගී',
+      'scans_count': 'පරික්ශණ',
     },
     'ta': {
       'app_title': 'CropCare',
@@ -151,6 +235,48 @@ class AppLocalizations {
       'coming_soon': 'விரைவில்',
       'coming_soon_desc': 'இந்த அம்சம் விரைவில் கிடைக்கும்.',
       'start_scan': 'பயிரைச் சோதிக்கவும்',
+      'diagnosis_result_title': 'நோய் கண்டறிதல் முடிவு',
+      'treatment_guidance_title': 'சிகிச்சை வழிகாட்டுதல்',
+      'treatment_summary': 'சுருக்கம்',
+      'treatment_what_to_do': 'செய்ய வேண்டியவை',
+      'treatment_what_to_avoid': 'தவிர்க்க வேண்டியவை',
+      'recheck_after_days': 'மீண்டும் பரிசோதிக்கவும்',
+      'days': 'நாட்களில்',
+      'treatment_source_llm': 'AI உருவாக்கிய ஆலோசனை',
+      'treatment_observations_label': 'உங்கள் அவதானிப்புகளைச் சேர்க்கவும் (விருப்பத்திற்குரியது)',
+      'treatment_observations_hint':
+          'எ.கா. 3 நாட்களுக்கு முன் தொடங்கியது, கீழ் இலைகள் மஞ்சள் நிறமாகிறது...',
+      'get_treatment_btn': 'AI பரிந்துரையைப் பெறுங்கள்',
+      'offline_connection_msg':
+          'CropCare AI உடன் இணைக்க முடியவில்லை. உங்கள் இணையம் அல்லது Wi-Fi இணைப்பைச் சரிபார்க்கவும்.',
+      'retry_btn': 'மீண்டும் முயற்சிக்கவும்',
+      'healthy_crop_msg':
+          'உங்கள் பயிர் ஆரோக்கியமாகத் தெரிகிறது! வழக்கமான விவசாய முறைகளைத் தொடரவும்.',
+      'ai_disclaimer':
+          'AI உதவி முன்னறிவிப்பு — இரசாயனங்களைப் பயன்படுத்துவதற்கு முன் சரிபார்க்கவும்.',
+      'scan_again': 'மீண்டும் ஸ்கேன் செய்யவும்',
+      'get_expert_help': 'நிபுணருடன் WhatsApp இல் பகிரவும்',
+      'disease_detected': 'கண்டறியப்பட்ட நோய்',
+      'confidence': 'நம்பகத்தன்மை',
+      'severity': 'தீவிரம்',
+      'fetching_treatment': 'AI விவசாய நிபுணரிடம் ஆலோசனை பெறுகிறது...',
+      'low_confidence_advisory':
+          'குறைந்த நம்பகத்தன்மை கொண்ட AI முடிவு (<80%). வாட்ஸ்அப் மூலம் விவசாய நிபுணரிடம் ஆலோசனை பெற பரிந்துரைக்கிறோம்.',
+      'escalation_title': 'நிபுணரிடம் பரிந்துரைக்கவும்',
+      'escalation_subtitle':
+          'இலை புகைப்படம் மற்றும் நோய் விவரங்களை வாட்ஸ்அப்பில் பகிரவும்',
+      'farmer_notes_label': 'நிபுணருக்கான உங்கள் அவதானிப்புகள்',
+      'farmer_notes_hint':
+          'எ.கா. வயல் இருப்பிடம், அறிகுறிகள் நீடித்த காலம், பயன்படுத்திய உரம்...',
+      'share_whatsapp_btn': 'WhatsApp மூலம் நிபுணருடன் பகிரவும்',
+      'scan_history_title': 'முந்தைய ஸ்கேன்கள்',
+      'scan_history_empty':
+          'இதுவரை ஸ்கேன்கள் இல்லை. உங்கள் முதல் பரிசோதனையைத் தொடங்க மேலே உள்ள "பயிரைச் சோதிக்கவும்" என்பதைத் தட்டவும்!',
+      'filter_all': 'அனைத்தும்',
+      'filter_low_conf': 'குறைந்த நம்பகத்தன்மை',
+      'filter_shared': 'பகிரப்பட்டது',
+      'filter_healthy': 'ஆரோக்கியமானது',
+      'scans_count': 'ஸ்கேன்கள்',
     },
   };
 

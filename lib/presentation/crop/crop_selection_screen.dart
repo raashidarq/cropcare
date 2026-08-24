@@ -2,17 +2,29 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/crop.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/usecases/crop/get_supported_crops_use_case.dart';
+import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
+import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
+import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
+import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../scan/capture_screen.dart';
 
 class CropSelectionScreen extends StatefulWidget {
   final GetSupportedCropsUseCase getSupportedCropsUseCase;
   final LocalUser user;
+  final ValidateImageUseCase? validateImageUseCase;
+  final RunDiagnosisUseCase? runDiagnosisUseCase;
+  final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final CreateEscalationUseCase? createEscalationUseCase;
 
   const CropSelectionScreen({
     super.key,
     required this.getSupportedCropsUseCase,
     required this.user,
+    this.validateImageUseCase,
+    this.runDiagnosisUseCase,
+    this.resolveTreatmentUseCase,
+    this.createEscalationUseCase,
   });
 
   @override
@@ -84,8 +96,14 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            CaptureScreen(cropId: crop.id, user: widget.user),
+                        builder: (_) => CaptureScreen(
+                          cropId: crop.id,
+                          user: widget.user,
+                          validateImageUseCase: widget.validateImageUseCase,
+                          runDiagnosisUseCase: widget.runDiagnosisUseCase,
+                          resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+                          createEscalationUseCase: widget.createEscalationUseCase,
+                        ),
                       ),
                     );
                   },

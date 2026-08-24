@@ -8,7 +8,12 @@ import '../../application/scan/scan_state.dart';
 import '../../data/local/database/app_database.dart';
 import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/local_user.dart';
+import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
+import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
+import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
+import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../../domain/usecases/scan/capture_scan_use_case.dart';
+import '../diagnosis/diagnosis_result_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
 import 'scan_result_screen.dart';
 
@@ -17,6 +22,10 @@ class CaptureScreen extends StatefulWidget {
   final LocalUser user;
   final ScanCubit? scanCubit;
   final ImagePicker? imagePicker;
+  final ValidateImageUseCase? validateImageUseCase;
+  final RunDiagnosisUseCase? runDiagnosisUseCase;
+  final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final CreateEscalationUseCase? createEscalationUseCase;
 
   const CaptureScreen({
     super.key,
@@ -24,6 +33,10 @@ class CaptureScreen extends StatefulWidget {
     required this.user,
     this.scanCubit,
     this.imagePicker,
+    this.validateImageUseCase,
+    this.runDiagnosisUseCase,
+    this.resolveTreatmentUseCase,
+    this.createEscalationUseCase,
   });
 
   @override
@@ -48,6 +61,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
           cropId: widget.cropId,
           user: widget.user,
           picker: _picker,
+          resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+          createEscalationUseCase: widget.createEscalationUseCase,
         ),
       );
     }
@@ -57,11 +72,15 @@ class _CaptureScreenState extends State<CaptureScreen> {
         captureScanUseCase: CaptureScanUseCase(
           ScanRepositoryImpl(AppDatabase()),
         ),
+        validateImageUseCase: widget.validateImageUseCase,
+        runDiagnosisUseCase: widget.runDiagnosisUseCase,
       )..initializePermission(widget.cropId),
       child: _CaptureView(
         cropId: widget.cropId,
         user: widget.user,
         picker: _picker,
+        resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+        createEscalationUseCase: widget.createEscalationUseCase,
       ),
     );
   }
@@ -71,11 +90,15 @@ class _CaptureView extends StatefulWidget {
   final String cropId;
   final LocalUser user;
   final ImagePicker picker;
+  final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final CreateEscalationUseCase? createEscalationUseCase;
 
   const _CaptureView({
     required this.cropId,
     required this.user,
     required this.picker,
+    this.resolveTreatmentUseCase,
+    this.createEscalationUseCase,
   });
 
   @override
@@ -120,6 +143,25 @@ class _CaptureViewState extends State<_CaptureView> {
               context,
               MaterialPageRoute(
                 builder: (_) => ScanResultScreen(scan: state.scan),
+              ),
+            );
+          } else if (state is ScanDiagnosed) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DiagnosisResultScreen(
+                  scan: state.scan,
+                  diagnosis: state.diagnosis,
+                  resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+                  createEscalationUseCase: widget.createEscalationUseCase,
+                ),
+              ),
+            );
+          } else if (state is ScanImageInvalid) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Image invalid: ${state.reason}. Please retake.'),
+                backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );
           }
@@ -296,7 +338,7 @@ class _CaptureViewState extends State<_CaptureView> {
             );
           }
 
-          if (state is ScanCreating) {
+          if (state is ScanCreating || state is ScanDiagnosing) {
             return const Center(
               child: CircularProgressIndicator(
                 key: Key('scan_creating_indicator'),

@@ -271,3 +271,32 @@ class DiagnosisTable extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ============================================================
+// ESCALATION — expert escalation & WhatsApp share record
+// ============================================================
+class EscalationTable extends Table {
+  @override
+  String get tableName => 'escalation';
+
+  TextColumn get id => text()();
+
+  TextColumn get scanId =>
+      text().references(ScanTable, #id)();
+
+  TextColumn get diagnosisId =>
+      text().references(DiagnosisTable, #id)();
+
+  TextColumn get notes => text().nullable()();
+
+  TextColumn get sharedVia =>
+      text().withDefault(const Constant('WHATSAPP'))();
+
+  TextColumn get sharedAt => text().nullable()();
+
+  TextColumn get createdAt => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+

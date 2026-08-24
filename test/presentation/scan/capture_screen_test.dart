@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:cropcare/application/scan/scan_cubit.dart';
 import 'package:cropcare/domain/entities/local_user.dart';
 import 'package:cropcare/domain/entities/scan.dart';
+import 'package:cropcare/domain/entities/scan_history_item.dart';
 import 'package:cropcare/domain/repositories/scan_repository.dart';
 import 'package:cropcare/domain/usecases/scan/capture_scan_use_case.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
@@ -47,6 +48,12 @@ class FakeScanRepository implements ScanRepository {
 
   @override
   Future<Scan?> getScanById(String id) async => null;
+
+  @override
+  Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
+
+  @override
+  Future<List<ScanHistoryItem>> getScanHistory() async => [];
 }
 
 void main() {

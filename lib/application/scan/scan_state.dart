@@ -1,3 +1,4 @@
+import '../../domain/entities/diagnosis.dart';
 import '../../domain/entities/scan.dart';
 
 abstract class ScanState {
@@ -48,4 +49,24 @@ class ScanError extends ScanState {
   final String message;
 
   const ScanError(this.message);
+}
+
+/// ML inference is running.
+class ScanDiagnosing extends ScanState {
+  const ScanDiagnosing();
+}
+
+/// ML inference completed successfully.
+class ScanDiagnosed extends ScanState {
+  final Scan scan;
+  final Diagnosis diagnosis;
+
+  const ScanDiagnosed({required this.scan, required this.diagnosis});
+}
+
+/// Image failed validation — cannot run inference.
+class ScanImageInvalid extends ScanState {
+  final String reason;
+
+  const ScanImageInvalid({required this.reason});
 }

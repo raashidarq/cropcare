@@ -2,7 +2,7 @@ name: cropcare
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -42,6 +42,11 @@ dependencies:
   supabase_flutter: ^2.5.0
   image_picker: ^1.0.4
   permission_handler: ^11.0.0
+  camera: ^0.10.5+9
+  tflite_flutter: ^0.12.0
+  image: ^4.1.7
+  http: ^1.2.0
+  share_plus: ^10.1.4
 
 dev_dependencies:
   flutter_test:
@@ -61,11 +66,12 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/models/plant_disease_mobilenetv2.tflite
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 
+import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
+import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
 import '../../domain/usecases/scan/capture_scan_use_case.dart';
 import 'scan_state.dart';
 
@@ -29,10 +31,14 @@ class DefaultCameraPermissionService implements CameraPermissionService {
 class ScanCubit extends Cubit<ScanState> {
   final CaptureScanUseCase captureScanUseCase;
   final CameraPermissionService permissionService;
+  final ValidateImageUseCase? validateImageUseCase;
+  final RunDiagnosisUseCase? runDiagnosisUseCase;
 
   ScanCubit({
     required this.captureScanUseCase,
     this.permissionService = const DefaultCameraPermissionService(),
+    this.validateImageUseCase,
+    this.runDiagnosisUseCase,
   }) : super(const ScanInitial());
 
   Future<void> initializePermission(String cropId) async {
@@ -147,7 +153,34 @@ class ScanCubit extends Cubit<ScanState> {
         userId: userId,
       );
 
-      emit(ScanCreated(scan));
+      // ── ML inference chain ───────────────────────────────────────────────
+      final validate = validateImageUseCase;
+      final diagnose = runDiagnosisUseCase;
+
+      if (validate != null && diagnose != null) {
+        emit(const ScanDiagnosing());
+
+        final validation = await validate(finalPath);
+
+        if (!validation.isUsable) {
+          final reason = validation.rejectionReason != null
+              ? ValidateImageUseCase.rejectionReasonToString(validation.rejectionReason!)
+              : 'UNKNOWN';
+          emit(ScanImageInvalid(reason: reason));
+          return;
+        }
+
+        final diagnosis = await diagnose(
+          scanId: scan.id,
+          imageLocalPath: finalPath,
+          validationResult: validation,
+        );
+
+        emit(ScanDiagnosed(scan: scan, diagnosis: diagnosis));
+      } else {
+        // Fallback: no ML wired — emit ScanCreated as before.
+        emit(ScanCreated(scan));
+      }
     } catch (e) {
       emit(ScanError(e.toString()));
     }
