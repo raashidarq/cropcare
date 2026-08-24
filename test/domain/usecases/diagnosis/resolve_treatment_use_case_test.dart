@@ -18,6 +18,7 @@ class FakeTreatmentRepository implements TreatmentRepository {
     required String? severity,
     required String languageCode,
     String? userObservations,
+    String? authToken,
   }) async {
     if (exceptionToThrow != null) throw exceptionToThrow!;
     return responseToReturn!;

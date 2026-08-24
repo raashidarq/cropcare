@@ -102,6 +102,18 @@
 
 ---
 
+### TD-011 · Authentication & Guest-to-Registered User Upgrade Flow
+
+**Date:** 2026-08-24  
+**Decision:**
+
+1. **In-Place Upgrade:** When a guest registers or logs in, the existing `local_user` row in SQLite is updated in-place (`is_guest = 0`, `remote_user_id`, `email`, `session_token`, etc.). This guarantees that all previously captured scans associated with `local_user.id` remain seamlessly preserved on the device.
+2. **Token Security:** Auth JWTs and refresh tokens are stored encrypted using `flutter_secure_storage`.
+3. **Rate-Limiting UI:** `AuthApiClient` maps HTTP 429 to a distinct `RateLimitException`, which `AuthCubit` presents to the user via a clear cooldown banner.
+4. **Trilingual UI & Entry Points:** An Account section in `SettingsScreen` and a hero card link on `HomeScreen` allow guest farmers to link/upgrade their account at any time.
+
+---
+
 ## Personal Notes
 
 ### 2026-08-24 — Gradle JVM Build Issue

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'application/auth/auth_cubit.dart';
 import 'application/onboarding/app_state_cubit.dart';
 import 'application/onboarding/app_state_state.dart';
 import 'domain/entities/local_user.dart';
@@ -17,6 +18,7 @@ import 'presentation/onboarding/splash_screen.dart';
 class CropCareApp extends StatelessWidget {
   final AppStateCubit appStateCubit;
   final LocalUser user;
+  final AuthCubit? authCubit;
   final GetSupportedCropsUseCase getSupportedCropsUseCase;
   final ValidateImageUseCase validateImageUseCase;
   final RunDiagnosisUseCase runDiagnosisUseCase;
@@ -28,6 +30,7 @@ class CropCareApp extends StatelessWidget {
     super.key,
     required this.appStateCubit,
     required this.user,
+    this.authCubit,
     required this.getSupportedCropsUseCase,
     required this.validateImageUseCase,
     required this.runDiagnosisUseCase,
@@ -63,6 +66,7 @@ class CropCareApp extends StatelessWidget {
                   : isCompleted
                       ? HomeScreen(
                           user: user,
+                          authCubit: authCubit,
                           getSupportedCropsUseCase: getSupportedCropsUseCase,
                           validateImageUseCase: validateImageUseCase,
                           runDiagnosisUseCase: runDiagnosisUseCase,

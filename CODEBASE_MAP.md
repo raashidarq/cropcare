@@ -33,23 +33,22 @@ A Flutter mobile app (Android primary) that lets a guest farmer select a crop, c
 | Treatment Guidance (FastAPI `POST /interpret-diagnosis` client, ResolveTreatmentUseCase, DiagnosisCubit) | Done |
 | Escalation & WhatsApp Share Flow (EscalationScreen, EscalationCubit, attached photo, low-confidence advisory) | Done |
 | Embedded Scan History (HomeScreen history section, HistoryCubit, filter chips, tap-to-review) | Done |
-| Settings screen shell (Language, Accessibility, Notifications, Offline Data) | Shell only |
+| Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, secure storage) | Done |
+| Settings screen (Account with guest upgrade & sign out, Language, Coming Soon shells) | Done |
 | SQLite schema (all Drift tables defined + migrations, schemaVersion=3) | Done |
 | Full localization string tables (EN/SI/TA) | Done |
 
 ### What is partially implemented
-- Settings sections: Shell displayed; only Language section is functional. Others show Coming Soon dialog.
-- `SettingsCubit`: Exists but only tracks `expandedSection` — no real logic.
+- Settings sections: Language & Account are fully functional. Accessibility, Notifications, Offline Data show Coming Soon dialogs.
+- `SettingsCubit`: Exists but only tracks `expandedSection`.
 
 ### What is not implemented
-- Authentication (OTP/email) — `application/auth/` directory is empty
 - Sync engine — `data/sync/` is empty; `application/sync/` is empty; no `sync_operation` table
 - Push notifications / TTS / WorkManager
 
 ### Immediate development priorities (from checklist)
-1. Authentication: Guest-to-registered user upgrade flow
-2. Offline Sync Engine & Conflict Resolution
-3. Audio/TTS playback for treatment guidance
+1. Offline Sync Engine & Conflict Resolution (`sync_operation` outbox, idempotency)
+2. Audio/TTS playback for treatment guidance (`flutter_tts`)
 
 ---
 

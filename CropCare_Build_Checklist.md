@@ -115,15 +115,14 @@ I've run a python script to get me to the stage of ONNX file and data. The plan 
 - [ ] Write the actual RLS policies now that `auth.uid()` is meaningful (kept as defense-in-depth per the architecture doc)
 - [ ] Write a couple of `pytest` tests: request-otp respects the rate limit, verify-otp rejects a bad code, a protected route rejects a missing/invalid JWT
 
-**Tasks — App** (NOT IMPLEMENTED YET)
+**Tasks — App** (DONE)
 
-- [ ] Build phone number entry screen with basic validation
-- [ ] Call `POST /auth/request-otp` on your FastAPI base URL
-- [ ] Build OTP entry screen, call `POST /auth/verify-otp`
-- [ ] On success: store the relayed tokens securely (`flutter_secure_storage`), update `local_user` (`is_guest=0`, `remote_user_id` decoded from the JWT, tokens, expiry)
-- [ ] Handle: wrong OTP, expired OTP, resend, no network, and a 429 from the rate limiter (show "too many attempts, try again shortly" rather than a generic error)
-- [ ] Confirm guest mode still works fully if sign-in is skipped
-- [ ] Write a unit test for client-side phone/OTP format validation (postponed till after core functionality is implemented)
+- [x] Build authentication screen (`AuthScreen`) with Sign In and Create Account / Guest Upgrade tabs
+- [x] Integrate `AuthApiClient` calling FastAPI auth endpoints (`POST /auth/register`, `POST /auth/login`)
+- [x] On success: store tokens in `flutter_secure_storage`, update `local_user` in SQLite (`is_guest=0`, `remote_user_id`, email, session tokens, expiry)
+- [x] Handle: invalid credentials, no network, and 429 rate limit (RateLimitException with user-friendly countdown/retry message)
+- [x] Confirm guest mode still works fully if sign-in is skipped
+- [x] Write unit and widget tests for AuthApiClient, AuthCubit, and AuthScreen (all passing)
 
 **Tested output by end of day:** You can sign up with your own phone, receive a real OTP via FastAPI → Supabase, verify it, and see your `profile` row in Supabase. A request past the rate limit is rejected cleanly. Guest mode still works. Backend and app tests both pass in their respective CIs.
 

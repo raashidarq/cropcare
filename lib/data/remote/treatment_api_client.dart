@@ -37,6 +37,7 @@ class TreatmentApiClient {
     required String? severity,
     required String languageCode,
     String? userObservations,
+    String? authToken,
   }) async {
     final uri = Uri.parse('$baseUrl/interpret-diagnosis');
     final payload = {
@@ -49,14 +50,18 @@ class TreatmentApiClient {
         'user_observations': userObservations.trim(),
     };
 
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (authToken != null && authToken.trim().isNotEmpty)
+        'Authorization': 'Bearer ${authToken.trim()}',
+    };
+
     try {
       final response = await _client
           .post(
             uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
+            headers: headers,
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 25));

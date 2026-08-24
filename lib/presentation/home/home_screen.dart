@@ -1,11 +1,8 @@
-// lib/presentation/home/home_screen.dart
-//
-// Home screen displaying hero scan action and an embedded past scan history section.
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../application/auth/auth_cubit.dart';
 import '../../application/history/history_cubit.dart';
 import '../../application/history/history_state.dart';
 import '../../domain/entities/crop.dart';
@@ -20,6 +17,7 @@ import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../../domain/usecases/history/get_scan_history_use_case.dart';
+import '../auth/auth_screen.dart';
 import '../crop/crop_selection_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
@@ -67,6 +65,7 @@ class _FallbackScanRepository implements ScanRepository {
 
 class HomeScreen extends StatefulWidget {
   final LocalUser? user;
+  final AuthCubit? authCubit;
   final GetSupportedCropsUseCase? getSupportedCropsUseCase;
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
@@ -77,6 +76,7 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.user,
+    this.authCubit,
     this.getSupportedCropsUseCase,
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
@@ -90,7 +90,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final LocalUser _user;
+  late LocalUser _user;
   late final GetSupportedCropsUseCase _getSupportedCropsUseCase;
   late final GetScanHistoryUseCase _getScanHistoryUseCase;
 
@@ -98,6 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _user = widget.user ??
+        widget.authCubit?.currentUser ??
         LocalUser(
           id: 'guest-default',
           isGuest: true,
@@ -110,6 +111,12 @@ class _HomeScreenState extends State<HomeScreen> {
         GetScanHistoryUseCase(_FallbackScanRepository());
   }
 
+  void _onUserUpdated(LocalUser updatedUser) {
+    setState(() {
+      _user = updatedUser;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider<HistoryCubit>(
@@ -118,6 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
       )..loadHistory(),
       child: _HomeScreenView(
         user: _user,
+        authCubit: widget.authCubit,
+        onUserUpdated: _onUserUpdated,
         getSupportedCropsUseCase: _getSupportedCropsUseCase,
         validateImageUseCase: widget.validateImageUseCase,
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
@@ -130,6 +139,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _HomeScreenView extends StatelessWidget {
   final LocalUser user;
+  final AuthCubit? authCubit;
+  final ValueChanged<LocalUser> onUserUpdated;
   final GetSupportedCropsUseCase getSupportedCropsUseCase;
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
@@ -138,6 +149,8 @@ class _HomeScreenView extends StatelessWidget {
 
   const _HomeScreenView({
     required this.user,
+    this.authCubit,
+    required this.onUserUpdated,
     required this.getSupportedCropsUseCase,
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
@@ -160,7 +173,10 @@ class _HomeScreenView extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
+                  builder: (_) => SettingsScreen(
+                    user: user,
+                    authCubit: authCubit,
+                  ),
                 ),
               );
             },
@@ -185,6 +201,22 @@ class _HomeScreenView extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: _HeroScanCard(
                   user: user,
+                  onLinkAccount: () async {
+                    if (authCubit != null) {
+                      final updated = await Navigator.push<LocalUser>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(
+                            value: authCubit!,
+                            child: AuthScreen(currentUser: user),
+                          ),
+                        ),
+                      );
+                      if (updated != null) {
+                        onUserUpdated(updated);
+                      }
+                    }
+                  },
                   onStartScan: () async {
                     await Navigator.push(
                       context,
@@ -239,15 +271,19 @@ class _HomeScreenView extends StatelessWidget {
 class _HeroScanCard extends StatelessWidget {
   final LocalUser user;
   final VoidCallback onStartScan;
+  final VoidCallback onLinkAccount;
 
   const _HeroScanCard({
     required this.user,
     required this.onStartScan,
+    required this.onLinkAccount,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isGuest = user.isGuest;
+    final displayEmail = user.email ?? user.phoneNumber;
 
     return Card(
       elevation: 3,
@@ -262,7 +298,11 @@ class _HeroScanCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: theme.colorScheme.primary,
-                  child: const Icon(Icons.eco, color: Colors.white, size: 28),
+                  child: Icon(
+                    isGuest ? Icons.eco : Icons.account_circle,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -276,15 +316,46 @@ class _HeroScanCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Guest: ${user.id.length >= 8 ? user.id.substring(0, 8) : user.id}...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      if (isGuest)
+                        Text(
+                          '${context.tr('guest_badge')}: ${user.id.length >= 8 ? user.id.substring(0, 8) : user.id}...',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Icon(Icons.verified, size: 14, color: Colors.green.shade700),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                displayEmail ?? 'Registered Account',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade800,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                     ],
                   ),
                 ),
+                if (isGuest)
+                  TextButton.icon(
+                    key: const Key('home_link_account_button'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.link, size: 16),
+                    label: Text(
+                      context.tr('link_account_btn'),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: onLinkAccount,
+                  ),
               ],
             ),
             const SizedBox(height: 20),

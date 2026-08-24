@@ -1,3 +1,5 @@
+// lib/data/repositories/local_user_repository_impl.dart
+
 import 'dart:math';
 import 'package:drift/drift.dart';
 
@@ -26,13 +28,10 @@ class LocalUserRepositoryImpl implements LocalUserRepository {
 
   @override
   Future<LocalUser> getOrCreateGuestUser() async {
-    final query = db.select(db.localUserTable)
-      ..where((tbl) => tbl.isGuest.equals(1))
-      ..limit(1);
-    final row = await query.getSingleOrNull();
-
-    if (row != null) {
-      return _mapToEntity(row);
+    // Check if there is already any user (registered or guest)
+    final existingUser = await (db.select(db.localUserTable)..limit(1)).getSingleOrNull();
+    if (existingUser != null) {
+      return _mapToEntity(existingUser);
     }
 
     final id = _generateUuid();
@@ -53,6 +52,71 @@ class LocalUserRepositoryImpl implements LocalUserRepository {
         .getSingle();
 
     return _mapToEntity(insertedRow);
+  }
+
+  @override
+  Future<LocalUser?> getCurrentUser() async {
+    final row = await (db.select(db.localUserTable)..limit(1)).getSingleOrNull();
+    if (row == null) return null;
+    return _mapToEntity(row);
+  }
+
+  @override
+  Future<LocalUser> upgradeGuestUser({
+    required String localUserId,
+    required String remoteUserId,
+    String? email,
+    String? phoneNumber,
+    required String sessionToken,
+    String? sessionRefreshToken,
+    DateTime? sessionExpiresAt,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    final companion = LocalUserTableCompanion(
+      remoteUserId: Value(remoteUserId),
+      email: Value(email),
+      phoneNumber: Value(phoneNumber),
+      isGuest: const Value(0),
+      sessionToken: Value(sessionToken),
+      sessionRefreshToken: Value(sessionRefreshToken),
+      sessionExpiresAt: Value(sessionExpiresAt?.toIso8601String()),
+      updatedAt: Value(nowIso),
+    );
+
+    await (db.update(db.localUserTable)..where((tbl) => tbl.id.equals(localUserId)))
+        .write(companion);
+
+    final updatedRow = await (db.select(db.localUserTable)
+          ..where((tbl) => tbl.id.equals(localUserId)))
+        .getSingle();
+
+    return _mapToEntity(updatedRow);
+  }
+
+  @override
+  Future<LocalUser> resetToGuestUser(String currentUserId) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    final companion = LocalUserTableCompanion(
+      remoteUserId: const Value(null),
+      email: const Value(null),
+      phoneNumber: const Value(null),
+      isGuest: const Value(1),
+      sessionToken: const Value(null),
+      sessionRefreshToken: const Value(null),
+      sessionExpiresAt: const Value(null),
+      updatedAt: Value(nowIso),
+    );
+
+    await (db.update(db.localUserTable)..where((tbl) => tbl.id.equals(currentUserId)))
+        .write(companion);
+
+    final updatedRow = await (db.select(db.localUserTable)
+          ..where((tbl) => tbl.id.equals(currentUserId)))
+        .getSingle();
+
+    return _mapToEntity(updatedRow);
   }
 
   LocalUser _mapToEntity(LocalUserTableData row) {

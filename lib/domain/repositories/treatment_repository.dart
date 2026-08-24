@@ -13,5 +13,6 @@ abstract class TreatmentRepository {
     required String? severity,
     required String languageCode,
     String? userObservations,
+    String? authToken,
   });
 }

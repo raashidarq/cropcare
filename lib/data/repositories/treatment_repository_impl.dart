@@ -19,6 +19,7 @@ class TreatmentRepositoryImpl implements TreatmentRepository {
     required String? severity,
     required String languageCode,
     String? userObservations,
+    String? authToken,
   }) {
     return apiClient.fetchTreatmentGuidance(
       cropId: cropId,
@@ -27,6 +28,7 @@ class TreatmentRepositoryImpl implements TreatmentRepository {
       severity: severity,
       languageCode: languageCode,
       userObservations: userObservations,
+      authToken: authToken,
     );
   }
 }

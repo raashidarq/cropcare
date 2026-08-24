@@ -25,6 +25,7 @@ class ResolveTreatmentUseCase {
     required String? severity,
     required String languageCode,
     String? userObservations,
+    String? authToken,
   }) async {
     final response = await treatmentRepository.getTreatmentGuidance(
       cropId: cropId,
@@ -33,6 +34,7 @@ class ResolveTreatmentUseCase {
       severity: severity,
       languageCode: languageCode,
       userObservations: userObservations,
+      authToken: authToken,
     );
 
     // Record that this diagnosis has resolved LLM treatment guidance
