@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/diagnosis/diagnosis_cubit.dart';
 import '../../application/diagnosis/diagnosis_state.dart';
 import '../../data/local/database/app_database.dart';
+import '../../data/local/tts/text_to_speech_service.dart';
 import '../../data/repositories/escalation_repository_impl.dart';
 import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/diagnosis.dart';
@@ -23,6 +24,7 @@ class DiagnosisResultScreen extends StatelessWidget {
   final Diagnosis diagnosis;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
+  final TtsService? ttsService;
 
   const DiagnosisResultScreen({
     super.key,
@@ -30,6 +32,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     required this.diagnosis,
     this.resolveTreatmentUseCase,
     this.createEscalationUseCase,
+    this.ttsService,
   });
 
   @override
@@ -43,6 +46,7 @@ class DiagnosisResultScreen extends StatelessWidget {
           scan: scan,
           diagnosis: diagnosis,
           createEscalationUseCase: createEscalationUseCase,
+          ttsService: ttsService,
         ),
       );
     }
@@ -51,6 +55,7 @@ class DiagnosisResultScreen extends StatelessWidget {
       scan: scan,
       diagnosis: diagnosis,
       createEscalationUseCase: createEscalationUseCase,
+      ttsService: ttsService,
     );
   }
 }
@@ -59,11 +64,13 @@ class _DiagnosisResultView extends StatefulWidget {
   final Scan scan;
   final Diagnosis diagnosis;
   final CreateEscalationUseCase? createEscalationUseCase;
+  final TtsService? ttsService;
 
   const _DiagnosisResultView({
     required this.scan,
     required this.diagnosis,
     this.createEscalationUseCase,
+    this.ttsService,
   });
 
   @override
@@ -72,7 +79,14 @@ class _DiagnosisResultView extends StatefulWidget {
 
 class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   final TextEditingController _observationsController = TextEditingController();
+  late final TtsService _ttsService;
   bool _hasAutoFetched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ttsService = widget.ttsService ?? TextToSpeechService();
+  }
 
   @override
   void didChangeDependencies() {
@@ -87,6 +101,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
 
   @override
   void dispose() {
+    _ttsService.dispose();
     _observationsController.dispose();
     super.dispose();
   }
@@ -181,6 +196,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
 
                 // Treatment Guidance Section (BlocBuilder)
                 _TreatmentGuidanceSection(
+                  ttsService: _ttsService,
                   onRetry: () => _fetchTreatment(context),
                 ),
                 const SizedBox(height: 24),
@@ -623,8 +639,12 @@ class _ObservationsCard extends StatelessWidget {
 
 class _TreatmentGuidanceSection extends StatelessWidget {
   final VoidCallback onRetry;
+  final TtsService? ttsService;
 
-  const _TreatmentGuidanceSection({required this.onRetry});
+  const _TreatmentGuidanceSection({
+    required this.onRetry,
+    this.ttsService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +723,10 @@ class _TreatmentGuidanceSection extends StatelessWidget {
     }
 
     if (state is DiagnosisTreatmentLoaded) {
-      return _TreatmentLoadedCard(treatment: state.treatment);
+      return _TreatmentLoadedCard(
+        treatment: state.treatment,
+        ttsService: ttsService,
+      );
     }
 
     return const SizedBox.shrink();
@@ -712,8 +735,12 @@ class _TreatmentGuidanceSection extends StatelessWidget {
 
 class _TreatmentLoadedCard extends StatelessWidget {
   final TreatmentResponse treatment;
+  final TtsService? ttsService;
 
-  const _TreatmentLoadedCard({required this.treatment});
+  const _TreatmentLoadedCard({
+    required this.treatment,
+    this.ttsService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -765,7 +792,68 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // ── Read Aloud / TTS Audio Playback Button ──────────────────────
+            if (ttsService != null) ...[
+              ValueListenableBuilder<bool>(
+                valueListenable: ttsService!.isPlaying,
+                builder: (context, isPlaying, _) {
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const Key('treatment_tts_button'),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: isPlaying
+                            ? Colors.red.shade700
+                            : theme.colorScheme.primary,
+                        side: BorderSide(
+                          color: isPlaying
+                              ? Colors.red.shade300
+                              : theme.colorScheme.primary.withValues(alpha: 0.5),
+                        ),
+                        backgroundColor: isPlaying ? Colors.red.shade50 : null,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: Icon(
+                        isPlaying
+                            ? Icons.stop_circle_outlined
+                            : Icons.volume_up_outlined,
+                        size: 20,
+                      ),
+                      label: Text(
+                        isPlaying
+                            ? context.tr('stop_reading')
+                            : context.tr('read_aloud'),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onPressed: () {
+                        if (isPlaying) {
+                          ttsService!.stop();
+                        } else {
+                          final lang =
+                              LocalizationProvider.of(context)?.languageCode ??
+                                  'en';
+                          final speechText =
+                              '${treatment.summary}. ${context.tr('treatment_what_to_do')}: ${treatment.whatToDo}. ${context.tr('treatment_what_to_avoid')}: ${treatment.whatToAvoid}.';
+                          ttsService!.speak(
+                            text: speechText,
+                            languageCode: lang,
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+            ],
 
             // Summary
             if (treatment.summary.isNotEmpty) ...[

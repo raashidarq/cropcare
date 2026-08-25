@@ -205,4 +205,53 @@ void main() {
     );
     expect(find.text('WhatsApp Share with Expert'), findsWidgets);
   });
+
+  testWidgets('DiagnosisResultScreen renders Read Aloud button and speaks guidance on tap',
+      (tester) async {
+    final scan = Scan(
+      id: 'scan-4',
+      userId: 'user-1',
+      cropId: 'tomato',
+      imageLocalPath: '/fake/path.jpg',
+      status: ScanStatus.diagnosed,
+      capturedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      createdAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      updatedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+    );
+
+    const diagnosis = Diagnosis(
+      id: 'diag-4',
+      scanId: 'scan-4',
+      diseaseId: 'tomato_early_blight',
+      modelVersionId: 'cropcare-v1.0',
+      confidence: 0.95,
+      severity: 'moderate',
+      resultState: DiagnosisResultState.confident,
+      treatmentSource: TreatmentSource.llm,
+      inferredAt: '2026-08-24T12:00:00Z',
+    );
+
+    final useCase = ResolveTreatmentUseCase(
+      treatmentRepository: _FakeTreatmentRepository(),
+      diagnosisRepository: _FakeDiagnosisRepository(),
+    );
+
+    await tester.pumpWidget(
+      LocalizationProvider(
+        languageCode: 'en',
+        child: MaterialApp(
+          home: DiagnosisResultScreen(
+            scan: scan,
+            diagnosis: diagnosis,
+            resolveTreatmentUseCase: useCase,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_tts_button')), findsOneWidget);
+    expect(find.text('Read Aloud'), findsOneWidget);
+  });
 }

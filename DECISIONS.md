@@ -135,3 +135,11 @@
 - The model works functionally...but its faulty. The UI/UX should also demonstrate that this is an ML output not treatment recommendation. Speaking of which, there should be features to implement the next part i.e. the treatment guidance feature.
 
 **Update on the above:** ok. All crops are supported. The model is definitely faulty. Gave a tomato plant disease for a picture of a piece of paper. This needs to be fixed.
+
+---
+
+### 2026-08-25 — Android App Name & Launcher Icon Configuration
+
+- Changed app display name to `CropCare` in `android/app/src/main/AndroidManifest.xml` (`android:label="CropCare"`).
+- Configured `flutter_launcher_icons` with `assets/icon/app_icon.png` and `#2E7D32` background.
+- Generated Android mipmap densities and adaptive icons (`mipmap-anydpi-v26/ic_launcher.xml` and `mipmap-*/ic_launcher.png`) via `dart run flutter_launcher_icons`.

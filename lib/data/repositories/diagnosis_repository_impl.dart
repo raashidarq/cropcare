@@ -40,6 +40,37 @@ class DiagnosisRepositoryImpl implements DiagnosisRepository {
     );
 
     await db.into(db.diagnosisTable).insertOnConflictUpdate(companion);
+
+    // Enqueue outbox sync operation
+    final syncOpId = 'sync_diag_${diagnosis.id}';
+    final payloadJson = jsonEncode({
+      'local_diagnosis_id': diagnosis.id,
+      'local_scan_id': diagnosis.scanId,
+      'disease_id': diagnosis.diseaseId,
+      'confidence': diagnosis.confidence,
+      'result_state': _resultStateToString(diagnosis.resultState),
+      'severity': diagnosis.severity,
+      'model_version_id': diagnosis.modelVersionId,
+      'treatment_source': _treatmentSourceToString(diagnosis.treatmentSource),
+      'llm_interpretation_id': diagnosis.llmInterpretationId,
+      'inferred_at': diagnosis.inferredAt,
+    });
+
+    final nowIso = DateTime.now().toIso8601String();
+    await db.into(db.syncOperationTable).insertOnConflictUpdate(
+          SyncOperationTableCompanion.insert(
+            id: syncOpId,
+            entityId: diagnosis.id,
+            entityType: 'DIAGNOSIS',
+            operationType: const Value('CREATE'),
+            payloadJson: payloadJson,
+            status: const Value('PENDING'),
+            retryCount: const Value(0),
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          ),
+        );
+
     return diagnosis;
   }
 
@@ -66,6 +97,40 @@ class DiagnosisRepositoryImpl implements DiagnosisRepository {
       treatmentGuidelineId: Value(guidelineId),
       llmInterpretationId: Value(llmInterpretationId),
     ));
+
+    final row = await (db.select(db.diagnosisTable)
+          ..where((t) => t.id.equals(diagnosisId)))
+        .getSingleOrNull();
+    if (row != null) {
+      final syncOpId = 'sync_diag_$diagnosisId';
+      final payloadJson = jsonEncode({
+        'local_diagnosis_id': row.id,
+        'local_scan_id': row.scanId,
+        'disease_id': row.diseaseId,
+        'confidence': row.confidence,
+        'result_state': row.resultState,
+        'severity': row.severity,
+        'model_version_id': row.modelVersionId,
+        'treatment_source': row.treatmentSource,
+        'llm_interpretation_id': row.llmInterpretationId,
+        'inferred_at': row.inferredAt,
+      });
+
+      final nowIso = DateTime.now().toIso8601String();
+      await db.into(db.syncOperationTable).insertOnConflictUpdate(
+            SyncOperationTableCompanion.insert(
+              id: syncOpId,
+              entityId: diagnosisId,
+              entityType: 'DIAGNOSIS',
+              operationType: const Value('UPDATE'),
+              payloadJson: payloadJson,
+              status: const Value('PENDING'),
+              retryCount: const Value(0),
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            ),
+          );
+    }
   }
 
   // ---------------------------------------------------------------------------

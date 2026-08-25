@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/auth/auth_cubit.dart';
 import '../../application/history/history_cubit.dart';
 import '../../application/history/history_state.dart';
+import '../../application/sync/sync_cubit.dart';
 import '../../domain/entities/crop.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/entities/scan.dart';
@@ -66,6 +67,7 @@ class _FallbackScanRepository implements ScanRepository {
 class HomeScreen extends StatefulWidget {
   final LocalUser? user;
   final AuthCubit? authCubit;
+  final SyncCubit? syncCubit;
   final GetSupportedCropsUseCase? getSupportedCropsUseCase;
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
@@ -77,6 +79,7 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.user,
     this.authCubit,
+    this.syncCubit,
     this.getSupportedCropsUseCase,
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
@@ -126,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: _HomeScreenView(
         user: _user,
         authCubit: widget.authCubit,
+        syncCubit: widget.syncCubit,
         onUserUpdated: _onUserUpdated,
         getSupportedCropsUseCase: _getSupportedCropsUseCase,
         validateImageUseCase: widget.validateImageUseCase,
@@ -140,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 class _HomeScreenView extends StatelessWidget {
   final LocalUser user;
   final AuthCubit? authCubit;
+  final SyncCubit? syncCubit;
   final ValueChanged<LocalUser> onUserUpdated;
   final GetSupportedCropsUseCase getSupportedCropsUseCase;
   final ValidateImageUseCase? validateImageUseCase;
@@ -150,6 +155,7 @@ class _HomeScreenView extends StatelessWidget {
   const _HomeScreenView({
     required this.user,
     this.authCubit,
+    this.syncCubit,
     required this.onUserUpdated,
     required this.getSupportedCropsUseCase,
     this.validateImageUseCase,
@@ -176,6 +182,7 @@ class _HomeScreenView extends StatelessWidget {
                   builder: (_) => SettingsScreen(
                     user: user,
                     authCubit: authCubit,
+                    syncCubit: syncCubit,
                   ),
                 ),
               );

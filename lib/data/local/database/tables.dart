@@ -300,3 +300,41 @@ class EscalationTable extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// ============================================================
+// SYNC OPERATION — Outbox for background/offline cloud sync
+// ============================================================
+class SyncOperationTable extends Table {
+  @override
+  String get tableName => 'sync_operation';
+
+  TextColumn get id => text()();
+
+  /// The local id of the scan, diagnosis, or escalation
+  TextColumn get entityId => text()();
+
+  /// 'SCAN' | 'DIAGNOSIS' | 'ESCALATION'
+  TextColumn get entityType => text()();
+
+  /// 'CREATE' | 'UPDATE'
+  TextColumn get operationType =>
+      text().withDefault(const Constant('CREATE'))();
+
+  /// JSON payload representation for idempotent upsert
+  TextColumn get payloadJson => text()();
+
+  /// 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
+  TextColumn get status =>
+      text().withDefault(const Constant('PENDING'))();
+
+  IntColumn get retryCount =>
+      integer().withDefault(const Constant(0))();
+
+  TextColumn get lastError => text().nullable()();
+
+  TextColumn get createdAt => text()();
+  TextColumn get updatedAt => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+

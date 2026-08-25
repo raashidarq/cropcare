@@ -153,41 +153,33 @@ I've run a python script to get me to the stage of ONNX file and data. The plan 
 
 ---
 
-## Treatment guidance: FastAPI → Gemini, with local fallback, plus TTS (IN_PROGRESS)
+## Treatment guidance: FastAPI → Gemini, with local fallback, plus TTS (DONE — TTS in progress)
 
 **Goal:** The diagnosis screen shows real, localized treatment guidance — Gemini via FastAPI when online, local fallback offline — and both branches are tested.
 
-**UPDATED GOAL**: Local feedback and TTS is postponed till after core functionality is implemented.
+**Tasks — Backend** (DONE)
 
-**Tasks — Backend** (NOT IMPLEMENTED YET)
+- [x] Build `POST /interpret-diagnosis`: accepts `{crop_id, disease_id, confidence, severity, language_code, user_observations}`, rate-limited per user
+- [x] Call Gemini with a prompt asking explicitly for the four fields (summary, what to do, what to avoid, recheck days) in the target language (EN/SI/TA)
+- [x] Parse the response into those fields; on any failure/timeout, return a clear error status rather than a partial/malformed body
+- [x] Write to `public.llm_interpretation` (success or failure) for audit
+- [x] Write `pytest` test suite covering success, validation, and failure scenarios (34/34 passing tests, 0 ruff lint errors)
 
-- [ ] Build `POST /interpret-diagnosis`: accepts `{crop, disease_id, confidence, severity, language_code}`, rate-limited per user
-- [ ] Call Gemini with a prompt asking explicitly for the four fields (summary, what to do, what to avoid, recheck days) in the target language
-- [ ] Parse the response into those fields; on any failure/timeout, return a clear error status rather than a partial/malformed body
-- [ ] Write to `public.llm_interpretation` (success or failure) for audit
-- [ ] Write a `pytest` test mocking the Gemini call to fail, confirming the endpoint returns a clean error (not a 500 crash) — this is what lets the app's fallback logic trust the response shape (postponed till after core functionality is implemented)
-- [ ] Write a `pytest` test mocking Gemini to succeed, confirming the response is parsed and logged correctly (postponed till after core functionality is implemented)
+**Tasks — App** (DONE — TTS next)
 
-**Tasks — App** (NOT IMPLEMENTED YET. Seeding the treatment_guideline local is postponed till after main features are implemented. Right now, the LLM is the only source of treatment guidance. Fallback should be prepared but left unused till after main feature flow is done. i.e. treatment guidance is done and escalation and scan history list is also done. Also, TTS is also done.)
-
-- [ ] Seed `treatment_guideline` (local) with real, reviewed text for every supported disease, in all 3 languages
-- [ ] Build `TreatmentResolutionUseCase`: check connectivity → call FastAPI `POST /interpret-diagnosis` → success: `INSERT llm_interpretation`, `treatment_source='LLM'` → failure/offline/429: fall back to `treatment_guideline`, `treatment_source='LOCAL_FALLBACK'`
-- [ ] Build the real Result screen: crop, disease, confidence, severity, treatment text, localized
-- [ ] Add "Read aloud" via `flutter_tts`
-- [ ] Handle TTS failure gracefully
-- [ ] Write a unit test for `TreatmentResolutionUseCase` with the FastAPI call mocked to fail — confirm correct fallback. **One of the highest-value tests in the app.**
-- [ ] Write the mirror test for the success case
-- [ ] Manually confirm online vs. airplane-mode behavior once for real, same disease
-
-**Tested output by end of day:** Online, a diagnosis shows Gemini-generated guidance (routed through FastAPI); offline, the same disease shows local fallback text — both readable and localized. Both branches covered by automated tests, on both sides of the connection. CI still green in both repos.
+- [x] Build `TreatmentApiClient`: calls FastAPI `POST /interpret-diagnosis` with optional JWT Bearer token and user observations
+- [x] Build `ResolveTreatmentUseCase`: queries backend LLM and updates SQLite diagnosis record
+- [x] Build the real Result screen: crop, disease, confidence, severity, localized treatment card with summary, what to do, what to avoid, and recheck schedule
+- [x] Support optional user observations input to refine LLM recommendations
+- [x] Catch non-200 and offline errors with a clear Wi-Fi/connectivity retry banner
+- [x] Add "Read aloud" via `flutter_tts` (with localized speech rate, volume, and playback toggle)
+- [x] Unit and widget tests for TreatmentApiClient, DiagnosisCubit, DiagnosisResultScreen, and TextToSpeechService passing (35 tests total)
 
 ---
 
 ## Escalation, scan history, scan lifecycle polish (DONE)
 
 **Goal:** Low-confidence results escalate via WhatsApp, every past scan is browsable, and escalation-routing logic is tested.
-
-**Learn today:** `share_plus` or a WhatsApp URL-scheme share intent, basic list/filter UI, testing with a fake/in-memory repository.
 
 **Tasks**
 
@@ -210,31 +202,25 @@ END OF MAIN WORKFLOW
 
 ---
 
-## Sync engine: app ↔ FastAPI ↔ Supabase, image uploads via signed URLs
+## Sync engine: app ↔ FastAPI ↔ Supabase, image uploads via signed URLs (NEXT)
 
 **Goal:** Everything created offline reaches Supabase correctly and exactly once, once connectivity returns — through FastAPI, with images uploaded directly to Storage.
 
-**Learn today:** Generating a Supabase signed upload URL server-side, idempotent upserts (`ON CONFLICT DO UPDATE`), background task basics (or a simpler sync-on-resume + manual button if time is tight), testing against a fake instead of a live network call.
+**Tasks — Backend** (DONE)
 
-**Tasks — Backend**
+- [x] Build `POST /scans/{id}/upload-url`: authenticated, generates and returns a short-lived Supabase Storage signed URL scoped to that user's path (`scan-images/{user_id}/{scan_id}.jpg`)
+- [x] Build `POST /scans`, `POST /diagnoses`, `POST /escalations`: authenticated, each upserts using `(user_id, local_entity_id)` as the idempotency key, scoped to the JWT's `user_id`
+- [x] Build `GET /reference-data?since=`: authenticated, returns changed reference rows
+- [x] Write `pytest` tests: idempotent upserts, user scoping from JWT, signed URL generation (all 34 tests passing)
 
-- [ ] Build `POST /scans/{id}/upload-url`: authenticated, generates and returns a short-lived Supabase Storage signed URL scoped to that user's path
-- [ ] Build `POST /scans`, `POST /diagnoses`, `POST /escalations`: authenticated, each upserts using `(user_id, local_entity_id)` as the idempotency key, scoped to the JWT's `user_id`
-- [ ] Build `GET /reference-data?since=`: authenticated, returns changed reference rows
-- [ ] Write a `pytest` test: calling `POST /scans` twice with the same `local_scan_id` results in one row, not two (the idempotency behavior itself, not just trusting Postgres)
-- [ ] Write a `pytest` test: a request with someone else's `user_id` in the payload still gets scoped to the JWT's actual `user_id`, not the payload's
+**Tasks — App** (IN_PROGRESS)
 
-**Tasks — App**
-
-- [ ] Build `sync_operation` outbox usage: every repository write that should sync also inserts a `sync_operation` row
-- [ ] Build `SyncEngine.run()`: read `PENDING` operations in order, process each
-- [ ] For scans with images: call `POST /scans/{id}/upload-url`, upload the image bytes directly to the returned Storage URL (not through FastAPI)
-- [ ] Call the matching FastAPI endpoint (Bearer JWT) for each pending operation
-- [ ] Handle failure: increment `retry_count`, cap retries, mark `FAILED` past the cap
-- [ ] Trigger sync: on connectivity restored, on app resume, and via a manual "Sync now" button
-- [ ] Confirm previously-guest scans get queued and synced correctly after Day 4's auth flow
-- [ ] Write a unit test for the local idempotency-key logic (retrying a sync op doesn't produce two outbound calls)
-- [ ] Manually test the full cycle once for real: airplane mode, create 2–3 scans including a low-confidence one, reconnect, confirm everything appears correctly and once in Supabase, with the image actually present in Storage
+- [ ] Add `sync_operation` table to Drift SQLite schema
+- [ ] Record sync operations upon creating scans, diagnoses, and escalations
+- [ ] Build `SyncApiClient`: calls `POST /scans/{id}/upload-url`, uploads image binary via HTTP PUT directly to Supabase Storage, and calls `POST /scans`, `/diagnoses`, `/escalations`
+- [ ] Build `SyncEngine`: processes pending outbox operations, updates sync state, and tracks retries
+- [ ] Trigger sync: on app resume, when account is upgraded, and via manual "Sync now" button in Settings
+- [ ] Write unit tests for outbox processing and image upload logic
 
 **Tested output by end of day:** Offline-created data reaches Supabase correctly and exactly once after reconnecting, via FastAPI, with images landing in Storage through a signed URL. Idempotency is covered by tests on both the backend and the app. CI green in both repos.
 

@@ -1,34 +1,43 @@
+// lib/presentation/onboarding/localization/app_localizations.dart
+
+import 'package:flutter/material.dart';
+
+extension AppLocalizationsX on BuildContext {
+  String tr(String key) => AppLocalizations.get(key, Localizations.localeOf(this).languageCode);
+}
+
 class AppLocalizations {
   static final Map<String, Map<String, String>> _localizedValues = {
     'en': {
       'app_title': 'CropCare',
-      'splash_subtitle': 'Smart Crop Health Companion',
-      'onboarding_title_1': 'Spot the problem',
+      'splash_subtitle': 'Smart Crop Health Assistant',
+      'onboarding_title_1': 'Identify the Problem',
       'onboarding_desc_1':
-          'Take photos of diseased leaves or stems to detect crop issues early.',
-      'onboarding_title_2': 'Get understandable guidance',
+          'Capture photos to detect crop diseases early and accurately.',
+      'onboarding_title_2': 'Get Clear Guidance',
       'onboarding_desc_2':
-          'Receive clear, actionable treatment instructions in your preferred language.',
-      'onboarding_title_3': 'Get expert help when AI isn\'t confident',
+          'Receive clear treatment instructions in your own language.',
+      'onboarding_title_3': 'Expert Escalation',
       'onboarding_desc_3':
-          'Connect with agricultural experts whenever automated diagnosis needs verification.',
+          'Get in touch with human agronomists when the AI is uncertain.',
       'skip': 'Skip',
       'next': 'Next',
       'get_started': 'Get Started',
       'select_language_title': 'Select Your Language',
-      'select_language_subtitle': 'Choose your preferred language for CropCare',
+      'select_language_subtitle':
+          'Choose your preferred language for CropCare',
       'lang_english': 'English',
-      'lang_sinhala': 'සිංහල (Sinhala)',
-      'lang_tamil': 'தமிழ் (Tamil)',
+      'lang_sinhala': 'සිංහල',
+      'lang_tamil': 'தமிழ்',
       'confirm': 'Confirm',
       'home_title': 'CropCare Home',
       'home_welcome': 'Welcome to CropCare!',
       'change_language': 'Change Language',
       'select_crop_title': 'Select Crop',
       'select_crop_subtitle': 'Choose the crop you want to scan',
-      'camera_permission_title': 'Camera Permission Needed',
+      'camera_permission_title': 'Camera Permission Required',
       'camera_permission_desc':
-          'CropCare needs access to your camera to capture photos of crop leaves and stems for disease diagnosis.',
+          'CropCare needs access to your camera to take photos for disease detection.',
       'open_app_settings': 'Open App Settings',
       'grant_permission': 'Grant Permission',
       'capture_photo': 'Take Photo',
@@ -45,9 +54,9 @@ class AppLocalizations {
       'section_language': 'Language',
       'section_accessibility': 'Accessibility',
       'section_notifications': 'Notifications',
-      'section_offline_data': 'Offline Data',
+      'section_offline_data': 'Offline Data & Sync',
       'coming_soon': 'Coming Soon',
-      'coming_soon_desc': 'This feature will be available in a future update.',
+      'coming_soon_desc': 'This section will be available in a future update.',
       'start_scan': 'Scan Crop',
       'diagnosis_result_title': 'Diagnosis Result',
       'treatment_guidance_title': 'Treatment Guidance',
@@ -56,21 +65,21 @@ class AppLocalizations {
       'treatment_what_to_avoid': 'What to Avoid',
       'recheck_after_days': 'Recheck in',
       'days': 'days',
-      'treatment_source_llm': 'AI-generated advice (Gemini)',
-      'treatment_observations_label': 'Add observations (Optional)',
+      'treatment_source_llm': 'AI Generated Advice',
+      'treatment_observations_label': 'Add Your Observations (Optional)',
       'treatment_observations_hint':
-          'e.g. Started 3 days ago, leaves turning yellow from bottom, watered daily...',
+          'e.g. Started 3 days ago, leaves yellowing at bottom, heavy rain recently...',
       'get_treatment_btn': 'Get AI Recommendation',
       'offline_connection_msg':
-          'Cannot reach CropCare AI. Please check your internet or Wi-Fi connection.',
-      'retry_btn': 'Retry',
+          'Unable to reach CropCare AI. Please verify your internet or Wi-Fi connection.',
+      'retry_btn': 'Retry Now',
       'healthy_crop_msg':
           'Your plant appears healthy! Keep up your current crop management practices.',
       'ai_disclaimer':
-          'AI-assisted prediction — verify before extensive chemical application.',
+          'AI-assisted prediction — verify before applying chemical treatments.',
       'scan_again': 'Scan Again',
       'get_expert_help': 'WhatsApp Share with Expert',
-      'disease_detected': 'Disease Detected',
+      'disease_detected': 'Identified Disease',
       'confidence': 'Confidence',
       'severity': 'Severity',
       'fetching_treatment': 'Consulting AI Agronomist...',
@@ -78,11 +87,11 @@ class AppLocalizations {
           'Low confidence AI result (<80%). We suggest consulting an agricultural expert via WhatsApp.',
       'escalation_title': 'Escalate to Expert',
       'escalation_subtitle':
-          'Share leaf photo and diagnosis details with an agronomist on WhatsApp',
-      'farmer_notes_label': 'Observations / Notes for Expert',
+          'Share the leaf photo and diagnosis details with an expert on WhatsApp',
+      'farmer_notes_label': 'Your Observations for the Expert',
       'farmer_notes_hint':
-          'e.g. Field location, duration of symptoms, fertilizer used...',
-      'share_whatsapp_btn': 'Share via WhatsApp with Expert',
+          'e.g., Field location, duration of symptoms, fertilizer applied...',
+      'share_whatsapp_btn': 'WhatsApp Share with Expert',
       'scan_history_title': 'Scan History',
       'scan_history_empty':
           'No scans yet. Tap "Scan Crop" above to start your first diagnosis!',
@@ -105,6 +114,14 @@ class AppLocalizations {
       'password_short': 'Password must be at least 6 characters',
       'account_section': 'Account',
       'account_guest_desc': 'You are browsing as a guest. Create an account to sync scans across devices.',
+      'read_aloud': 'Read Aloud',
+      'stop_reading': 'Stop Audio',
+      'playing_audio': 'Playing Audio...',
+      'sync_now': 'Sync Now',
+      'sync_pending': 'pending to sync',
+      'sync_in_progress': 'Syncing data to cloud...',
+      'sync_success': 'All data synchronized with cloud',
+      'sync_offline_ready': 'Offline Ready',
     },
     'si': {
       'app_title': 'CropCare',
@@ -151,7 +168,7 @@ class AppLocalizations {
       'section_language': 'භාෂාව',
       'section_accessibility': 'ප්‍රවේශ්‍යතාව',
       'section_notifications': 'දැනුම්දීම්',
-      'section_offline_data': 'නොබැඳි දත්ත',
+      'section_offline_data': 'නොබැඳි දත්ත සහ සමමුහුර්තකරණය',
       'coming_soon': 'ළඟදීම',
       'coming_soon_desc': 'මෙම විශේෂාංගය ළඟදීම ලබා ගත හැක.',
       'start_scan': 'බෝගය පරීක්ෂා කරන්න',
@@ -211,6 +228,14 @@ class AppLocalizations {
       'password_short': 'මුරපදය අවම වශයෙන් අක්ෂර 6ක් විය යුතුය',
       'account_section': 'ගිණුම',
       'account_guest_desc': 'ඔබ ආගන්තුකයෙකු ලෙස භාවිත කරයි. ස්කෑන් සුරැකීමට ගිණුමක් සාදන්න.',
+      'read_aloud': 'හඬින් අසන්න',
+      'stop_reading': 'හඬ නතර කරන්න',
+      'playing_audio': 'හඬ ධාවනය වේ...',
+      'sync_now': 'දැන් සමමුහුර්ත කරන්න',
+      'sync_pending': 'සමමුහුර්ත කිරීමට ඇත',
+      'sync_in_progress': 'දත්ත වලාකුළට සමමුහුර්ත වේ...',
+      'sync_success': 'සියලු දත්ත වලාකුළට සමමුහුර්ත විය',
+      'sync_offline_ready': 'නොබැඳිව සූදානම්',
     },
     'ta': {
       'app_title': 'CropCare',
@@ -259,7 +284,7 @@ class AppLocalizations {
       'section_language': 'மொழி',
       'section_accessibility': 'அணுகல்தன்மை',
       'section_notifications': 'அறிவிப்புகள்',
-      'section_offline_data': 'ஆஃப்லைன் தரவு',
+      'section_offline_data': 'ஆஃப்லைன் தரவு & ஒத்திசைவு',
       'coming_soon': 'விரைவில்',
       'coming_soon_desc': 'இந்த அம்சம் விரைவில் கிடைக்கும்.',
       'start_scan': 'பயிரைச் சோதிக்கவும்',
@@ -319,6 +344,14 @@ class AppLocalizations {
       'password_short': 'கடவுச்சொல் குறைந்தது 6 எழுத்துக்களாக இருக்க வேண்டும்',
       'account_section': 'கணக்கு',
       'account_guest_desc': 'நீங்கள் விருந்தினராகப் பயன்படுத்துகிறீர்கள். ஸ்கேன்களைச் சேமிக்க கணக்கை உருவாக்கவும்.',
+      'read_aloud': 'கேட்கவும்',
+      'stop_reading': 'நிறுத்தவும்',
+      'playing_audio': 'ஒலி ஒலிக்கிறது...',
+      'sync_now': 'இப்போது ஒத்திசைக்கவும்',
+      'sync_pending': 'ஒத்திசைக்க நிலுவையில் உள்ளது',
+      'sync_in_progress': 'கிளவுட்டுடன் ஒத்திசைக்கப்படுகிறது...',
+      'sync_success': 'அனைத்து தரவுகளும் ஒத்திசைக்கப்பட்டன',
+      'sync_offline_ready': 'ஆஃப்லைனில் தயார்',
     },
   };
 

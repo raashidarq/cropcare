@@ -52,6 +52,30 @@ class ScanRepositoryImpl implements ScanRepository {
 
     await db.into(db.scanTable).insert(companion);
 
+    // Enqueue outbox sync operation
+    final syncOpId = 'sync_scan_$id';
+    final payloadJson = jsonEncode({
+      'local_scan_id': id,
+      'crop_id': cropId,
+      'image_local_path': imageLocalPath,
+      'status': ScanStatus.created.value,
+      'captured_at': nowIso,
+    });
+
+    await db.into(db.syncOperationTable).insertOnConflictUpdate(
+          SyncOperationTableCompanion.insert(
+            id: syncOpId,
+            entityId: id,
+            entityType: 'SCAN',
+            operationType: const Value('CREATE'),
+            payloadJson: payloadJson,
+            status: const Value('PENDING'),
+            retryCount: const Value(0),
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          ),
+        );
+
     final row = await (db.select(db.scanTable)..where((tbl) => tbl.id.equals(id)))
         .getSingle();
 
@@ -75,6 +99,33 @@ class ScanRepositoryImpl implements ScanRepository {
         updatedAt: Value(nowIso),
       ),
     );
+
+    // Update pending scan outbox operation
+    final scanRow = await getScanById(scanId);
+    if (scanRow != null) {
+      final syncOpId = 'sync_scan_$scanId';
+      final payloadJson = jsonEncode({
+        'local_scan_id': scanRow.id,
+        'crop_id': scanRow.cropId,
+        'image_local_path': scanRow.imageLocalPath,
+        'status': status.value,
+        'captured_at': scanRow.capturedAt.toIso8601String(),
+      });
+
+      await db.into(db.syncOperationTable).insertOnConflictUpdate(
+            SyncOperationTableCompanion.insert(
+              id: syncOpId,
+              entityId: scanId,
+              entityType: 'SCAN',
+              operationType: const Value('UPDATE'),
+              payloadJson: payloadJson,
+              status: const Value('PENDING'),
+              retryCount: const Value(0),
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            ),
+          );
+    }
   }
 
   @override

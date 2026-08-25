@@ -7,6 +7,8 @@ import '../../application/auth/auth_cubit.dart';
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/settings/settings_cubit.dart';
 import '../../application/settings/settings_state.dart';
+import '../../application/sync/sync_cubit.dart';
+import '../../application/sync/sync_state.dart';
 import '../../domain/entities/local_user.dart';
 import '../auth/auth_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
@@ -15,18 +17,27 @@ import '../onboarding/widgets/change_language_dialog.dart';
 class SettingsScreen extends StatelessWidget {
   final LocalUser? user;
   final AuthCubit? authCubit;
+  final SyncCubit? syncCubit;
 
   const SettingsScreen({
     super.key,
     this.user,
     this.authCubit,
+    this.syncCubit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => SettingsCubit(),
-      child: _SettingsView(user: user, authCubit: authCubit),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => SettingsCubit()),
+        if (syncCubit != null) BlocProvider.value(value: syncCubit!..refreshPendingCount()),
+      ],
+      child: _SettingsView(
+        user: user,
+        authCubit: authCubit,
+        syncCubit: syncCubit,
+      ),
     );
   }
 }
@@ -34,8 +45,13 @@ class SettingsScreen extends StatelessWidget {
 class _SettingsView extends StatelessWidget {
   final LocalUser? user;
   final AuthCubit? authCubit;
+  final SyncCubit? syncCubit;
 
-  const _SettingsView({this.user, this.authCubit});
+  const _SettingsView({
+    this.user,
+    this.authCubit,
+    this.syncCubit,
+  });
 
   void _showComingSoonDialog(BuildContext context, String titleKey) {
     showDialog(
@@ -219,26 +235,88 @@ class _SettingsView extends StatelessWidget {
                 ),
               ),
 
-              // ── Offline Data Section ─────────────────────────────────────
+              // ── Offline Data & Cloud Sync Section ───────────────────────
               Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: ListTile(
-                  key: const Key('settings_offline_data_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    child: Icon(Icons.cloud_off,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                  title: Text(
-                    context.tr('section_offline_data'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(context.tr('coming_soon')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showComingSoonDialog(
-                    context,
-                    'section_offline_data',
-                  ),
+                child: BlocConsumer<SyncCubit, SyncState>(
+                  listener: (context, syncState) {
+                    if (syncState is SyncSuccess && syncState.syncedCount > 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.tr('sync_success')),
+                          backgroundColor: Colors.green.shade700,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } else if (syncState is SyncError) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(syncState.message),
+                          backgroundColor: Colors.red.shade700,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  builder: (context, syncState) {
+                    final isSyncing = syncState is SyncInProgress;
+                    final pendingCount = syncState.pendingCount;
+
+                    return ListTile(
+                      key: const Key('settings_offline_data_row'),
+                      leading: CircleAvatar(
+                        backgroundColor: pendingCount > 0
+                            ? theme.colorScheme.primaryContainer
+                            : theme.colorScheme.surfaceContainerHighest,
+                        child: Icon(
+                          pendingCount > 0
+                              ? Icons.cloud_upload_outlined
+                              : Icons.cloud_done_outlined,
+                          color: pendingCount > 0
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      title: Text(
+                        context.tr('section_offline_data'),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        isSyncing
+                            ? context.tr('sync_in_progress')
+                            : pendingCount > 0
+                                ? '$pendingCount ${context.tr('sync_pending')}'
+                                : context.tr('sync_offline_ready'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: ElevatedButton(
+                        key: const Key('settings_sync_now_button'),
+                        style: ElevatedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: isSyncing
+                            ? null
+                            : () {
+                                context.read<SyncCubit>().syncNow();
+                              },
+                        child: isSyncing
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Text(
+                                context.tr('sync_now'),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'application/auth/auth_cubit.dart';
 import 'application/onboarding/app_state_cubit.dart';
+import 'application/sync/sync_cubit.dart';
 import 'data/local/database/app_database.dart';
 import 'data/local/ml/ml_inference_service.dart';
 import 'data/remote/auth_api_client.dart';
+import 'data/remote/sync_api_client.dart';
 import 'data/remote/treatment_api_client.dart';
 import 'data/repositories/app_state_repository_impl.dart';
 import 'data/repositories/auth_repository_impl.dart';
@@ -15,6 +17,7 @@ import 'data/repositories/disease_repository_impl.dart';
 import 'data/repositories/escalation_repository_impl.dart';
 import 'data/repositories/local_user_repository_impl.dart';
 import 'data/repositories/scan_repository_impl.dart';
+import 'data/repositories/sync_repository_impl.dart';
 import 'data/repositories/treatment_repository_impl.dart';
 import 'domain/usecases/auth/get_or_create_guest_user_use_case.dart';
 import 'domain/usecases/auth/sign_in_use_case.dart';
@@ -49,6 +52,11 @@ void main() async {
   final authRepository = AuthRepositoryImpl(
     apiClient: authApiClient,
     localUserRepository: localUserRepository,
+  );
+  final syncApiClient = SyncApiClient();
+  final syncRepository = SyncRepositoryImpl(
+    db: database,
+    apiClient: syncApiClient,
   );
 
   // ── Reference data seeding ────────────────────────────────────────────────
@@ -103,10 +111,16 @@ void main() async {
     signOutUseCase: signOutUseCase,
   );
 
+  final syncCubit = SyncCubit(
+    syncRepository: syncRepository,
+    authRepository: authRepository,
+  );
+
   runApp(CropCareApp(
     appStateCubit: appStateCubit,
     user: user,
     authCubit: authCubit,
+    syncCubit: syncCubit,
     getSupportedCropsUseCase: getSupportedCropsUseCase,
     validateImageUseCase: validateImageUseCase,
     runDiagnosisUseCase: runDiagnosisUseCase,

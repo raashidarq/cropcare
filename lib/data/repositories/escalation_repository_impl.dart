@@ -2,6 +2,7 @@
 //
 // Concrete implementation of EscalationRepository via Drift.
 
+import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/escalation.dart';
@@ -26,6 +27,33 @@ class EscalationRepositoryImpl implements EscalationRepository {
     );
 
     await db.into(db.escalationTable).insertOnConflictUpdate(companion);
+
+    // Enqueue outbox sync operation
+    final syncOpId = 'sync_esc_${escalation.id}';
+    final payloadJson = jsonEncode({
+      'local_escalation_id': escalation.id,
+      'local_scan_id': escalation.scanId,
+      'notes': escalation.notes,
+      'shared_via': escalation.sharedVia,
+      'shared_at': escalation.sharedAt,
+      'created_at': escalation.createdAt,
+    });
+
+    final nowIso = DateTime.now().toIso8601String();
+    await db.into(db.syncOperationTable).insertOnConflictUpdate(
+          SyncOperationTableCompanion.insert(
+            id: syncOpId,
+            entityId: escalation.id,
+            entityType: 'ESCALATION',
+            operationType: const Value('CREATE'),
+            payloadJson: payloadJson,
+            status: const Value('PENDING'),
+            retryCount: const Value(0),
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          ),
+        );
+
     return escalation;
   }
 
