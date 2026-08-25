@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart' as ph;
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
 import '../../domain/usecases/scan/capture_scan_use_case.dart';
+import '../../domain/utils/crop_parser.dart';
 import 'scan_state.dart';
 
 abstract class CameraPermissionService {
@@ -41,7 +42,7 @@ class ScanCubit extends Cubit<ScanState> {
     this.runDiagnosisUseCase,
   }) : super(const ScanInitial());
 
-  Future<void> initializePermission(String cropId) async {
+  Future<void> initializePermission([String cropId = 'unknown']) async {
     emit(const ScanPermissionChecking());
     try {
       final status = await permissionService.checkPermission();
@@ -67,7 +68,7 @@ class ScanCubit extends Cubit<ScanState> {
     }
   }
 
-  Future<void> requestPermission(String cropId) async {
+  Future<void> requestPermission([String cropId = 'unknown']) async {
     emit(const ScanPermissionChecking());
     try {
       final reqStatus = await permissionService.requestPermission();
@@ -87,7 +88,7 @@ class ScanCubit extends Cubit<ScanState> {
     await permissionService.openAppSettings();
   }
 
-  void photoCaptured({required String cropId, required String tempImagePath}) {
+  void photoCaptured({String cropId = 'unknown', required String tempImagePath}) {
     emit(ScanPhotoCaptured(cropId: cropId, tempImagePath: tempImagePath));
   }
 
@@ -176,7 +177,12 @@ class ScanCubit extends Cubit<ScanState> {
           validationResult: validation,
         );
 
-        emit(ScanDiagnosed(scan: scan, diagnosis: diagnosis));
+        final derivedCrop = CropParser.deriveCropId(diagnosis.diseaseId);
+        final updatedScan = scan.copyWith(
+          cropId: derivedCrop != 'unknown' ? derivedCrop : scan.cropId,
+        );
+
+        emit(ScanDiagnosed(scan: updatedScan, diagnosis: diagnosis));
       } else {
         // Fallback: no ML wired — emit ScanCreated as before.
         emit(ScanCreated(scan));

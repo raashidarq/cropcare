@@ -14,5 +14,13 @@ abstract class LocalUserRepository {
     String? sessionRefreshToken,
     DateTime? sessionExpiresAt,
   });
+  Future<LocalUser> updateUserEmail({
+    required String localUserId,
+    required String newEmail,
+  });
+  Future<LocalUser> updateUserPhoneNumber({
+    required String localUserId,
+    required String newPhoneNumber,
+  });
   Future<LocalUser> resetToGuestUser(String currentUserId);
 }

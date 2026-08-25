@@ -32,11 +32,21 @@ class _FakeScanRepository implements ScanRepository {
   Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {}
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
+
+  @override
+  Future<void> deleteAllLocalScans() async {}
 }
 
 void main() {
-  testWidgets('EscalationScreen renders low confidence advisory and WhatsApp button', (tester) async {
+  testWidgets('EscalationScreen renders WhatsApp button, Copy Summary, and Other Apps fallback', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
     final scan = Scan(
       id: 'scan-1',
       userId: 'user-1',
@@ -80,7 +90,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Escalate to Expert'), findsOneWidget);
-    expect(find.text('Low confidence AI result (<80%). We suggest consulting an agricultural expert via WhatsApp.'), findsOneWidget);
+    expect(find.text('Low Confidence Match'), findsOneWidget);
     expect(find.byKey(const Key('whatsapp_share_button')), findsOneWidget);
+    expect(find.byKey(const Key('copy_escalation_text_button')), findsOneWidget);
+    expect(find.byKey(const Key('generic_share_button')), findsOneWidget);
+
+    // Test Copy Summary button tap
+    await tester.tap(find.byKey(const Key('copy_escalation_text_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Diagnosis summary copied to clipboard.'), findsOneWidget);
   });
 }

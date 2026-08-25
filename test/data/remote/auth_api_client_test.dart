@@ -87,5 +87,154 @@ void main() {
         )),
       );
     });
+
+    test('requestPasswordReset sends POST to /auth/forgot-password with email', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, equals('/auth/forgot-password'));
+        final body = jsonDecode(request.body);
+        expect(body['email'], equals('farmer@example.com'));
+
+        return http.Response(
+          jsonEncode({'message': 'Reset instructions sent.'}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      await expectLater(
+        apiClient.requestPasswordReset(email: 'farmer@example.com'),
+        completes,
+      );
+    });
+
+    test('deleteAccount sends DELETE to /auth/account with Bearer token', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, equals('DELETE'));
+        expect(request.url.path, equals('/auth/account'));
+        expect(request.headers['Authorization'], equals('Bearer test-access-token'));
+
+        return http.Response(
+          jsonEncode({'message': 'Account deleted.'}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      await expectLater(
+        apiClient.deleteAccount(token: 'test-access-token'),
+        completes,
+      );
+    });
+
+    test('sendFeedback sends POST to /feedback with message and category', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, equals('POST'));
+        expect(request.url.path, equals('/feedback'));
+        final body = jsonDecode(request.body);
+        expect(body['message'], equals('Great crop app!'));
+        expect(body['category'], equals('suggestion'));
+        expect(body['user_id'], equals('u-123'));
+
+        return http.Response(
+          jsonEncode({'status': 'success'}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      await expectLater(
+        apiClient.sendFeedback(
+          message: 'Great crop app!',
+          category: 'suggestion',
+          userId: 'u-123',
+        ),
+        completes,
+      );
+    });
+
+    test('updateEmail sends POST to /auth/change-email with new_email', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, equals('POST'));
+        expect(request.url.path, equals('/auth/change-email'));
+        expect(request.headers['Authorization'], equals('Bearer test-token'));
+        final body = jsonDecode(request.body);
+        expect(body['new_email'], equals('new.farmer@example.com'));
+
+        return http.Response(
+          jsonEncode({
+            'user': {
+              'id': 'usr-1',
+              'email': 'new.farmer@example.com',
+            }
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      final res = await apiClient.updateEmail(
+        newEmail: 'new.farmer@example.com',
+        token: 'test-token',
+      );
+      expect(res.email, equals('new.farmer@example.com'));
+    });
+
+    test('requestPhoneChangeOtp sends POST to /auth/change-phone/request-otp', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, equals('POST'));
+        expect(request.url.path, equals('/auth/change-phone/request-otp'));
+        expect(request.headers['Authorization'], equals('Bearer test-token'));
+        final body = jsonDecode(request.body);
+        expect(body['new_phone_number'], equals('+94771234567'));
+
+        return http.Response(
+          jsonEncode({'message': 'OTP sent'}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      await expectLater(
+        apiClient.requestPhoneChangeOtp(
+          newPhoneNumber: '+94771234567',
+          token: 'test-token',
+        ),
+        completes,
+      );
+    });
+
+    test('verifyPhoneChangeOtp sends POST to /auth/change-phone/verify-otp', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, equals('POST'));
+        expect(request.url.path, equals('/auth/change-phone/verify-otp'));
+        final body = jsonDecode(request.body);
+        expect(body['new_phone_number'], equals('+94771234567'));
+        expect(body['otp_code'], equals('123456'));
+
+        return http.Response(
+          jsonEncode({
+            'user': {
+              'id': 'usr-1',
+              'phone_number': '+94771234567',
+            }
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final apiClient = AuthApiClient(client: mockClient);
+      final res = await apiClient.verifyPhoneChangeOtp(
+        newPhoneNumber: '+94771234567',
+        otpCode: '123456',
+        token: 'test-token',
+      );
+      expect(res.phoneNumber, equals('+94771234567'));
+    });
   });
 }

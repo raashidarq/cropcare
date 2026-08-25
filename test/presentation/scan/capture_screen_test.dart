@@ -53,7 +53,13 @@ class FakeScanRepository implements ScanRepository {
   Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {}
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
+
+  @override
+  Future<void> deleteAllLocalScans() async {}
 }
 
 void main() {
@@ -93,12 +99,55 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Verify explanation UI is rendered
+    // Verify explanation UI, gallery fallback button, and back to home button
     expect(find.byKey(const Key('camera_permission_denied_view')), findsOneWidget);
     expect(find.byKey(const Key('open_app_settings_button')), findsOneWidget);
+    expect(find.byKey(const Key('gallery_pick_fallback_button')), findsOneWidget);
+    expect(find.byKey(const Key('cancel_scan_permission_button')), findsOneWidget);
+    expect(find.byKey(const Key('cancel_scan_button')), findsOneWidget);
 
     // Confirm camera ready view and capture button are NOT rendered
     expect(find.byKey(const Key('camera_ready_view')), findsNothing);
     expect(find.byKey(const Key('capture_button')), findsNothing);
+  });
+
+  testWidgets('CaptureScreen displays camera, gallery pick, and cancel buttons when permission is granted', (WidgetTester tester) async {
+    final fakePermissionService = FakeCameraPermissionService(
+      status: PermissionStatus.granted,
+    );
+    final fakeScanRepo = FakeScanRepository();
+    final captureScanUseCase = CaptureScanUseCase(fakeScanRepo);
+
+    final scanCubit = ScanCubit(
+      captureScanUseCase: captureScanUseCase,
+      permissionService: fakePermissionService,
+    );
+
+    final user = LocalUser(
+      id: 'guest-123',
+      isGuest: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LocalizationProvider(
+          languageCode: 'en',
+          child: CaptureScreen(
+            cropId: 'tomato',
+            user: user,
+            scanCubit: scanCubit,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('cancel_scan_button')), findsOneWidget);
+    expect(find.byKey(const Key('camera_ready_view')), findsOneWidget);
+    expect(find.byKey(const Key('capture_button')), findsOneWidget);
+    expect(find.byKey(const Key('gallery_pick_button')), findsOneWidget);
   });
 }

@@ -767,7 +767,8 @@ class _TreatmentLoadedCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  key: const Key('treatment_source_badge'),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: treatment.interpretationId != null
                         ? Colors.purple.shade50
@@ -785,7 +786,7 @@ class _TreatmentLoadedCard extends StatelessWidget {
                       Icon(
                         treatment.interpretationId != null
                             ? Icons.auto_awesome
-                            : Icons.menu_book_outlined,
+                            : Icons.offline_pin_outlined,
                         size: 14,
                         color: treatment.interpretationId != null
                             ? Colors.purple.shade700
@@ -794,8 +795,8 @@ class _TreatmentLoadedCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         treatment.interpretationId != null
-                            ? 'Gemini'
-                            : context.tr('offline_guideline_badge'),
+                            ? context.tr('treatment_source_ai')
+                            : context.tr('treatment_source_offline'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,

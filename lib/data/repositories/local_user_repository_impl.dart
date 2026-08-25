@@ -95,6 +95,50 @@ class LocalUserRepositoryImpl implements LocalUserRepository {
   }
 
   @override
+  Future<LocalUser> updateUserEmail({
+    required String localUserId,
+    required String newEmail,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    final companion = LocalUserTableCompanion(
+      email: Value(newEmail),
+      updatedAt: Value(nowIso),
+    );
+
+    await (db.update(db.localUserTable)..where((tbl) => tbl.id.equals(localUserId)))
+        .write(companion);
+
+    final updatedRow = await (db.select(db.localUserTable)
+          ..where((tbl) => tbl.id.equals(localUserId)))
+        .getSingle();
+
+    return _mapToEntity(updatedRow);
+  }
+
+  @override
+  Future<LocalUser> updateUserPhoneNumber({
+    required String localUserId,
+    required String newPhoneNumber,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    final companion = LocalUserTableCompanion(
+      phoneNumber: Value(newPhoneNumber),
+      updatedAt: Value(nowIso),
+    );
+
+    await (db.update(db.localUserTable)..where((tbl) => tbl.id.equals(localUserId)))
+        .write(companion);
+
+    final updatedRow = await (db.select(db.localUserTable)
+          ..where((tbl) => tbl.id.equals(localUserId)))
+        .getSingle();
+
+    return _mapToEntity(updatedRow);
+  }
+
+  @override
   Future<LocalUser> resetToGuestUser(String currentUserId) async {
     final nowIso = DateTime.now().toIso8601String();
 

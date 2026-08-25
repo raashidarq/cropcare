@@ -46,7 +46,15 @@ class _CropSelectionScreenState extends State<CropSelectionScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('select_crop_title'))),
+      appBar: AppBar(
+        title: Text(context.tr('select_crop_title')),
+        leading: IconButton(
+          key: const Key('cancel_crop_selection_button'),
+          icon: const Icon(Icons.close),
+          tooltip: context.tr('cancel'),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: FutureBuilder<List<Crop>>(
         future: _cropsFuture,
         builder: (context, snapshot) {

@@ -46,4 +46,30 @@ class Scan {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  Scan copyWith({
+    String? id,
+    String? remoteScanId,
+    String? userId,
+    String? cropId,
+    String? imageLocalPath,
+    String? imageRemoteUrl,
+    ScanStatus? status,
+    DateTime? capturedAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Scan(
+      id: id ?? this.id,
+      remoteScanId: remoteScanId ?? this.remoteScanId,
+      userId: userId ?? this.userId,
+      cropId: cropId ?? this.cropId,
+      imageLocalPath: imageLocalPath ?? this.imageLocalPath,
+      imageRemoteUrl: imageRemoteUrl ?? this.imageRemoteUrl,
+      status: status ?? this.status,
+      capturedAt: capturedAt ?? this.capturedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

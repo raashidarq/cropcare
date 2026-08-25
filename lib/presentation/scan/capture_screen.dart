@@ -20,6 +20,7 @@ import 'scan_result_screen.dart';
 class CaptureScreen extends StatefulWidget {
   final String cropId;
   final LocalUser user;
+  final String? initialTempImagePath;
   final ScanCubit? scanCubit;
   final ImagePicker? imagePicker;
   final ValidateImageUseCase? validateImageUseCase;
@@ -29,8 +30,9 @@ class CaptureScreen extends StatefulWidget {
 
   const CaptureScreen({
     super.key,
-    required this.cropId,
+    this.cropId = 'unknown',
     required this.user,
+    this.initialTempImagePath,
     this.scanCubit,
     this.imagePicker,
     this.validateImageUseCase,
@@ -56,11 +58,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Widget build(BuildContext context) {
     if (widget.scanCubit != null) {
       return BlocProvider<ScanCubit>.value(
-        value: widget.scanCubit!..initializePermission(widget.cropId),
+        value: widget.scanCubit!,
         child: _CaptureView(
           cropId: widget.cropId,
           user: widget.user,
           picker: _picker,
+          initialTempImagePath: widget.initialTempImagePath,
           resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
           createEscalationUseCase: widget.createEscalationUseCase,
         ),
@@ -74,11 +77,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
         ),
         validateImageUseCase: widget.validateImageUseCase,
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
-      )..initializePermission(widget.cropId),
+      ),
       child: _CaptureView(
         cropId: widget.cropId,
         user: widget.user,
         picker: _picker,
+        initialTempImagePath: widget.initialTempImagePath,
         resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
         createEscalationUseCase: widget.createEscalationUseCase,
       ),
@@ -90,6 +94,7 @@ class _CaptureView extends StatefulWidget {
   final String cropId;
   final LocalUser user;
   final ImagePicker picker;
+  final String? initialTempImagePath;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
 
@@ -97,6 +102,7 @@ class _CaptureView extends StatefulWidget {
     required this.cropId,
     required this.user,
     required this.picker,
+    this.initialTempImagePath,
     this.resolveTreatmentUseCase,
     this.createEscalationUseCase,
   });
@@ -110,7 +116,12 @@ class _CaptureViewState extends State<_CaptureView> {
   void initState() {
     super.initState();
     final cubit = context.read<ScanCubit>();
-    if (cubit.state is ScanInitial) {
+    if (widget.initialTempImagePath != null) {
+      cubit.photoCaptured(
+        cropId: widget.cropId,
+        tempImagePath: widget.initialTempImagePath!,
+      );
+    } else if (cubit.state is ScanInitial) {
       cubit.initializePermission(widget.cropId);
     }
   }
@@ -130,12 +141,35 @@ class _CaptureViewState extends State<_CaptureView> {
     }
   }
 
+  Future<void> _handleGalleryPick(BuildContext context) async {
+    final cubit = context.read<ScanCubit>();
+    try {
+      final XFile? photo = await widget.picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (photo != null) {
+        cubit.photoCaptured(cropId: widget.cropId, tempImagePath: photo.path);
+      }
+    } catch (_) {
+      // In test environments or desktop where native gallery UI is unavailable, ignore gracefully
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('capture_photo'))),
+      appBar: AppBar(
+        title: Text(context.tr('capture_photo')),
+        leading: IconButton(
+          key: const Key('cancel_scan_button'),
+          icon: const Icon(Icons.close),
+          tooltip: context.tr('cancel_scan'),
+          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        ),
+      ),
       body: BlocConsumer<ScanCubit, ScanState>(
         listener: (context, state) {
           if (state is ScanCreated) {
@@ -223,6 +257,21 @@ class _CaptureViewState extends State<_CaptureView> {
                       },
                       child: Text(context.tr('grant_permission')),
                     ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      key: const Key('gallery_pick_fallback_button'),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: Text(context.tr('pick_from_gallery')),
+                      onPressed: () => _handleGalleryPick(context),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      key: const Key('cancel_scan_permission_button'),
+                      icon: const Icon(Icons.home_outlined),
+                      label: Text(context.tr('back_to_home')),
+                      onPressed: () =>
+                          Navigator.of(context).popUntil((route) => route.isFirst),
+                    ),
                   ],
                 ),
               ),
@@ -258,19 +307,36 @@ class _CaptureViewState extends State<_CaptureView> {
                   ),
                   Positioned(
                     bottom: 40,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: FloatingActionButton.large(
-                        key: const Key('capture_button'),
-                        backgroundColor: theme.colorScheme.primary,
-                        onPressed: () => _handleCapture(context),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          size: 36,
-                          color: Colors.white,
+                    left: 24,
+                    right: 24,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        FloatingActionButton(
+                          heroTag: 'gallery_pick_fab',
+                          key: const Key('gallery_pick_button'),
+                          backgroundColor: Colors.white24,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          onPressed: () => _handleGalleryPick(context),
+                          child: const Icon(
+                            Icons.photo_library_outlined,
+                            size: 28,
+                          ),
                         ),
-                      ),
+                        FloatingActionButton.large(
+                          heroTag: 'camera_capture_fab',
+                          key: const Key('capture_button'),
+                          backgroundColor: theme.colorScheme.primary,
+                          onPressed: () => _handleCapture(context),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 36,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 56),
+                      ],
                     ),
                   ),
                 ],
@@ -302,34 +368,47 @@ class _CaptureViewState extends State<_CaptureView> {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
-                    vertical: 20,
+                    vertical: 16,
                   ),
                   color: theme.colorScheme.surface,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          key: const Key('retake_photo_button'),
-                          icon: const Icon(Icons.refresh),
-                          label: Text(context.tr('retake')),
-                          onPressed: () {
-                            context.read<ScanCubit>().retakePhoto();
-                          },
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              key: const Key('retake_photo_button'),
+                              icon: const Icon(Icons.refresh),
+                              label: Text(context.tr('retake')),
+                              onPressed: () {
+                                context.read<ScanCubit>().retakePhoto();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              key: const Key('use_photo_button'),
+                              icon: const Icon(Icons.check),
+                              label: Text(context.tr('use_photo')),
+                              onPressed: () {
+                                context.read<ScanCubit>().confirmPhoto(
+                                  userId: widget.user.id,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          key: const Key('use_photo_button'),
-                          icon: const Icon(Icons.check),
-                          label: Text(context.tr('use_photo')),
-                          onPressed: () {
-                            context.read<ScanCubit>().confirmPhoto(
-                              userId: widget.user.id,
-                            );
-                          },
-                        ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        key: const Key('cancel_scan_review_button'),
+                        icon: const Icon(Icons.close, size: 18),
+                        label: Text(context.tr('cancel_scan')),
+                        onPressed: () => Navigator.of(context)
+                            .popUntil((route) => route.isFirst),
                       ),
                     ],
                   ),

@@ -25,7 +25,7 @@ class HistoryCubit extends Cubit<HistoryState> {
       );
 
       if (items.isEmpty) {
-        emit(const HistoryEmpty());
+        emit(HistoryEmpty(activeStatusFilter: _selectedStatusFilter));
       } else {
         emit(HistoryLoaded(
           items: items,

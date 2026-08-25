@@ -129,6 +129,44 @@ class ScanRepositoryImpl implements ScanRepository {
   }
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {
+    final nowIso = DateTime.now().toIso8601String();
+    await (db.update(db.scanTable)..where((tbl) => tbl.id.equals(scanId))).write(
+      ScanTableCompanion(
+        cropId: Value(cropId),
+        updatedAt: Value(nowIso),
+      ),
+    );
+
+    // Update pending scan outbox operation if exists
+    final scanRow = await getScanById(scanId);
+    if (scanRow != null) {
+      final syncOpId = 'sync_scan_$scanId';
+      final payloadJson = jsonEncode({
+        'local_scan_id': scanRow.id,
+        'crop_id': cropId,
+        'image_local_path': scanRow.imageLocalPath,
+        'status': scanRow.status.value,
+        'captured_at': scanRow.capturedAt.toIso8601String(),
+      });
+
+      await db.into(db.syncOperationTable).insertOnConflictUpdate(
+            SyncOperationTableCompanion.insert(
+              id: syncOpId,
+              entityId: scanId,
+              entityType: 'SCAN',
+              operationType: const Value('UPDATE'),
+              payloadJson: payloadJson,
+              status: const Value('PENDING'),
+              retryCount: const Value(0),
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            ),
+          );
+    }
+  }
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async {
     final scanRows = await (db.select(db.scanTable)
           ..orderBy([(t) => OrderingTerm.desc(t.capturedAt)]))
@@ -231,6 +269,17 @@ class ScanRepositoryImpl implements ScanRepository {
       default:
         return DiagnosisResultState.analysisFailed;
     }
+  }
+
+  @override
+  Future<void> deleteAllLocalScans() async {
+    await db.transaction(() async {
+      await db.delete(db.diagnosisTable).go();
+      await db.delete(db.imageValidationTable).go();
+      await db.delete(db.escalationTable).go();
+      await db.delete(db.scanTable).go();
+      await db.delete(db.syncOperationTable).go();
+    });
   }
 }
 

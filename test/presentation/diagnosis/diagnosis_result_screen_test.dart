@@ -254,4 +254,124 @@ void main() {
     expect(find.byKey(const Key('treatment_tts_button')), findsOneWidget);
     expect(find.text('Read Aloud'), findsOneWidget);
   });
+
+  testWidgets('DiagnosisResultScreen displays AI badge when treatment is from remote LLM',
+      (tester) async {
+    final scan = Scan(
+      id: 'scan-5',
+      userId: 'user-1',
+      cropId: 'tomato',
+      imageLocalPath: '/fake/path.jpg',
+      status: ScanStatus.diagnosed,
+      capturedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      createdAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      updatedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+    );
+
+    const diagnosis = Diagnosis(
+      id: 'diag-5',
+      scanId: 'scan-5',
+      diseaseId: 'tomato_early_blight',
+      modelVersionId: 'cropcare-v1.0',
+      confidence: 0.95,
+      severity: 'moderate',
+      resultState: DiagnosisResultState.confident,
+      treatmentSource: TreatmentSource.llm,
+      inferredAt: '2026-08-24T12:00:00Z',
+    );
+
+    final useCase = ResolveTreatmentUseCase(
+      treatmentRepository: _FakeTreatmentRepository(),
+      diagnosisRepository: _FakeDiagnosisRepository(),
+    );
+
+    await tester.pumpWidget(
+      LocalizationProvider(
+        languageCode: 'en',
+        child: MaterialApp(
+          home: DiagnosisResultScreen(
+            scan: scan,
+            diagnosis: diagnosis,
+            resolveTreatmentUseCase: useCase,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
+    expect(find.text('AI'), findsOneWidget);
+  });
+
+  testWidgets('DiagnosisResultScreen displays On-Device Offline badge when treatment is from local fallback',
+      (tester) async {
+    final scan = Scan(
+      id: 'scan-6',
+      userId: 'user-1',
+      cropId: 'tomato',
+      imageLocalPath: '/fake/path.jpg',
+      status: ScanStatus.diagnosed,
+      capturedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      createdAt: DateTime.parse('2026-08-24T12:00:00Z'),
+      updatedAt: DateTime.parse('2026-08-24T12:00:00Z'),
+    );
+
+    const diagnosis = Diagnosis(
+      id: 'diag-6',
+      scanId: 'scan-6',
+      diseaseId: 'tomato_early_blight',
+      modelVersionId: 'cropcare-v1.0',
+      confidence: 0.95,
+      severity: 'moderate',
+      resultState: DiagnosisResultState.confident,
+      treatmentSource: TreatmentSource.localFallback,
+      inferredAt: '2026-08-24T12:00:00Z',
+    );
+
+    final offlineRepo = _OfflineFakeTreatmentRepository();
+    final useCase = ResolveTreatmentUseCase(
+      treatmentRepository: offlineRepo,
+      diagnosisRepository: _FakeDiagnosisRepository(),
+    );
+
+    await tester.pumpWidget(
+      LocalizationProvider(
+        languageCode: 'en',
+        child: MaterialApp(
+          home: DiagnosisResultScreen(
+            scan: scan,
+            diagnosis: diagnosis,
+            resolveTreatmentUseCase: useCase,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
+    expect(find.text('On-Device Offline'), findsOneWidget);
+  });
+}
+
+class _OfflineFakeTreatmentRepository implements TreatmentRepository {
+  @override
+  Future<TreatmentResponse> getTreatmentGuidance({
+    required String cropId,
+    required String diseaseId,
+    required double confidence,
+    required String? severity,
+    required String languageCode,
+    String? userObservations,
+    String? authToken,
+  }) async {
+    return const TreatmentResponse(
+      summary: 'Offline fallback summary',
+      whatToDo: 'Offline what to do',
+      whatToAvoid: 'Offline what to avoid',
+      recheckAfterDays: 7,
+      interpretationId: null, // offline
+    );
+  }
 }

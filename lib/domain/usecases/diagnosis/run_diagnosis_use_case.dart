@@ -15,11 +15,14 @@ import '../../../data/local/database/app_database.dart';
 import '../../../data/local/ml/ml_inference_service.dart';
 import '../../entities/diagnosis.dart';
 import '../../repositories/diagnosis_repository.dart';
+import '../../repositories/scan_repository.dart';
+import '../../utils/crop_parser.dart';
 import 'validate_image_use_case.dart';
 
 class RunDiagnosisUseCase {
   final MlInferenceService inferenceService;
   final DiagnosisRepository diagnosisRepository;
+  final ScanRepository? scanRepository;
   final AppDatabase db; // needed to write image_validation row
 
   static const String _modelVersionId = 'cropcare-v1.0';
@@ -41,6 +44,7 @@ class RunDiagnosisUseCase {
   RunDiagnosisUseCase({
     required this.inferenceService,
     required this.diagnosisRepository,
+    this.scanRepository,
     required this.db,
   });
 
@@ -102,6 +106,12 @@ class RunDiagnosisUseCase {
               ))
           .take(3)
           .toList();
+
+      final rawClassName = MlInferenceService.classNameAt(result.topClassIndex);
+      final derivedCropId = CropParser.deriveCropId(rawClassName.isNotEmpty ? rawClassName : result.diseaseId);
+      if (scanRepository != null) {
+        await scanRepository!.updateScanCrop(scanId, derivedCropId);
+      }
 
       final diagnosis = Diagnosis(
         id: _generateUuid(),

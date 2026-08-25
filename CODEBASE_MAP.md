@@ -2,14 +2,14 @@
 
 > **Purpose:** Compact, accurate description of the **current** Flutter codebase for future AI coding agents.
 > **Source hierarchy:** Actual code > `CropCare_System_Architecture.md` > `CropCare_Build_Checklist.md`
-> **Last updated:** 2026-08-25 (connectivity listener + WorkManager periodic sync added)
+> **Last updated:** 2026-08-25 (Profile Screen, Delete Account, Feedback Submission, and Settings Reorganization added)
 
 ---
 
 ## 1. Current Status
 
 ### What CropCare currently does
-A Flutter mobile app (Android primary) that lets a guest or registered farmer select a crop, capture a leaf photo, validate image quality on-device, run on-device ML inference using a bundled MobileNetV2 TFLite model, persist scans and diagnoses in local SQLite, query Gemini via FastAPI for localized treatment guidance, listen to treatment recommendations via Text-to-Speech (TTS), escalate low-confidence results to experts via WhatsApp with photo attachments, view filterable scan history, authenticate/link accounts via FastAPI/Supabase Auth with secure token storage, and idempotently sync offline scans, diagnoses, escalations, and images (via Supabase Storage signed URLs) to the cloud.
+A Flutter mobile app (Android primary) that lets a guest or registered farmer select a crop, capture a leaf photo (or select from gallery), validate image quality on-device, run on-device ML inference using a bundled MobileNetV2 TFLite model, persist scans and diagnoses in local SQLite, query Gemini via FastAPI for localized treatment guidance, listen to treatment recommendations via Text-to-Speech (TTS), escalate low-confidence results to experts via WhatsApp with photo attachments, view filterable scan history, export a portable CSV copy of scan history offline, authenticate/link accounts via FastAPI/Supabase Auth with secure token storage, reset passwords via email, delete accounts securely, submit farmer feedback directly from the app, browse interactive FAQs, review Terms of Service & Privacy Policy, and idempotently sync offline scans, diagnoses, escalations, and images (via Supabase Storage signed URLs) to the cloud.
 
 ### What is implemented and working
 | Feature | Status |
@@ -22,7 +22,7 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | Crop selection (Dynamic from SQLite: 15 crops including Tomato, Chili, Paddy, Apple, Corn, etc.) | Done |
 | Disease reference data seeding (All 38 PlantVillage classes mapped + Paddy) | Done |
 | Camera permission request + denial handling | Done |
-| Photo capture via image_picker | Done |
+| Photo capture via image_picker (Camera & Gallery support) | Done |
 | Photo review / retake | Done |
 | Image validation (dimension, decodability, size checks) | Done |
 | On-device ML inference (`tflite_flutter`, MobileNetV2 float32) | Done |
@@ -34,14 +34,20 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | Text-to-Speech (TTS) audio playback (`flutter_tts`, `TextToSpeechService`, Android 11+ `<queries>` declared, localized EN/SI/TA reading for both Gemini & offline fallback cards) | Done |
 | Escalation & WhatsApp Share Flow (EscalationScreen, EscalationCubit, attached photo, low-confidence advisory) | Done |
 | Embedded Scan History (HomeScreen history section, HistoryCubit, filter chips, tap-to-review) | Done |
-| Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, secure storage, post-auth auto-sync hook) | Done |
+| Scan History Data Export (ExportScanHistoryUseCase, CSV generation, offline native sharing via `share_plus` from Settings & Home History header) | Done |
+| Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, OtpEntryScreen, secure storage, post-auth auto-sync hook, phone OTP gated by feature flag) | Done |
+| Email Forgot Password Flow (AuthApiClient `POST /auth/forgot-password`, RequestPasswordResetUseCase, AuthCubit state `AuthPasswordResetSent`, ForgotPasswordScreen) | Done |
+| Profile Screen & Account Deletion (`ProfileScreen`, `DeleteAccountUseCase`, `AuthApiClient` `DELETE /auth/account`, secure storage wipe, guest mode reset) | Done |
+| Farmer Feedback Submission (`FeedbackScreen` with multi-line textbox, category selector, `SubmitFeedbackUseCase`, `AuthApiClient` `POST /feedback`) | Done |
+| Terms of Service & Privacy Policy (TermsPrivacyScreen with TabBar, accessible from Settings and Sign-Up consent disclaimer) | Done |
+| Interactive FAQ Screen (FaqScreen categorized into Scanning & Diagnosis, Account & Cloud Sync, accessible from Settings) | Done |
 | Offline Sync Engine (`sync_operation` outbox Drift table, SyncApiClient with signed URL binary upload + idempotency, ScanTable enrichment, SyncRepositoryImpl, SyncCubit, downstream reference data sync) | Done |
 | App-level connectivity listener (auto-sync on network recovery, 3 s debounce, offline→online transition only) | Done |
 | Background periodic WorkManager worker (15-min interval, `NETWORK_CONNECTED` constraint, Dart background isolate via `workmanager` plugin) | Done |
-| Settings screen (Account with guest upgrade & sign out, Language, Offline Data & Cloud Sync with manual trigger, Coming Soon shells) | Done |
+| Reorganized Settings Screen (Profile & Account, Preferences, Data & Storage, Support & Legal, App Version) | Done |
 | SQLite schema (11 Drift tables defined + migrations, schemaVersion=4) | Done |
 | Full localization string tables (EN/SI/TA) | Done |
-| Full automated test suite (45/45 Flutter tests passing) | Done |
+| Full automated test suite (70/70 Flutter tests passing) | Done |
 
 ### What is not implemented
 - Push notifications.
@@ -55,11 +61,13 @@ cropcare/
 ├── lib/
 │   ├── main.dart                    # Entry point; DB + repos + seeders + ML model + cubits
 │   ├── app.dart                     # CropCareApp widget; BlocProvider root; routing logic
+│   ├── config/
+│   │   └── feature_flags.dart       # kPhoneAuthEnabled flag
 │   ├── services/
 │   │   ├── connectivity_service.dart    # connectivity_plus wrapper; debounced bool stream
 │   │   └── work_manager_helper.dart     # callbackDispatcher + WorkManagerHelper (init/schedule/cancel)
 │   ├── application/                 # Cubits (state management, one per feature)
-│   │   ├── auth/                    # AuthCubit + AuthState (register, login, upgrade, signout)
+│   │   ├── auth/                    # AuthCubit + AuthState (register, login, phone OTP, upgrade, signout)
 │   │   ├── diagnosis/               # DiagnosisCubit + DiagnosisState (treatment guidance fetch)
 │   │   ├── escalation/              # EscalationCubit + EscalationState (WhatsApp sharing)
 │   │   ├── history/                 # HistoryCubit + HistoryState (scan history list & filtering)
@@ -89,7 +97,7 @@ cropcare/
 │   │   │   ├── sync_repository.dart
 │   │   │   └── treatment_repository.dart
 │   │   └── usecases/
-│   │       ├── auth/                # GetOrCreateGuestUser, UpgradeGuestUser, SignIn, SignOut
+│   │       ├── auth/                # GetOrCreateGuestUser, UpgradeGuestUser, SignIn, SignOut, RequestPhoneOtp, VerifyPhoneOtp
 │   │       ├── crop/                # GetSupportedCropsUseCase
 │   │       ├── diagnosis/           # ValidateImage, RunDiagnosis, ResolveTreatment
 │   │       ├── escalation/          # CreateEscalationUseCase
@@ -122,15 +130,16 @@ cropcare/
 │   │       └── treatment_repository_impl.dart
 │   └── presentation/
 │       ├── auth/
-│       │   └── auth_screen.dart             # Tabbed Sign In / Register & Guest Upgrade
+│       │   ├── auth_screen.dart             # Tabbed Sign In / Register & Guest Upgrade with Phone/Email method toggle
+│       │   └── otp_entry_screen.dart        # Parameterized 6-digit OTP verification screen (countdown, error banners)
 │       ├── crop/
-│       │   └── crop_selection_screen.dart
+│       │   └── crop_selection_screen.dart   # Crop selector with cancel navigation
 │       ├── diagnosis/
 │       │   └── diagnosis_result_screen.dart # Diagnosis results, Gemini guidance card, TTS button
 │       ├── escalation/
-│       │   └── escalation_screen.dart       # WhatsApp escalation card & photo sharing
+│       │   └── escalation_screen.dart       # WhatsApp escalation card, 1-tap Copy Summary to Clipboard, Other Apps sharing
 │       ├── home/
-│       │   └── home_screen.dart             # Scan trigger + embedded filtered scan history
+│       │   └── home_screen.dart             # Scan trigger, Smart Account AppBar action (Auth/Profile), embedded filtered scan history
 │       ├── onboarding/
 │       │   ├── splash_screen.dart
 │       │   ├── onboarding_screen.dart
@@ -141,10 +150,14 @@ cropcare/
 │       │   └── widgets/
 │       │       └── change_language_dialog.dart
 │       ├── scan/
-│       │   ├── capture_screen.dart
+│       │   ├── capture_screen.dart          # Camera/Gallery capture, close button, and photo review with Retake/Cancel/Use
 │       │   └── scan_result_screen.dart
 │       └── settings/
-│           └── settings_screen.dart         # Account, Language, Cloud Sync & Coming Soon dialogs
+│           ├── settings_screen.dart         # Reorganized 4 sections: Profile, Preferences, Data & Storage, Support & Legal
+│           ├── profile_screen.dart          # User details, Link Account / Sign Out, Danger Zone (Account Deletion)
+│           ├── feedback_screen.dart         # Farmer feedback & bug report submission
+│           ├── faq_screen.dart              # Accordion FAQ & Help center
+│           └── terms_privacy_screen.dart    # Terms of Service and Privacy Policy tabs
 ├── assets/
 │   ├── icon/
 │   │   └── app_icon.png

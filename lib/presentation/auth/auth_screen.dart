@@ -8,15 +8,26 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/auth/auth_cubit.dart';
 import '../../application/auth/auth_state.dart';
 import '../../application/sync/sync_cubit.dart';
+import '../../config/feature_flags.dart';
 import '../../domain/entities/local_user.dart';
 import '../onboarding/localization/localization_provider.dart';
+import '../settings/terms_privacy_screen.dart';
+import 'forgot_password_screen.dart';
+import 'otp_entry_screen.dart';
+
+enum AuthMethod {
+  email,
+  phone,
+}
 
 class AuthScreen extends StatefulWidget {
   final LocalUser currentUser;
+  final bool? phoneAuthEnabled;
 
   const AuthScreen({
     super.key,
     required this.currentUser,
+    this.phoneAuthEnabled,
   });
 
   @override
@@ -27,8 +38,12 @@ class _AuthScreenState extends State<AuthScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  AuthMethod _selectedMethod = AuthMethod.email;
+
   final _signInFormKey = GlobalKey<FormState>();
   final _signUpFormKey = GlobalKey<FormState>();
+  final _signInPhoneFormKey = GlobalKey<FormState>();
+  final _signUpPhoneFormKey = GlobalKey<FormState>();
 
   final _signInEmailController = TextEditingController();
   final _signInPasswordController = TextEditingController();
@@ -37,9 +52,14 @@ class _AuthScreenState extends State<AuthScreen>
   final _signUpPasswordController = TextEditingController();
   final _signUpConfirmPasswordController = TextEditingController();
 
+  final _signInPhoneController = TextEditingController();
+  final _signUpPhoneController = TextEditingController();
+
   bool _obscureSignInPassword = true;
   bool _obscureSignUpPassword = true;
   bool _obscureSignUpConfirmPassword = true;
+
+  bool get _isPhoneEnabled => widget.phoneAuthEnabled ?? kPhoneAuthEnabled;
 
   @override
   void initState() {
@@ -55,11 +75,17 @@ class _AuthScreenState extends State<AuthScreen>
     _signUpEmailController.dispose();
     _signUpPasswordController.dispose();
     _signUpConfirmPasswordController.dispose();
+    _signInPhoneController.dispose();
+    _signUpPhoneController.dispose();
     super.dispose();
   }
 
   bool _isValidEmail(String email) {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim());
+  }
+
+  bool _isValidPhoneNumber(String phone) {
+    return RegExp(r'^\+[1-9]\d{6,14}$').hasMatch(phone.trim());
   }
 
   void _handleSignIn(BuildContext context) {
@@ -77,6 +103,15 @@ class _AuthScreenState extends State<AuthScreen>
             email: _signUpEmailController.text.trim(),
             password: _signUpPasswordController.text,
           );
+    }
+  }
+
+  void _handlePhoneSubmit(BuildContext context, {required bool isSignUp}) {
+    final formKey = isSignUp ? _signUpPhoneFormKey : _signInPhoneFormKey;
+    final controller = isSignUp ? _signUpPhoneController : _signInPhoneController;
+
+    if (formKey.currentState?.validate() ?? false) {
+      context.read<AuthCubit>().requestPhoneOtp(controller.text.trim());
     }
   }
 
@@ -114,6 +149,28 @@ class _AuthScreenState extends State<AuthScreen>
               ),
             );
             Navigator.of(context).pop(state.user);
+          } else if (state is AuthOtpRequested) {
+            final navigator = Navigator.of(context);
+            final cubit = context.read<AuthCubit>();
+            final syncCubit = context.read<SyncCubit?>();
+            navigator.push<LocalUser>(
+              MaterialPageRoute(
+                builder: (_) => MultiBlocProvider(
+                  providers: [
+                    BlocProvider.value(value: cubit),
+                    if (syncCubit != null) BlocProvider.value(value: syncCubit),
+                  ],
+                  child: OtpEntryScreen(
+                    identifier: state.phoneNumber,
+                    identifierType: OtpIdentifierType.phone,
+                  ),
+                ),
+              ),
+            ).then((user) {
+              if (user != null && mounted) {
+                navigator.pop(user);
+              }
+            });
           } else if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -194,16 +251,111 @@ class _AuthScreenState extends State<AuthScreen>
                     const SizedBox(height: 16),
                   ],
 
+                  // ── Method Selector Toggle (Gated behind _isPhoneEnabled) ──
+                  if (_isPhoneEnabled) ...[
+                    Container(
+                      key: const Key('auth_method_selector'),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              key: const Key('auth_method_email'),
+                              onTap: () => setState(() => _selectedMethod = AuthMethod.email),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: _selectedMethod == AuthMethod.email
+                                      ? theme.colorScheme.surface
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _selectedMethod == AuthMethod.email
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    context.tr('auth_method_email'),
+                                    style: TextStyle(
+                                      fontWeight: _selectedMethod == AuthMethod.email
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: _selectedMethod == AuthMethod.email
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              key: const Key('auth_method_phone'),
+                              onTap: () => setState(() => _selectedMethod = AuthMethod.phone),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: _selectedMethod == AuthMethod.phone
+                                      ? theme.colorScheme.surface
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _selectedMethod == AuthMethod.phone
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    context.tr('auth_method_phone'),
+                                    style: TextStyle(
+                                      fontWeight: _selectedMethod == AuthMethod.phone
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: _selectedMethod == AuthMethod.phone
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // ── Tab Views ────────────────────────────────────────────
                   SizedBox(
-                    height: 380,
+                    height: 440,
                     child: TabBarView(
                       controller: _tabController,
                       children: [
                         // Tab 1: Sign In
-                        _buildSignInForm(context, isLoading),
+                        _selectedMethod == AuthMethod.phone && _isPhoneEnabled
+                            ? _buildPhoneForm(context, isLoading, isSignUp: false)
+                            : _buildSignInForm(context, isLoading),
                         // Tab 2: Create Account / Upgrade
-                        _buildSignUpForm(context, isLoading),
+                        _selectedMethod == AuthMethod.phone && _isPhoneEnabled
+                            ? _buildPhoneForm(context, isLoading, isSignUp: true)
+                            : _buildSignUpForm(context, isLoading),
                       ],
                     ),
                   ),
@@ -212,6 +364,64 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPhoneForm(BuildContext context, bool isLoading, {required bool isSignUp}) {
+    final formKey = isSignUp ? _signUpPhoneFormKey : _signInPhoneFormKey;
+    final controller = isSignUp ? _signUpPhoneController : _signInPhoneController;
+    final fieldKey = isSignUp ? const Key('signup_phone_field') : const Key('signin_phone_field');
+    final submitKey = isSignUp ? const Key('signup_phone_submit_button') : const Key('signin_phone_submit_button');
+
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 12),
+          TextFormField(
+            key: fieldKey,
+            controller: controller,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: context.tr('phone_number'),
+              hintText: '+94771234567',
+              prefixIcon: const Icon(Icons.phone_outlined),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            validator: (val) {
+              if (val == null || !_isValidPhoneNumber(val)) {
+                return context.tr('phone_invalid');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              key: submitKey,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: isLoading ? null : () => _handlePhoneSubmit(context, isSignUp: isSignUp),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : Text(
+                      context.tr(isSignUp ? 'create_account' : 'sign_in'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ),
+          if (isSignUp) _buildConsentDisclaimer(context),
+        ],
       ),
     );
   }
@@ -263,7 +473,38 @@ class _AuthScreenState extends State<AuthScreen>
               return null;
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const Key('signin_forgot_password_button'),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              onPressed: () {
+                final authCubit = context.read<AuthCubit>();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider.value(
+                      value: authCubit,
+                      child: const ForgotPasswordScreen(),
+                    ),
+                  ),
+                );
+              },
+              child: Text(
+                context.tr('forgot_password'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             height: 50,
             child: ElevatedButton(
@@ -363,7 +604,7 @@ class _AuthScreenState extends State<AuthScreen>
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           SizedBox(
             height: 50,
             child: ElevatedButton(
@@ -386,7 +627,78 @@ class _AuthScreenState extends State<AuthScreen>
                     ),
             ),
           ),
+          _buildConsentDisclaimer(context),
         ],
+      ),
+    );
+  }
+
+  Widget _buildConsentDisclaimer(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12.0),
+      child: Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              '${context.tr('consent_agreement_prefix')} ',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            GestureDetector(
+              key: const Key('consent_terms_link'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TermsPrivacyScreen(initialTabIndex: 0),
+                  ),
+                );
+              },
+              child: Text(
+                context.tr('terms_of_service'),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+            Text(
+              ' ${context.tr('and_connector')} ',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            GestureDetector(
+              key: const Key('consent_privacy_link'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TermsPrivacyScreen(initialTabIndex: 1),
+                  ),
+                );
+              },
+              child: Text(
+                context.tr('privacy_policy'),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

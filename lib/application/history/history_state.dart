@@ -29,7 +29,8 @@ class HistoryLoaded extends HistoryState {
 }
 
 class HistoryEmpty extends HistoryState {
-  const HistoryEmpty();
+  final String? activeStatusFilter;
+  const HistoryEmpty({this.activeStatusFilter});
 }
 
 class HistoryError extends HistoryState {

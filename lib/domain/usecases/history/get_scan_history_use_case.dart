@@ -16,20 +16,39 @@ class GetScanHistoryUseCase {
   }) async {
     final items = await scanRepository.getScanHistory();
 
-    if (cropId != null && cropId.isNotEmpty) {
-      return items.where((i) => i.scan.cropId == cropId).toList();
+    var result = items;
+
+    if (cropId != null && cropId.isNotEmpty && cropId != 'ALL') {
+      result = result.where((i) => i.scan.cropId.toLowerCase() == cropId.toLowerCase()).toList();
     }
 
-    if (statusFilter != null && statusFilter.isNotEmpty) {
+    if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'ALL') {
       if (statusFilter == 'LOW_CONFIDENCE') {
-        return items.where((i) => (i.diagnosis?.confidence ?? 1.0) < 0.80).toList();
+        result = result.where((i) => (i.diagnosis?.confidence ?? 1.0) < 0.80).toList();
       } else if (statusFilter == 'SHARED') {
-        return items.where((i) => i.scan.status.value == 'SHARED').toList();
+        result = result.where((i) => i.scan.status.value == 'SHARED').toList();
       } else if (statusFilter == 'HEALTHY') {
-        return items.where((i) => i.diagnosis?.isHealthy ?? false).toList();
+        result = result.where((i) => i.diagnosis?.isHealthy ?? false).toList();
+      } else if (statusFilter == 'DATE_TODAY') {
+        final now = DateTime.now();
+        result = result.where((i) {
+          final d = i.scan.capturedAt;
+          return d.year == now.year && d.month == now.month && d.day == now.day;
+        }).toList();
+      } else if (statusFilter == 'DATE_WEEK') {
+        final now = DateTime.now();
+        final sevenDaysAgo = now.subtract(const Duration(days: 7));
+        result = result.where((i) => i.scan.capturedAt.isAfter(sevenDaysAgo)).toList();
+      } else if (statusFilter == 'DATE_MONTH') {
+        final now = DateTime.now();
+        final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+        result = result.where((i) => i.scan.capturedAt.isAfter(thirtyDaysAgo)).toList();
+      } else if (statusFilter.startsWith('CROP_')) {
+        final targetCrop = statusFilter.substring(5).toLowerCase();
+        result = result.where((i) => i.scan.cropId.toLowerCase() == targetCrop).toList();
       }
     }
 
-    return items;
+    return result;
   }
 }

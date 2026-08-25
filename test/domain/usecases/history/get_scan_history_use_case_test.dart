@@ -26,7 +26,13 @@ class _FakeScanRepository implements ScanRepository {
   Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {}
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => historyToReturn;
+
+  @override
+  Future<void> deleteAllLocalScans() async {}
 }
 
 void main() {
@@ -108,6 +114,15 @@ void main() {
       final healthy = await useCase(statusFilter: 'HEALTHY');
       expect(healthy.length, equals(1));
       expect(healthy.first.scan.id, equals('s2'));
+
+      // Filter by CROP_CHILI statusFilter
+      final chiliFilter = await useCase(statusFilter: 'CROP_CHILI');
+      expect(chiliFilter.length, equals(1));
+      expect(chiliFilter.first.scan.id, equals('s2'));
+
+      // Filter by DATE_WEEK
+      final thisWeek = await useCase(statusFilter: 'DATE_WEEK');
+      expect(thisWeek, isNotEmpty);
     });
   });
 }

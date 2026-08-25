@@ -35,11 +35,17 @@ class _FakeScanRepository implements ScanRepository {
   Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {}
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => history;
+
+  @override
+  Future<void> deleteAllLocalScans() async {}
 }
 
 void main() {
-  testWidgets('HomeScreen displays scan button and embedded history list, without bottom change language button', (tester) async {
+  testWidgets('HomeScreen displays scan button, smart account action in appbar, and embedded history', (tester) async {
     final user = LocalUser(
       id: 'user-guest-12345',
       isGuest: true,
@@ -95,11 +101,21 @@ void main() {
     // 1. Scan Hero Button exists
     expect(find.byKey(const Key('home_start_scan_button')), findsOneWidget);
 
-    // 2. Bottom Change Language button is NOT present
-    expect(find.byKey(const Key('home_change_language_button')), findsNothing);
+    // 2. Smart Account Icon exists on AppBar
+    expect(find.byKey(const Key('home_account_icon')), findsOneWidget);
 
-    // 3. Scan History section is present with history item
+    // 3. Hero card displays clean welcome and subtitle
+    expect(find.text('Welcome to CropCare!'), findsOneWidget);
+    expect(find.text('Detect crop diseases and get treatment advice instantly.'), findsOneWidget);
+    expect(find.byKey(const Key('home_link_account_button')), findsNothing);
+
+    // 4. Scan History section is present with history item, Export button, filter dropdown, and scan count
     expect(find.text('Scan History'), findsOneWidget);
+    expect(find.byKey(const Key('home_export_history_icon')), findsOneWidget);
+    expect(find.text('Export'), findsOneWidget);
+    expect(find.byKey(const Key('home_history_filter_dropdown')), findsOneWidget);
+    expect(find.byKey(const Key('home_history_scan_count_badge')), findsOneWidget);
+    expect(find.text('1 scans'), findsOneWidget);
     expect(find.byKey(const Key('history_card_scan-hist-1')), findsOneWidget);
     expect(find.text('Tomato Early Blight'), findsOneWidget);
     expect(find.text('88%'), findsOneWidget);

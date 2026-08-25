@@ -67,8 +67,54 @@ class _FakeAuthRepository implements AuthRepository {
       throw UnimplementedError();
 
   @override
-  Future<LocalUser> signOut({required String currentUserId}) =>
+  Future<LocalUser> signOut({required String currentUserId}) async {
+    return LocalUser(
+      id: currentUserId,
+      isGuest: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> requestPhoneOtp({required String phoneNumber}) async {}
+
+  @override
+  Future<LocalUser> verifyPhoneOtpAndUpgrade({
+    required String localUserId,
+    required String phoneNumber,
+    required String otpCode,
+  }) =>
       throw UnimplementedError();
+
+  @override
+  Future<void> requestPasswordReset({required String email}) async {}
+
+  @override
+  Future<LocalUser> deleteAccount({required String currentUserId}) async {
+    return LocalUser(
+      id: currentUserId,
+      isGuest: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> sendFeedback({
+    required String message,
+    String? category,
+    String? userId,
+  }) async {}
+
+  @override
+  Future<LocalUser> updateEmail({required String currentUserId, required String newEmail}) => throw UnimplementedError();
+
+  @override
+  Future<void> requestPhoneChangeOtp({required String newPhoneNumber}) async {}
+
+  @override
+  Future<LocalUser> verifyPhoneChangeOtp({required String currentUserId, required String newPhoneNumber, required String otpCode}) => throw UnimplementedError();
 }
 
 void main() {
@@ -115,6 +161,22 @@ void main() {
       expect(fakeSyncRepo.lastAuthToken, 'valid_jwt_token');
 
       await sub.cancel();
+    });
+
+    test('toggleAutoSync updates autoSyncEnabled in state', () {
+      expect(cubit.state.autoSyncEnabled, isTrue);
+      cubit.toggleAutoSync(false);
+      expect(cubit.state.autoSyncEnabled, isFalse);
+      expect(cubit.autoSyncEnabled, isFalse);
+      cubit.toggleAutoSync(true);
+      expect(cubit.state.autoSyncEnabled, isTrue);
+    });
+
+    test('deleteAllLocalScans resets pendingCount to 0', () async {
+      await cubit.refreshPendingCount();
+      expect(cubit.state.pendingCount, 2);
+      await cubit.deleteAllLocalScans();
+      expect(cubit.state.pendingCount, 0);
     });
   });
 }

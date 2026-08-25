@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'application/auth/auth_cubit.dart';
 import 'application/onboarding/app_state_cubit.dart';
+import 'application/settings/accessibility_cubit.dart';
 import 'application/sync/sync_cubit.dart';
 import 'data/local/database/app_database.dart';
 import 'data/local/ml/ml_inference_service.dart';
@@ -11,6 +12,7 @@ import 'data/remote/sync_api_client.dart';
 import 'data/remote/treatment_api_client.dart';
 import 'services/connectivity_service.dart';
 import 'services/work_manager_helper.dart';
+import 'data/repositories/accessibility_repository_impl.dart';
 import 'data/repositories/app_state_repository_impl.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/crop_repository_impl.dart';
@@ -21,19 +23,30 @@ import 'data/repositories/local_user_repository_impl.dart';
 import 'data/repositories/scan_repository_impl.dart';
 import 'data/repositories/sync_repository_impl.dart';
 import 'data/repositories/treatment_repository_impl.dart';
+import 'domain/usecases/auth/delete_account_use_case.dart';
 import 'domain/usecases/auth/get_or_create_guest_user_use_case.dart';
+import 'domain/usecases/auth/request_password_reset_use_case.dart';
+import 'domain/usecases/auth/request_phone_change_otp_use_case.dart';
+import 'domain/usecases/auth/request_phone_otp_use_case.dart';
 import 'domain/usecases/auth/sign_in_use_case.dart';
 import 'domain/usecases/auth/sign_out_use_case.dart';
+import 'domain/usecases/auth/update_email_use_case.dart';
 import 'domain/usecases/auth/upgrade_guest_user_use_case.dart';
+import 'domain/usecases/auth/verify_phone_change_otp_use_case.dart';
+import 'domain/usecases/auth/verify_phone_otp_use_case.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import 'domain/usecases/diagnosis/validate_image_use_case.dart';
 import 'domain/usecases/escalation/create_escalation_use_case.dart';
+import 'domain/usecases/feedback/submit_feedback_use_case.dart';
+import 'domain/usecases/history/export_scan_history_use_case.dart';
 import 'domain/usecases/history/get_scan_history_use_case.dart';
 import 'domain/usecases/onboarding/complete_onboarding_use_case.dart';
 import 'domain/usecases/onboarding/get_app_state_use_case.dart';
 import 'domain/usecases/onboarding/set_language_use_case.dart';
+import 'domain/usecases/settings/get_accessibility_settings_use_case.dart';
+import 'domain/usecases/settings/save_accessibility_settings_use_case.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,10 +101,19 @@ void main() async {
   final upgradeGuestUserUseCase = UpgradeGuestUserUseCase(authRepository);
   final signInUseCase = SignInUseCase(authRepository);
   final signOutUseCase = SignOutUseCase(authRepository);
+  final requestPhoneOtpUseCase = RequestPhoneOtpUseCase(authRepository);
+  final verifyPhoneOtpUseCase = VerifyPhoneOtpUseCase(authRepository);
+  final requestPasswordResetUseCase = RequestPasswordResetUseCase(authRepository);
+  final deleteAccountUseCase = DeleteAccountUseCase(authRepository);
+  final updateEmailUseCase = UpdateEmailUseCase(authRepository);
+  final requestPhoneChangeOtpUseCase = RequestPhoneChangeOtpUseCase(authRepository);
+  final verifyPhoneChangeOtpUseCase = VerifyPhoneChangeOtpUseCase(authRepository);
+  final submitFeedbackUseCase = SubmitFeedbackUseCase(authRepository);
   final validateImageUseCase = ValidateImageUseCase();
   final runDiagnosisUseCase = RunDiagnosisUseCase(
     inferenceService: mlInferenceService,
     diagnosisRepository: diagnosisRepository,
+    scanRepository: scanRepository,
     db: database,
   );
   final resolveTreatmentUseCase = ResolveTreatmentUseCase(
@@ -103,6 +125,7 @@ void main() async {
     scanRepository: scanRepository,
   );
   final getScanHistoryUseCase = GetScanHistoryUseCase(scanRepository);
+  final exportScanHistoryUseCase = ExportScanHistoryUseCase(scanRepository);
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   final user = await getOrCreateGuestUserUseCase();
@@ -118,6 +141,13 @@ void main() async {
     upgradeGuestUserUseCase: upgradeGuestUserUseCase,
     signInUseCase: signInUseCase,
     signOutUseCase: signOutUseCase,
+    requestPhoneOtpUseCase: requestPhoneOtpUseCase,
+    verifyPhoneOtpUseCase: verifyPhoneOtpUseCase,
+    requestPasswordResetUseCase: requestPasswordResetUseCase,
+    deleteAccountUseCase: deleteAccountUseCase,
+    updateEmailUseCase: updateEmailUseCase,
+    requestPhoneChangeOtpUseCase: requestPhoneChangeOtpUseCase,
+    verifyPhoneChangeOtpUseCase: verifyPhoneChangeOtpUseCase,
   );
 
   final connectivityService = ConnectivityService();
@@ -125,11 +155,21 @@ void main() async {
   final syncCubit = SyncCubit(
     syncRepository: syncRepository,
     authRepository: authRepository,
+    scanRepository: scanRepository,
     connectivityService: connectivityService,
+  );
+
+  final accessibilityRepository = AccessibilityRepositoryImpl();
+  final getAccessibilitySettingsUseCase = GetAccessibilitySettingsUseCase(accessibilityRepository);
+  final saveAccessibilitySettingsUseCase = SaveAccessibilitySettingsUseCase(accessibilityRepository);
+  final accessibilityCubit = AccessibilityCubit(
+    getAccessibilitySettingsUseCase: getAccessibilitySettingsUseCase,
+    saveAccessibilitySettingsUseCase: saveAccessibilitySettingsUseCase,
   );
 
   runApp(CropCareApp(
     appStateCubit: appStateCubit,
+    accessibilityCubit: accessibilityCubit,
     user: user,
     authCubit: authCubit,
     syncCubit: syncCubit,
@@ -139,5 +179,7 @@ void main() async {
     resolveTreatmentUseCase: resolveTreatmentUseCase,
     createEscalationUseCase: createEscalationUseCase,
     getScanHistoryUseCase: getScanHistoryUseCase,
+    exportScanHistoryUseCase: exportScanHistoryUseCase,
+    submitFeedbackUseCase: submitFeedbackUseCase,
   ));
 }

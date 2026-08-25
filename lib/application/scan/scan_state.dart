@@ -22,7 +22,7 @@ class ScanPermissionDenied extends ScanState {
 class ScanCameraReady extends ScanState {
   final String cropId;
 
-  const ScanCameraReady({required this.cropId});
+  const ScanCameraReady({this.cropId = 'unknown'});
 }
 
 class ScanPhotoCaptured extends ScanState {
@@ -30,7 +30,7 @@ class ScanPhotoCaptured extends ScanState {
   final String tempImagePath;
 
   const ScanPhotoCaptured({
-    required this.cropId,
+    this.cropId = 'unknown',
     required this.tempImagePath,
   });
 }

@@ -141,6 +141,14 @@ class CropRepositoryImpl implements CropRepository {
         isSupported: const Value(1),
         iconAsset: const Value('assets/icons/paddy.png'),
       ),
+      CropTableCompanion.insert(
+        id: 'unknown',
+        nameEn: 'Unknown Crop',
+        nameSi: const Value('නොදන්නා බෝගය'),
+        nameTa: const Value('தெரியாத பயிர்'),
+        isSupported: const Value(0),
+        iconAsset: const Value('assets/icons/unknown.png'),
+      ),
     ];
 
     for (final crop in seedCrops) {

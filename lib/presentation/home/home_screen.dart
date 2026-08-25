@@ -17,13 +17,15 @@ import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
+import '../../domain/usecases/feedback/submit_feedback_use_case.dart';
+import '../../domain/usecases/history/export_scan_history_use_case.dart';
 import '../../domain/usecases/history/get_scan_history_use_case.dart';
 import '../auth/auth_screen.dart';
-import '../crop/crop_selection_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
-import '../onboarding/widgets/change_language_dialog.dart';
+import '../scan/add_photo_screen.dart';
 import '../scan/scan_result_screen.dart';
+import '../settings/profile_screen.dart';
 import '../settings/settings_screen.dart';
 
 class _FallbackCropRepository implements CropRepository {
@@ -61,7 +63,13 @@ class _FallbackScanRepository implements ScanRepository {
   Future<void> updateScanStatus(String scanId, ScanStatus status) async {}
 
   @override
+  Future<void> updateScanCrop(String scanId, String cropId) async {}
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
+
+  @override
+  Future<void> deleteAllLocalScans() async {}
 }
 
 class HomeScreen extends StatefulWidget {
@@ -74,6 +82,8 @@ class HomeScreen extends StatefulWidget {
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+  final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
   const HomeScreen({
     super.key,
@@ -86,6 +96,8 @@ class HomeScreen extends StatefulWidget {
     this.resolveTreatmentUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
+    this.exportScanHistoryUseCase,
+    this.submitFeedbackUseCase,
   });
 
   @override
@@ -136,6 +148,8 @@ class _HomeScreenState extends State<HomeScreen> {
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
         resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
         createEscalationUseCase: widget.createEscalationUseCase,
+        exportScanHistoryUseCase: widget.exportScanHistoryUseCase,
+        submitFeedbackUseCase: widget.submitFeedbackUseCase,
       ),
     );
   }
@@ -151,6 +165,8 @@ class _HomeScreenView extends StatelessWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+  final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
   const _HomeScreenView({
     required this.user,
@@ -162,15 +178,63 @@ class _HomeScreenView extends StatelessWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.createEscalationUseCase,
+    this.exportScanHistoryUseCase,
+    this.submitFeedbackUseCase,
   });
+
+  Future<void> _handleAccountAction(BuildContext context) async {
+    if (authCubit == null) return;
+    final currentUser = authCubit!.currentUser;
+    if (currentUser.isGuest) {
+      final updated = await Navigator.push<LocalUser>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: authCubit!,
+            child: AuthScreen(currentUser: currentUser),
+          ),
+        ),
+      );
+      if (updated != null) {
+        onUserUpdated(updated);
+      }
+    } else {
+      final updated = await Navigator.push<LocalUser>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: authCubit!,
+            child: ProfileScreen(
+              user: currentUser,
+              authCubit: authCubit,
+            ),
+          ),
+        ),
+      );
+      if (updated != null) {
+        onUserUpdated(updated);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isGuest = user.isGuest;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('home_title')),
         elevation: 0,
         actions: [
+          IconButton(
+            key: const Key('home_account_icon'),
+            icon: Icon(
+              isGuest ? Icons.account_circle_outlined : Icons.account_circle,
+              color: isGuest ? null : Colors.green.shade700,
+            ),
+            tooltip: isGuest ? context.tr('link_account_btn') : context.tr('profile_title'),
+            onPressed: () => _handleAccountAction(context),
+          ),
           IconButton(
             key: const Key('home_settings_icon'),
             icon: const Icon(Icons.settings),
@@ -183,16 +247,12 @@ class _HomeScreenView extends StatelessWidget {
                     user: user,
                     authCubit: authCubit,
                     syncCubit: syncCubit,
+                    exportScanHistoryUseCase: exportScanHistoryUseCase,
+                    submitFeedbackUseCase: submitFeedbackUseCase,
                   ),
                 ),
               );
             },
-          ),
-          IconButton(
-            key: const Key('home_change_language_icon'),
-            icon: const Icon(Icons.language),
-            tooltip: context.tr('change_language'),
-            onPressed: () => ChangeLanguageDialog.show(context),
           ),
         ],
       ),
@@ -207,30 +267,13 @@ class _HomeScreenView extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: _HeroScanCard(
-                  user: user,
-                  onLinkAccount: () async {
-                    if (authCubit != null) {
-                      final updated = await Navigator.push<LocalUser>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: authCubit!,
-                            child: AuthScreen(currentUser: user),
-                          ),
-                        ),
-                      );
-                      if (updated != null) {
-                        onUserUpdated(updated);
-                      }
-                    }
-                  },
                   onStartScan: () async {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CropSelectionScreen(
-                          getSupportedCropsUseCase: getSupportedCropsUseCase,
+                        builder: (_) => AddPhotoScreen(
                           user: user,
+                          getSupportedCropsUseCase: getSupportedCropsUseCase,
                           validateImageUseCase: validateImageUseCase,
                           runDiagnosisUseCase: runDiagnosisUseCase,
                           resolveTreatmentUseCase: resolveTreatmentUseCase,
@@ -251,7 +294,9 @@ class _HomeScreenView extends StatelessWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: _HistoryHeaderAndFilters(),
+                child: _HistoryHeaderAndFilters(
+                  exportScanHistoryUseCase: exportScanHistoryUseCase,
+                ),
               ),
             ),
 
@@ -276,21 +321,15 @@ class _HomeScreenView extends StatelessWidget {
 // =============================================================================
 
 class _HeroScanCard extends StatelessWidget {
-  final LocalUser user;
   final VoidCallback onStartScan;
-  final VoidCallback onLinkAccount;
 
   const _HeroScanCard({
-    required this.user,
     required this.onStartScan,
-    required this.onLinkAccount,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isGuest = user.isGuest;
-    final displayEmail = user.email ?? user.phoneNumber;
 
     return Card(
       elevation: 3,
@@ -305,8 +344,8 @@ class _HeroScanCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: theme.colorScheme.primary,
-                  child: Icon(
-                    isGuest ? Icons.eco : Icons.account_circle,
+                  child: const Icon(
+                    Icons.eco,
                     color: Colors.white,
                     size: 28,
                   ),
@@ -323,46 +362,15 @@ class _HeroScanCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      if (isGuest)
-                        Text(
-                          '${context.tr('guest_badge')}: ${user.id.length >= 8 ? user.id.substring(0, 8) : user.id}...',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Icon(Icons.verified, size: 14, color: Colors.green.shade700),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                displayEmail ?? 'Registered Account',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade800,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        context.tr('home_subtitle'),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
+                      ),
                     ],
                   ),
                 ),
-                if (isGuest)
-                  TextButton.icon(
-                    key: const Key('home_link_account_button'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: const Icon(Icons.link, size: 16),
-                    label: Text(
-                      context.tr('link_account_btn'),
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: onLinkAccount,
-                  ),
               ],
             ),
             const SizedBox(height: 20),
@@ -402,6 +410,12 @@ class _HeroScanCard extends StatelessWidget {
 // =============================================================================
 
 class _HistoryHeaderAndFilters extends StatelessWidget {
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+
+  const _HistoryHeaderAndFilters({
+    this.exportScanHistoryUseCase,
+  });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -413,11 +427,15 @@ class _HistoryHeaderAndFilters extends StatelessWidget {
     if (state is HistoryLoaded) {
       totalCount = state.items.length;
       activeFilter = state.activeStatusFilter;
+    } else if (state is HistoryEmpty) {
+      totalCount = 0;
+      activeFilter = state.activeStatusFilter;
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Row 1: "Scan History" title + "Export" [download icon] ───────
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -427,80 +445,139 @@ class _HistoryHeaderAndFilters extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (totalCount > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$totalCount ${context.tr('scans_count')}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+            TextButton.icon(
+              key: const Key('home_export_history_icon'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                foregroundColor: theme.colorScheme.primary,
+              ),
+              icon: const Icon(Icons.file_download_outlined, size: 18),
+              label: Text(
+                context.tr('export_btn'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              onPressed: () async {
+                if (exportScanHistoryUseCase != null) {
+                  final count = await exportScanHistoryUseCase!.execute();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          count > 0
+                              ? context.tr('export_data_success')
+                              : context.tr('export_data_empty'),
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ],
         ),
         const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _FilterChip(
-                label: context.tr('filter_all'),
-                isSelected: activeFilter == null,
-                onTap: () => cubit.filterByStatus(null),
+
+        // ── Row 2: Filter Dropdown + Number of Scans ('15 scans') ────────
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    key: const Key('home_history_filter_dropdown'),
+                    isExpanded: true,
+                    value: activeFilter ?? 'ALL',
+                    icon: const Icon(Icons.arrow_drop_down),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'ALL',
+                        child: Text(context.tr('filter_all'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'HEALTHY',
+                        child: Text(context.tr('filter_healthy'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'LOW_CONFIDENCE',
+                        child: Text(context.tr('filter_low_conf'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'SHARED',
+                        child: Text(context.tr('filter_shared'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'DATE_TODAY',
+                        child: Text(context.tr('filter_date_today'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'DATE_WEEK',
+                        child: Text(context.tr('filter_date_week'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'DATE_MONTH',
+                        child: Text(context.tr('filter_date_month'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CROP_TOMATO',
+                        child: Text(context.tr('filter_crop_tomato'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CROP_CHILI',
+                        child: Text(context.tr('filter_crop_chili'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CROP_PADDY',
+                        child: Text(context.tr('filter_crop_paddy'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CROP_CORN',
+                        child: Text(context.tr('filter_crop_corn'), style: const TextStyle(fontSize: 13)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'CROP_POTATO',
+                        child: Text(context.tr('filter_crop_potato'), style: const TextStyle(fontSize: 13)),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      cubit.filterByStatus(val == 'ALL' ? null : val);
+                    },
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: context.tr('filter_low_conf'),
-                isSelected: activeFilter == 'LOW_CONFIDENCE',
-                onTap: () => cubit.filterByStatus('LOW_CONFIDENCE'),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: context.tr('filter_shared'),
-                isSelected: activeFilter == 'SHARED',
-                onTap: () => cubit.filterByStatus('SHARED'),
+              child: Text(
+                '$totalCount ${context.tr('scans_count')}',
+                key: const Key('home_history_scan_count_badge'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: context.tr('filter_healthy'),
-                isSelected: activeFilter == 'HEALTHY',
-                onTap: () => cubit.filterByStatus('HEALTHY'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: isSelected,
-      onSelected: (_) => onTap(),
-      selectedColor: theme.colorScheme.primaryContainer,
-      visualDensity: VisualDensity.compact,
     );
   }
 }

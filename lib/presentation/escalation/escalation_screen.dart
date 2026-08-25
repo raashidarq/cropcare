@@ -4,6 +4,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/escalation/escalation_cubit.dart';
@@ -81,6 +82,22 @@ class _EscalationViewState extends State<_EscalationView> {
         .join(' ');
   }
 
+  void _copySummary(BuildContext context) {
+    final text = context.read<EscalationCubit>().formatEscalationText(
+          scan: widget.scan,
+          diagnosis: widget.diagnosis,
+          farmerNotes: _notesController.text.trim(),
+        );
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.tr('summary_copied')),
+        backgroundColor: Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -149,10 +166,11 @@ class _EscalationViewState extends State<_EscalationView> {
                           )
                         else
                           Container(
-                            height: 160,
-                            color: theme.colorScheme.surfaceContainerHighest,
+                            height: 120,
+                            color: Colors.grey.shade200,
                             child: const Center(
-                              child: Icon(Icons.image_outlined, size: 64),
+                              child: Icon(Icons.image_not_supported,
+                                  size: 48, color: Colors.grey),
                             ),
                           ),
                         Padding(
@@ -161,34 +179,55 @@ class _EscalationViewState extends State<_EscalationView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Chip(
-                                    avatar: const Icon(Icons.grass, size: 16),
-                                    label: Text(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
                                       widget.scan.cropId.toUpperCase(),
-                                      style: const TextStyle(
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isLowConfidence)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        context.tr('low_confidence_badge'),
+                                        style: TextStyle(
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 12),
+                                          color: Colors.orange.shade900,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    '${(widget.diagnosis.confidence * 100).toStringAsFixed(1)}% Match',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: isLowConfidence
-                                          ? Colors.orange.shade800
-                                          : Colors.green.shade800,
-                                    ),
-                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 10),
                               Text(
                                 _formatDiseaseName(widget.diagnosis.diseaseId),
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${context.tr('confidence')}: ${(widget.diagnosis.confidence * 100).toStringAsFixed(1)}%${widget.diagnosis.severity != null ? ' • Severity: ${widget.diagnosis.severity}' : ''}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -198,38 +237,6 @@ class _EscalationViewState extends State<_EscalationView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // ── Low Confidence Advisory Banner (if < 80%) ────────────
-                  if (isLowConfidence) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.warning_amber_rounded,
-                              color: Colors.orange.shade900, size: 24),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              context.tr('low_confidence_advisory'),
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.orange.shade900,
-                                height: 1.3,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
 
                   // ── Farmer Observations & Notes ──────────────────────────
                   Card(
@@ -316,6 +323,45 @@ class _EscalationViewState extends State<_EscalationView> {
                                   );
                             },
                     ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Fallback 1: Copy Summary Text ────────────────────────
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      key: const Key('copy_escalation_text_button'),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.copy_all, size: 20),
+                      label: Text(
+                        context.tr('copy_summary_btn'),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () => _copySummary(context),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // ── Fallback 2: Share via Other Apps ─────────────────────
+                  TextButton.icon(
+                    key: const Key('generic_share_button'),
+                    icon: const Icon(Icons.share_outlined, size: 18),
+                    label: Text(context.tr('share_other_apps')),
+                    onPressed: state is EscalationSharing
+                        ? null
+                        : () {
+                            context.read<EscalationCubit>().shareViaWhatsApp(
+                                  scan: widget.scan,
+                                  diagnosis: widget.diagnosis,
+                                  farmerNotes: _notesController.text.trim(),
+                                );
+                          },
                   ),
                 ],
               ),

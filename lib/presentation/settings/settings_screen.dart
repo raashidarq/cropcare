@@ -8,22 +8,32 @@ import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/settings/settings_cubit.dart';
 import '../../application/settings/settings_state.dart';
 import '../../application/sync/sync_cubit.dart';
-import '../../application/sync/sync_state.dart';
 import '../../domain/entities/local_user.dart';
-import '../auth/auth_screen.dart';
+import '../../domain/usecases/feedback/submit_feedback_use_case.dart';
+import '../../domain/usecases/history/export_scan_history_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../onboarding/widgets/change_language_dialog.dart';
+import 'accessibility_screen.dart';
+import 'faq_screen.dart';
+import 'feedback_screen.dart';
+import 'offline_screen.dart';
+import 'profile_screen.dart';
+import 'terms_privacy_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   final LocalUser? user;
   final AuthCubit? authCubit;
   final SyncCubit? syncCubit;
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+  final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
   const SettingsScreen({
     super.key,
     this.user,
     this.authCubit,
     this.syncCubit,
+    this.exportScanHistoryUseCase,
+    this.submitFeedbackUseCase,
   });
 
   @override
@@ -37,6 +47,8 @@ class SettingsScreen extends StatelessWidget {
         user: user,
         authCubit: authCubit,
         syncCubit: syncCubit,
+        exportScanHistoryUseCase: exportScanHistoryUseCase,
+        submitFeedbackUseCase: submitFeedbackUseCase,
       ),
     );
   }
@@ -46,11 +58,15 @@ class _SettingsView extends StatelessWidget {
   final LocalUser? user;
   final AuthCubit? authCubit;
   final SyncCubit? syncCubit;
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+  final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
   const _SettingsView({
     this.user,
     this.authCubit,
     this.syncCubit,
+    this.exportScanHistoryUseCase,
+    this.submitFeedbackUseCase,
   });
 
   void _showComingSoonDialog(BuildContext context, String titleKey) {
@@ -90,6 +106,21 @@ class _SettingsView extends StatelessWidget {
     );
   }
 
+  Widget _buildSectionHeader(BuildContext context, String titleKey) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      child: Text(
+        context.tr(titleKey).toUpperCase(),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -104,75 +135,67 @@ class _SettingsView extends StatelessWidget {
 
     final currentUser = authCubit?.currentUser ?? user;
     final isGuest = currentUser?.isGuest ?? true;
-    final email = currentUser?.email ?? '';
+    final displayId = currentUser?.email ?? currentUser?.phoneNumber ?? context.tr('guest_badge');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('settings_title')),
+        elevation: 0,
       ),
       body: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (context, state) {
           return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
-              // ── Account Section ──────────────────────────────────────────
+              // ── 1. Profile & Account Section ─────────────────────────────
+              _buildSectionHeader(context, 'section_profile'),
               Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ListTile(
-                  key: const Key('settings_account_row'),
+                  key: const Key('settings_profile_row'),
                   leading: CircleAvatar(
                     backgroundColor: isGuest
                         ? theme.colorScheme.surfaceContainerHighest
                         : theme.colorScheme.primaryContainer,
                     child: Icon(
-                      isGuest ? Icons.person_outline : Icons.account_circle,
+                      isGuest ? Icons.person_outline : Icons.person,
                       color: isGuest
                           ? theme.colorScheme.onSurfaceVariant
                           : theme.colorScheme.primary,
                     ),
                   ),
                   title: Text(
-                    context.tr('account_section'),
+                    context.tr('profile_title'),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    isGuest
-                        ? context.tr('account_guest_desc')
-                        : '${context.tr('signed_in_as')}: $email',
+                    isGuest ? context.tr('account_guest_desc') : displayId,
                     style: const TextStyle(fontSize: 12),
                   ),
-                  trailing: isGuest
-                      ? ElevatedButton(
-                          key: const Key('settings_link_account_button'),
-                          style: ElevatedButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    if (currentUser != null && authCubit != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(
+                            value: authCubit!,
+                            child: ProfileScreen(
+                              user: currentUser,
+                              authCubit: authCubit,
+                            ),
                           ),
-                          onPressed: () {
-                            if (currentUser != null && authCubit != null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => BlocProvider.value(
-                                    value: authCubit!,
-                                    child: AuthScreen(currentUser: currentUser),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          child: Text(context.tr('link_account_btn')),
-                        )
-                      : TextButton(
-                          key: const Key('settings_sign_out_button'),
-                          onPressed: () => authCubit?.signOut(),
-                          child: Text(context.tr('sign_out')),
                         ),
+                      );
+                    }
+                  },
                 ),
               ),
 
-              // ── Language Section ─────────────────────────────────────────
+              // ── 2. Preferences Section ───────────────────────────────────
+              _buildSectionHeader(context, 'section_preferences'),
               Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ListTile(
                   key: const Key('settings_language_row'),
                   leading: CircleAvatar(
@@ -188,33 +211,8 @@ class _SettingsView extends StatelessWidget {
                   onTap: () => ChangeLanguageDialog.show(context),
                 ),
               ),
-
-              // ── Accessibility Section ────────────────────────────────────
               Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: ListTile(
-                  key: const Key('settings_accessibility_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    child: Icon(Icons.accessibility_new,
-                        color: theme.colorScheme.secondary),
-                  ),
-                  title: Text(
-                    context.tr('section_accessibility'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(context.tr('coming_soon')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showComingSoonDialog(
-                    context,
-                    'section_accessibility',
-                  ),
-                ),
-              ),
-
-              // ── Notifications Section ────────────────────────────────────
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ListTile(
                   key: const Key('settings_notifications_row'),
                   leading: CircleAvatar(
@@ -234,92 +232,239 @@ class _SettingsView extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // ── Offline Data & Cloud Sync Section ───────────────────────
               Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: BlocConsumer<SyncCubit, SyncState>(
-                  listener: (context, syncState) {
-                    if (syncState is SyncSuccess && syncState.syncedCount > 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.tr('sync_success')),
-                          backgroundColor: Colors.green.shade700,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    } else if (syncState is SyncError) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(syncState.message),
-                          backgroundColor: Colors.red.shade700,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                  builder: (context, syncState) {
-                    final isSyncing = syncState is SyncInProgress;
-                    final pendingCount = syncState.pendingCount;
-
-                    return ListTile(
-                      key: const Key('settings_offline_data_row'),
-                      leading: CircleAvatar(
-                        backgroundColor: pendingCount > 0
-                            ? theme.colorScheme.primaryContainer
-                            : theme.colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          pendingCount > 0
-                              ? Icons.cloud_upload_outlined
-                              : Icons.cloud_done_outlined,
-                          color: pendingCount > 0
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      title: Text(
-                        context.tr('section_offline_data'),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        isSyncing
-                            ? context.tr('sync_in_progress')
-                            : pendingCount > 0
-                                ? '$pendingCount ${context.tr('sync_pending')}'
-                                : context.tr('sync_offline_ready'),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      trailing: ElevatedButton(
-                        key: const Key('settings_sync_now_button'),
-                        style: ElevatedButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: isSyncing
-                            ? null
-                            : () {
-                                context.read<SyncCubit>().syncNow();
-                              },
-                        child: isSyncing
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : Text(
-                                context.tr('sync_now'),
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_accessibility_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    child: Icon(Icons.accessibility_new,
+                        color: theme.colorScheme.secondary),
+                  ),
+                  title: Text(
+                    context.tr('section_accessibility'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    context.tr('accessibility_subtitle'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AccessibilityScreen(),
                       ),
                     );
                   },
                 ),
               ),
+
+              // ── 3. Data & Storage Section ────────────────────────────────
+              _buildSectionHeader(context, 'section_data_storage'),
+              _buildOfflineRow(context, theme),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_export_data_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.tertiaryContainer,
+                    child: Icon(Icons.file_download_outlined,
+                        color: theme.colorScheme.onTertiaryContainer),
+                  ),
+                  title: Text(
+                    context.tr('export_data_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    context.tr('export_data_desc'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: TextButton.icon(
+                    key: const Key('settings_export_button'),
+                    icon: const Icon(Icons.share, size: 16),
+                    label: Text(context.tr('export_data_btn')),
+                    onPressed: () async {
+                      if (exportScanHistoryUseCase != null) {
+                        final count = await exportScanHistoryUseCase!.execute();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                count > 0
+                                    ? context.tr('export_data_success')
+                                    : context.tr('export_data_empty'),
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  onTap: () async {
+                    if (exportScanHistoryUseCase != null) {
+                      final count = await exportScanHistoryUseCase!.execute();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              count > 0
+                                  ? context.tr('export_data_success')
+                                  : context.tr('export_data_empty'),
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+
+              // ── 4. Support & Legal Section ───────────────────────────────
+              _buildSectionHeader(context, 'section_support_legal'),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_faq_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(Icons.help_outline,
+                        color: theme.colorScheme.primary),
+                  ),
+                  title: Text(
+                    context.tr('section_help_faq'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    context.tr('faq_title'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FaqScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_feedback_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    child: Icon(Icons.feedback_outlined,
+                        color: theme.colorScheme.secondary),
+                  ),
+                  title: Text(
+                    context.tr('send_feedback'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    context.tr('feedback_title'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FeedbackScreen(
+                          user: currentUser,
+                          submitFeedbackUseCase: submitFeedbackUseCase,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_terms_privacy_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(Icons.policy_outlined,
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  title: Text(
+                    context.tr('section_terms_privacy'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '${context.tr('terms_of_service')} ${context.tr('and_connector')} ${context.tr('privacy_policy')}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TermsPrivacyScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── App Footer ───────────────────────────────────────────────
+              Center(
+                child: Text(
+                  'CropCare v1.0.0 (Build 1)\n${context.tr('splash_subtitle')}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOfflineRow(BuildContext context, ThemeData theme) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        key: const Key('settings_offline_data_row'),
+        leading: CircleAvatar(
+          backgroundColor: theme.colorScheme.primaryContainer,
+          child: Icon(
+            Icons.cloud_sync_outlined,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        title: Text(
+          context.tr('section_offline'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          context.tr('offline_subtitle'),
+          style: const TextStyle(fontSize: 12),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => syncCubit != null
+                  ? BlocProvider.value(
+                      value: syncCubit!,
+                      child: const OfflineScreen(),
+                    )
+                  : const OfflineScreen(),
+            ),
           );
         },
       ),

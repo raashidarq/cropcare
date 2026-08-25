@@ -1,4 +1,4 @@
-﻿// lib/services/work_manager_helper.dart
+// lib/services/work_manager_helper.dart
 
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
@@ -51,7 +51,7 @@ void callbackDispatcher() {
       if (token == null || token.isEmpty) {
         // Guest user — nothing to sync.
         await database.close();
-        return Future.value(true);
+        return true;
       }
 
       // ── Outbox flush ────────────────────────────────────────────────────
@@ -66,10 +66,10 @@ void callbackDispatcher() {
       } catch (_) {}
 
       await database.close();
-      return Future.value(true);
+      return true;
     } catch (_) {
       // Returning false signals WorkManager to retry with back-off.
-      return Future.value(false);
+      return false;
     }
   });
 }

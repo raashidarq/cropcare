@@ -29,8 +29,28 @@ class AuthRateLimited extends AuthState {
   const AuthRateLimited(this.message);
 }
 
+class AuthOtpExpired extends AuthState {
+  final String message;
+
+  const AuthOtpExpired(this.message);
+}
+
+class AuthOtpRequested extends AuthState {
+  final String phoneNumber;
+
+  const AuthOtpRequested(this.phoneNumber);
+}
+
+class AuthPasswordResetSent extends AuthState {
+  final String email;
+  final String message;
+
+  const AuthPasswordResetSent(this.email, {this.message = ''});
+}
+
 class AuthError extends AuthState {
   final String message;
 
   const AuthError(this.message);
 }
+
