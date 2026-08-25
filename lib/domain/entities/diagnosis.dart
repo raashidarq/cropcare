@@ -54,6 +54,9 @@ class Diagnosis {
   /// Set when treatmentSource == localFallback.
   final String? treatmentGuidelineId;
 
+  /// Set when treatmentSource == llm.
+  final String? llmInterpretationId;
+
   /// ISO8601 timestamp.
   final String inferredAt;
 
@@ -68,6 +71,7 @@ class Diagnosis {
     this.alternatives = const [],
     required this.treatmentSource,
     this.treatmentGuidelineId,
+    this.llmInterpretationId,
     required this.inferredAt,
   });
 

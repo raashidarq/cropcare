@@ -31,28 +31,25 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | Diagnosis row INSERT to SQLite (CONFIDENT, LOW_CONFIDENCE, UNSUPPORTED, ANALYSIS_FAILED) | Done |
 | DiagnosisResultScreen (disease name, confidence %, severity, low confidence banner, observations, Gemini treatment card, scan again) | Done |
 | Treatment Guidance (FastAPI `POST /interpret-diagnosis` client, ResolveTreatmentUseCase, DiagnosisCubit) | Done |
-| Text-to-Speech (TTS) audio playback (`flutter_tts`, `TextToSpeechService`, localized EN/SI/TA reading on diagnosis card) | Done |
+| Text-to-Speech (TTS) audio playback (`flutter_tts`, `TextToSpeechService`, Android 11+ `<queries>` declared, localized EN/SI/TA reading for both Gemini & offline fallback cards) | Done |
 | Escalation & WhatsApp Share Flow (EscalationScreen, EscalationCubit, attached photo, low-confidence advisory) | Done |
 | Embedded Scan History (HomeScreen history section, HistoryCubit, filter chips, tap-to-review) | Done |
-| Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, secure storage) | Done |
-| Offline Sync Engine (`sync_operation` outbox Drift table, SyncApiClient with signed URL binary upload + idempotency, SyncRepositoryImpl, SyncCubit) | Done |
+| Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, secure storage, post-auth auto-sync hook) | Done |
+| Offline Sync Engine (`sync_operation` outbox Drift table, SyncApiClient with signed URL binary upload + idempotency, ScanTable enrichment, SyncRepositoryImpl, SyncCubit, downstream reference data sync) | Done |
 | Settings screen (Account with guest upgrade & sign out, Language, Offline Data & Cloud Sync with manual trigger, Coming Soon shells) | Done |
 | SQLite schema (11 Drift tables defined + migrations, schemaVersion=4) | Done |
 | Full localization string tables (EN/SI/TA) | Done |
-| Full automated test suite (43/43 Flutter tests passing) | Done |
+| Full automated test suite (45/45 Flutter tests passing) | Done |
 
 ### What is partially implemented
 - Settings sections: Language, Account, and Offline Data & Cloud Sync are fully functional. Accessibility and Notifications show Coming Soon dialogs.
-- Automatic sync triggers: Manual sync via Settings is complete; automated background sync on app resume / connectivity change and post-auth auto-trigger are planned enhancements.
-- Downstream reference data sync (`GET /reference-data?since=`).
 
 ### What is not implemented
 - Push notifications / WorkManager periodic background worker.
 
 ### Immediate development priorities
-1. Add Android `<queries>` intent for TTS service in `AndroidManifest.xml` & support offline guideline TTS.
-2. Hook auto-sync triggers (on guest-to-registered user upgrade & network reconnection).
-3. Server-to-client reference data sync (`GET /reference-data?since=`).
+1. App-level connectivity listener to auto-sync when recovering network connection.
+2. Background periodic worker (WorkManager) for scheduled outbox flushes.
 
 ---
 
@@ -182,11 +179,13 @@ cropcare/
 | `lib/data/local/database/app_database.dart` | Drift DB class; migrations up to schemaVersion=4; index creation | `AppDatabase`, `AppDatabase.forTesting()` | Local Data | `drift`, `sqlite3_flutter_libs`, `path_provider` | All `RepositoryImpl` files |
 | `lib/data/local/ml/ml_inference_service.dart` | Loads bundled TFLite model, preprocesses image (224x224 NHWC), runs inference, applies softmax, maps class index to disease ID | `MlInferenceService`, `InferenceResult` | Local Data / ML | `tflite_flutter`, `image` | `RunDiagnosisUseCase`, `main.dart` |
 | `lib/data/local/tts/text_to_speech_service.dart` | Audio speech synthesis for localized treatment guidance | `TtsService`, `TextToSpeechService` | Local Data / Audio | `flutter_tts` | `DiagnosisResultScreen` |
-| `lib/data/remote/sync_api_client.dart` | Signed URL generation, image binary upload, idempotent REST sync | `SyncApiClient` | Remote Data | `http` | `SyncRepositoryImpl` |
-| `lib/data/repositories/sync_repository_impl.dart` | Outbox processor; reads pending ops, executes two-step image + metadata sync, tracks retries | `SyncRepositoryImpl` | Repository | `AppDatabase`, `SyncApiClient` | `SyncCubit`, `main.dart` |
-| `lib/application/sync/sync_cubit.dart` | Manages pending sync count and manual sync execution | `SyncCubit`, `SyncState` | Application | `SyncRepository`, `AuthRepository` | `SettingsScreen`, `main.dart` |
-| `lib/presentation/diagnosis/diagnosis_result_screen.dart` | Renders ML diagnosis results, AI treatment guidance card, and TTS read-aloud button | `DiagnosisResultScreen`, `_TreatmentLoadedCard` | Presentation | `Diagnosis`, `Scan`, `DiagnosisCubit`, `TtsService` | `CaptureScreen`, `HomeScreen` |
+| `lib/data/remote/sync_api_client.dart` | Signed URL generation, image binary upload, idempotent REST sync, reference data fetch | `SyncApiClient` | Remote Data | `http` | `SyncRepositoryImpl` |
+| `lib/data/repositories/sync_repository_impl.dart` | Outbox processor; reads pending ops, executes two-step image + metadata sync, enriches local scan records, syncs downstream reference data, tracks retries | `SyncRepositoryImpl` | Repository | `AppDatabase`, `SyncApiClient` | `SyncCubit`, `main.dart` |
+| `lib/data/repositories/treatment_repository_impl.dart` | Fetches remote AI recommendations with seamless automatic fallback to local SQLite guidelines when offline | `TreatmentRepositoryImpl` | Repository | `TreatmentApiClient`, `AppDatabase` | `ResolveTreatmentUseCase`, `main.dart` |
+| `lib/application/sync/sync_cubit.dart` | Manages pending sync count, token-authenticated sync execution, and reference data sync | `SyncCubit`, `SyncState` | Application | `SyncRepository`, `AuthRepository` | `SettingsScreen`, `AuthScreen`, `main.dart` |
+| `lib/presentation/diagnosis/diagnosis_result_screen.dart` | Renders ML diagnosis results, AI / Offline treatment guidance card, and TTS read-aloud button | `DiagnosisResultScreen`, `_TreatmentLoadedCard` | Presentation | `Diagnosis`, `Scan`, `DiagnosisCubit`, `TtsService` | `CaptureScreen`, `HomeScreen` |
 | `lib/presentation/settings/settings_screen.dart` | Account linking/signout, language selector, and Offline Data & Cloud Sync card | `SettingsScreen` | Presentation | `SettingsCubit`, `AuthCubit`, `SyncCubit`, `AppStateCubit` | `HomeScreen` |
+| `lib/presentation/auth/auth_screen.dart` | Tabbed sign-in/register screen with automatic post-auth cloud sync hook | `AuthScreen` | Presentation | `AuthCubit`, `SyncCubit` | `SettingsScreen` |
 | `lib/presentation/escalation/escalation_screen.dart` | Low-confidence advisory, WhatsApp formatted sharing with leaf photo attachment | `EscalationScreen` | Presentation | `EscalationCubit`, `share_plus` | `DiagnosisResultScreen`, `HomeScreen` |
 
 ---
@@ -195,7 +194,7 @@ cropcare/
 
 | Layer | Implemented | Partially | Planned Only | Not Present |
 |---|---|---|---|---|
-| Presentation | Splash, Onboarding, LanguageSelection, Home, CropSelection, Capture, ScanResult, DiagnosisResult (with TTS), Settings, Auth, Escalation | — | — | — |
+| Presentation | Splash, Onboarding, LanguageSelection, Home, CropSelection, Capture, ScanResult, DiagnosisResult (with TTS & Offline badges), Settings, Auth (with auto-sync hook), Escalation | — | — | — |
 | Application / Cubit | AppStateCubit, ScanCubit, AuthCubit, DiagnosisCubit, HistoryCubit, EscalationCubit, SyncCubit | SettingsCubit | — | — |
 | Domain / Use Cases | GetAppState, CompleteOnboarding, SetLanguage, GetOrCreateGuestUser, UpgradeGuestUser, SignIn, SignOut, GetSupportedCrops, CaptureScan, GetScanById, ValidateImage, RunDiagnosis, ResolveTreatment, CreateEscalation, GetScanHistory | — | SyncPendingOperations (encapsulated in repository) | — |
 | Domain / Entities | AppState, Crop, LocalUser, Scan (+ ScanStatus), Diagnosis (+ DiagnosisResultState, TreatmentSource), Escalation, SyncOperation, Treatment, ScanHistoryItem | — | — | — |
@@ -203,9 +202,9 @@ cropcare/
 | Repository (impl) | AppStateRepositoryImpl, AuthRepositoryImpl, CropRepositoryImpl, DiagnosisRepositoryImpl, DiseaseRepositoryImpl, EscalationRepositoryImpl, LocalUserRepositoryImpl, ScanRepositoryImpl, SyncRepositoryImpl, TreatmentRepositoryImpl | — | — | — |
 | Local Data (SQLite) | All 11 tables defined: app_state, local_user, crop, disease, treatment_guideline, model_version, scan, image_validation, diagnosis, escalation, sync_operation | — | — | — |
 | ML Inference | On-device TFLite MobileNetV2 (float32, 224x224 NHWC, 38-class softmax) via `tflite_flutter` + `image` | — | — | — |
-| Remote Data | FastAPI clients: AuthApiClient, TreatmentApiClient, SyncApiClient | — | Reference data sync | — |
-| Platform Services | Camera (`image_picker`, `camera`), Permissions (`permission_handler`), Secure Storage (`flutter_secure_storage`), Sharing (`share_plus`), TTS (`flutter_tts`) | — | WorkManager | — |
-| Sync Engine | Outbox table (`sync_operation`), auto-enqueue in repositories, two-stage binary image upload via signed URLs, idempotent upserts, manual UI sync | Post-auth auto-trigger, network connectivity listener | Periodic background worker | — |
+| Remote Data | FastAPI clients: AuthApiClient, TreatmentApiClient, SyncApiClient (outbox upload + reference data sync) | — | — | — |
+| Platform Services | Camera (`image_picker`, `camera`), Permissions (`permission_handler`), Secure Storage (`flutter_secure_storage`), Sharing (`share_plus`), TTS (`flutter_tts`, Android 11+ `<queries>`) | — | WorkManager | — |
+| Sync Engine | Outbox table (`sync_operation`), auto-enqueue in repositories, two-stage binary image upload via signed URLs, scan record enrichment, idempotent upserts, post-auth auto-trigger, manual UI sync, downstream reference data sync | Connectivity listener | Periodic background worker | — |
 
 ---
 
@@ -217,7 +216,7 @@ main()
   -> AppDatabase() [open cropcare.db, migrate to v4]
   -> LocalUserRepositoryImpl.getOrCreateGuestUser() [INSERT or SELECT local_user]
   -> CropRepositoryImpl -> GetSupportedCropsUseCase() [Seed 15 crops if empty]
-  -> DiseaseRepositoryImpl.seedDiseasesIfEmpty() [Seed 38 PlantVillage + Paddy classes]
+  -> DiseaseRepositoryImpl.seedDiseasesIfEmpty() [Seed 38 PlantVillage + Paddy classes & treatment guidelines]
   -> MlInferenceService.loadModel() [Load assets/models/plant_disease_mobilenetv2.tflite]
   -> AppStateCubit (init -> loadAppState())
   -> runApp(CropCareApp(...))
@@ -232,20 +231,28 @@ CaptureScreen (photo captured) -> ScanCubit.confirmPhoto()
        -> MlInferenceService.runInference()
        -> DiagnosisRepositoryImpl.createDiagnosis() [INSERT diagnosis + enqueue outbox DIAGNOSIS operation]
   -> ScanDiagnosed -> DiagnosisResultScreen
-  -> DiagnosisCubit.fetchTreatmentGuidance() -> TreatmentApiClient (POST /interpret-diagnosis)
-  -> TreatmentLoaded -> User taps "Read Aloud" -> TextToSpeechService.speak(summary + whatToDo + whatToAvoid)
+  -> DiagnosisCubit.fetchTreatmentGuidance() -> TreatmentRepositoryImpl:
+       -> Try: TreatmentApiClient (POST /interpret-diagnosis)
+       -> Catch: Query local SQLite treatment_guideline table
+  -> TreatmentLoaded (Gemini AI or Offline Guideline badge)
+  -> User taps "Read Aloud" -> TextToSpeechService.speak(summary + whatToDo + whatToAvoid in active language)
 ```
 
-### 3. Offline Outbox Sync Flow
+### 3. Offline Outbox & Reference Data Sync Flow
 ```
 Repositories (Scan, Diagnosis, Escalation) -> Insert/Update entity & enqueue row in sync_operation (status='PENDING')
-SettingsScreen -> User taps "Sync Now" -> SyncCubit.syncNow():
-  -> AuthRepository.getStoredToken()
+Trigger: User taps "Sync Now" in Settings OR logs in / upgrades account via AuthScreen
+SyncCubit.syncNow(token?):
+  -> AuthRepository.getStoredToken() (or passed session token)
   -> SyncRepositoryImpl.getPendingOperations():
-       -> For each SCAN: SyncApiClient.getSignedUploadUrl() -> PUT image bytes -> POST /scans
+       -> For each SCAN: SyncApiClient.getSignedUploadUrl() -> PUT image bytes -> POST /scans -> Enrich local ScanTable (image_remote_url, remote_scan_id)
        -> For each DIAGNOSIS: POST /diagnoses
        -> For each ESCALATION: POST /escalations
        -> Update sync_operation status='COMPLETED'
+  -> SyncRepositoryImpl.syncReferenceData():
+       -> SyncApiClient.fetchReferenceData(since: app_state.last_sync_at)
+       -> Upsert CropTable, DiseaseTable, TreatmentGuidelineTable
+       -> Update app_state.last_sync_at
 ```
 
 ---
@@ -257,10 +264,10 @@ SettingsScreen -> User taps "Sync Now" -> SyncCubit.syncNow():
 | `AppStateCubit` | `application/onboarding/app_state_cubit.dart` | `AppStateLoading`, `AppStateOnboardingNeeded`, `AppStateOnboardingComplete` | App routing & language code | `GetAppStateUseCase`, `CompleteOnboardingUseCase`, `SetLanguageUseCase` |
 | `ScanCubit` | `application/scan/scan_cubit.dart` | `ScanInitial` through `ScanDiagnosed`, `ScanImageInvalid`, `ScanError` (11 states) | Camera lifecycle, capture, image validation, ML inference | `CaptureScanUseCase`, `ValidateImageUseCase`, `RunDiagnosisUseCase`, `CameraPermissionService` |
 | `AuthCubit` | `application/auth/auth_cubit.dart` | `AuthInitial`, `AuthLoading`, `AuthSuccess`, `AuthError`, `AuthRateLimited` | User authentication & guest account upgrade | `UpgradeGuestUserUseCase`, `SignInUseCase`, `SignOutUseCase` |
-| `DiagnosisCubit` | `application/diagnosis/diagnosis_cubit.dart` | `DiagnosisInitial`, `DiagnosisHealthy`, `DiagnosisTreatmentLoading`, `DiagnosisTreatmentLoaded`, `DiagnosisTreatmentError` | LLM treatment guidance fetching | `ResolveTreatmentUseCase` |
+| `DiagnosisCubit` | `application/diagnosis/diagnosis_cubit.dart` | `DiagnosisInitial`, `DiagnosisHealthy`, `DiagnosisTreatmentLoading`, `DiagnosisTreatmentLoaded`, `DiagnosisTreatmentError` | LLM & offline treatment guidance fetching | `ResolveTreatmentUseCase` |
 | `EscalationCubit` | `application/escalation/escalation_cubit.dart` | `EscalationInitial`, `EscalationSharing`, `EscalationSharedSuccess`, `EscalationError` | WhatsApp message formatting & photo share | `CreateEscalationUseCase`, `SharePlus` |
 | `HistoryCubit` | `application/history/history_cubit.dart` | `HistoryInitial`, `HistoryLoading`, `HistoryLoaded`, `HistoryEmpty`, `HistoryError` | Scan history list and active filter chips | `GetScanHistoryUseCase` |
-| `SyncCubit` | `application/sync/sync_cubit.dart` | `SyncInitial`, `SyncInProgress`, `SyncSuccess`, `SyncError` | Outbox sync count and manual sync trigger | `SyncRepository`, `AuthRepository` |
+| `SyncCubit` | `application/sync/sync_cubit.dart` | `SyncInitial`, `SyncInProgress`, `SyncSuccess`, `SyncError` | Outbox sync count, manual & post-auth sync execution, reference data sync | `SyncRepository`, `AuthRepository` |
 | `SettingsCubit` | `application/settings/settings_cubit.dart` | `SettingsState` | Section expansion state | — |
 
 ---
@@ -272,10 +279,10 @@ SettingsScreen -> User taps "Sync Now" -> SyncCubit.syncNow():
 - **`Crop`**: `id`, `nameEn`, `nameSi`, `nameTa`, `isSupported`, `iconAsset`
 - **`LocalUser`**: `id`, `remoteUserId`, `email`, `phoneNumber`, `isGuest`, `sessionToken`, `createdAt`, `updatedAt`
 - **`Scan`**: `id`, `remoteScanId`, `userId`, `cropId`, `imageLocalPath`, `imageRemoteUrl`, `status`, `capturedAt`, `createdAt`, `updatedAt`
-- **`Diagnosis`**: `id`, `scanId`, `diseaseId`, `modelVersionId`, `confidence`, `resultState`, `severity`, `alternatives`, `treatmentSource`, `treatmentGuidelineId`, `inferredAt`
+- **`Diagnosis`**: `id`, `scanId`, `diseaseId`, `modelVersionId`, `confidence`, `resultState`, `severity`, `alternatives`, `treatmentSource`, `treatmentGuidelineId`, `llmInterpretationId`, `inferredAt`
 - **`Escalation`**: `id`, `scanId`, `diagnosisId`, `notes`, `sharedVia`, `sharedAt`, `createdAt`
 - **`SyncOperation`**: `id`, `entityId`, `entityType`, `operationType`, `payloadJson`, `status`, `retryCount`, `lastError`, `createdAt`, `updatedAt`
-- **`TreatmentResponse`**: `summary`, `whatToDo`, `whatToAvoid`, `recheckDays`, `source`
+- **`TreatmentResponse`**: `summary`, `whatToDo`, `whatToAvoid`, `recheckAfterDays`, `interpretationId`
 - **`ScanHistoryItem`**: `scan`, `diagnosis`, `crop`
 
 ### SQLite Tables (Drift — `schemaVersion = 4`)
@@ -285,9 +292,9 @@ SettingsScreen -> User taps "Sync Now" -> SyncCubit.syncNow():
 4. **`disease`**: 38 seeded PlantVillage disease classes + paddy.
 5. **`treatment_guideline`**: Local offline fallback guidelines.
 6. **`model_version`**: Model registry table.
-7. **`scan`**: Image path, crop FK, status lifecycle.
+7. **`scan`**: Image path, crop FK, status lifecycle, imageRemoteUrl, remoteScanId.
 8. **`image_validation`**: On-device image quality validation results.
-9. **`diagnosis`**: Inference results, confidence scores, and treatment sources.
+9. **`diagnosis`**: Inference results, confidence scores, treatment source, and interpretation IDs.
 10. **`escalation`**: Expert escalation & WhatsApp share records (added in v3).
 11. **`sync_operation`**: Outbox for offline cloud sync operations (added in v4).
 

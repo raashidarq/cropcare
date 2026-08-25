@@ -299,6 +299,65 @@ class DiseaseRepositoryImpl {
     for (final disease in diseases) {
       await db.into(db.diseaseTable).insertOnConflictUpdate(disease);
     }
+
+    await _seedTreatmentGuidelines();
+  }
+
+  Future<void> _seedTreatmentGuidelines() async {
+    final guidelines = <TreatmentGuidelineTableCompanion>[
+      TreatmentGuidelineTableCompanion.insert(
+        id: 'tg_tomato_early_blight',
+        diseaseId: 'tomato_early_blight',
+        guidelineVersion: 'tg-2026.01',
+        summaryEn: const Value('Early blight produces dark spots with concentric rings on older tomato leaves.'),
+        summarySi: const Value('මුල් අංගමාරය මගින් පැරණි තක්කාලි පත්‍රවල කේන්ද්‍රීය වළලු සහිත අඳුරු ලප ඇති කරයි.'),
+        summaryTa: const Value('ஆரம்பகால கருகல் நோய் பழைய தக்காளி இலைகளில் வட்ட வளையங்களுடன் கூடிய கரும்புள்ளிகளை உருவாக்குகிறது.'),
+        whatToDoEn: const Value('Prune lower diseased leaves immediately. Apply copper fungicide or chlorothalonil. Maintain proper plant spacing.'),
+        whatToDoSi: const Value('රෝගී පහළ කොළ වහාම කපා ඉවත් කරන්න. කොපර් දිලීර නාශකයක් යොදන්න. ශාක අතර නිසි පරතරය තබාගන්න.'),
+        whatToDoTa: const Value('பாதிக்கப்பட்ட கீழ் இலைகளை உடனடியாக அகற்றவும். காப்பர் பூஞ்சைக் கொல்லியைப் பயன்படுத்தவும்.'),
+        whatToAvoidEn: const Value('Avoid overhead sprinkler irrigation. Do not leave pruned diseased leaves on the soil.'),
+        whatToAvoidSi: const Value('ඉහළින් ජලය ඉසීමෙන් වළකින්න. කපා ඉවත් කළ රෝගී කොළ ක්ෂේත්‍රයේ දමා නොයන්න.'),
+        whatToAvoidTa: const Value('மேலிருந்து தண்ணீர் தெளிப்பதைத் தவிர்க்கவும். பாதிக்கப்பட்ட இலைகளை வயலில் விடாதீர்கள்.'),
+        recheckAfterDays: const Value(7),
+        publishedAt: const Value('2026-01-01T00:00:00Z'),
+      ),
+      TreatmentGuidelineTableCompanion.insert(
+        id: 'tg_tomato_late_blight',
+        diseaseId: 'tomato_late_blight',
+        guidelineVersion: 'tg-2026.01',
+        summaryEn: const Value('Late blight causes rapidly spreading dark water-soaked lesions on leaves and stems.'),
+        summarySi: const Value('පසු අංගමාරය මගින් පත්‍ර සහ කඳන් මත වේගයෙන් පැතිරෙන තෙතමනය සහිත අඳුරු ලප ඇති කරයි.'),
+        summaryTa: const Value('பிற்கால கருகல் நோய் இலைகள் மற்றும் தண்டுகளில் வேகமாக பரவும் நீர் ஊறின கரும்புள்ளிகளை ஏற்படுத்துகிறது.'),
+        whatToDoEn: const Value('Apply Mancozeb or systemic copper fungicide promptly. Remove heavily infected plants to stop spore spread.'),
+        whatToDoSi: const Value('මැන්කොසෙබ් හෝ කොපර් දිලීර නාශකයක් වහාම යොදන්න. රෝගය පැතිරීම වැළැක්වීමට දැඩි ලෙස හානි වූ ශාක ගලවා පුළුස්සා දමන්න.'),
+        whatToDoTa: const Value('மேன்கோசெப் அல்லது காப்பர் பூஞ்சைக் கொல்லியை உடனே பயன்படுத்தவும். பாதிக்கப்பட்ட செடிகளை அகற்றவும்.'),
+        whatToAvoidEn: const Value('Do not handle wet plants. Avoid overhead watering during high humidity periods.'),
+        whatToAvoidSi: const Value('තෙතමනය ඇති විට ශාක ඇල්ලීමෙන් වළකින්න. අධික ආර්ද්‍රතා කාලවලදී ඉහළින් ජලය දැමීමෙන් වළකින්න.'),
+        whatToAvoidTa: const Value('ஈரமான செடிகளைத் தொடாதீர்கள். அதிக ஈரப்பதம் உள்ள நேரங்களில் தண்ணீர் தெளிப்பதைத் தவிர்க்கவும்.'),
+        recheckAfterDays: const Value(5),
+        publishedAt: const Value('2026-01-01T00:00:00Z'),
+      ),
+      TreatmentGuidelineTableCompanion.insert(
+        id: 'tg_chili_bacterial_spot',
+        diseaseId: 'chili_bacterial_spot',
+        guidelineVersion: 'tg-2026.01',
+        summaryEn: const Value('Bacterial spot produces small water-soaked spots on pepper leaves that turn brown and scab-like.'),
+        summarySi: const Value('බැක්ටීරියා ලප රෝගය මිරිස් කොළ මත කුඩා තෙත් ලප ඇති කර පසුව දුඹුරු පැහැයට හැරේ.'),
+        summaryTa: const Value('பாக்டீரியா புள்ளி மிளகாய் இலைகளில் சிறிய நீர் புள்ளிகளை உருவாக்கி பழுப்பு நிறமாக மாற்றுகிறது.'),
+        whatToDoEn: const Value('Spray copper hydroxide at first sign. Practice crop rotation with non-solanaceous crops.'),
+        whatToDoSi: const Value('පළමු ලක්ෂණ දුටු වහාම කොපර් හයිඩ්‍රොක්සයිඩ් ඉසින්න. බෝග මාරුව ක්‍රියාත්මක කරන්න.'),
+        whatToDoTa: const Value('காப்பர் ஹைட்ராக்சைடு தெளிக்கவும். பயிர் சுழற்சியைப் பின்பற்றவும்.'),
+        whatToAvoidEn: const Value('Avoid sprinkler irrigation. Do not work in fields when leaves are wet.'),
+        whatToAvoidSi: const Value('ස්ප්‍රින්ක්ලර් මගින් ජලය යෙදීමෙන් වළකින්න. පත්‍ර තෙත්ව ඇති විට ක්ෂේත්‍රයේ වැඩ කිරීමෙන් වළකින්න.'),
+        whatToAvoidTa: const Value('தெளிப்பான் பாசனத்தைத் தவிர்க்கவும். இலைகள் ஈரமாக இருக்கும்போது வயலில் வேலை செய்யாதீர்கள்.'),
+        recheckAfterDays: const Value(7),
+        publishedAt: const Value('2026-01-01T00:00:00Z'),
+      ),
+    ];
+
+    for (final guideline in guidelines) {
+      await db.into(db.treatmentGuidelineTable).insertOnConflictUpdate(guideline);
+    }
   }
 
   /// Returns the disease entity matching [diseaseId], or null.

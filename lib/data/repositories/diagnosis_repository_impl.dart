@@ -160,6 +160,7 @@ class DiagnosisRepositoryImpl implements DiagnosisRepository {
       alternatives: alternatives,
       treatmentSource: _treatmentSourceFromString(row.treatmentSource),
       treatmentGuidelineId: row.treatmentGuidelineId,
+      llmInterpretationId: row.llmInterpretationId,
       inferredAt: row.inferredAt,
     );
   }

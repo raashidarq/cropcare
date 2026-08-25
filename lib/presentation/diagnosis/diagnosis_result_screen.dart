@@ -769,22 +769,39 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.purple.shade50,
+                    color: treatment.interpretationId != null
+                        ? Colors.purple.shade50
+                        : Colors.teal.shade50,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.purple.shade200),
+                    border: Border.all(
+                      color: treatment.interpretationId != null
+                          ? Colors.purple.shade200
+                          : Colors.teal.shade200,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome,
-                          size: 14, color: Colors.purple.shade700),
+                      Icon(
+                        treatment.interpretationId != null
+                            ? Icons.auto_awesome
+                            : Icons.menu_book_outlined,
+                        size: 14,
+                        color: treatment.interpretationId != null
+                            ? Colors.purple.shade700
+                            : Colors.teal.shade700,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        'Gemini',
+                        treatment.interpretationId != null
+                            ? 'Gemini'
+                            : context.tr('offline_guideline_badge'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Colors.purple.shade900,
+                          color: treatment.interpretationId != null
+                              ? Colors.purple.shade900
+                              : Colors.teal.shade900,
                         ),
                       ),
                     ],

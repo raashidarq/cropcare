@@ -86,5 +86,38 @@ void main() {
       expect(fakeDiagRepo.updatedSource, equals(TreatmentSource.llm));
       expect(fakeDiagRepo.updatedLlmInterpretationId, equals('interp-uuid-999'));
     });
+
+    test('resolves offline fallback treatment and updates source to offlineFallback', () async {
+      final fakeTreatmentRepo = FakeTreatmentRepository()
+        ..responseToReturn = const TreatmentResponse(
+          summary: 'Offline guideline summary',
+          whatToDo: 'Prune infected leaves',
+          whatToAvoid: 'Avoid overhead watering',
+          recheckAfterDays: 5,
+          interpretationId: null, // Null denotes offline fallback
+        );
+      final fakeDiagRepo = FakeDiagnosisRepository();
+
+      final useCase = ResolveTreatmentUseCase(
+        treatmentRepository: fakeTreatmentRepo,
+        diagnosisRepository: fakeDiagRepo,
+      );
+
+      final result = await useCase(
+        diagnosisId: 'diag-2',
+        cropId: 'tomato',
+        diseaseId: 'tomato_late_blight',
+        confidence: 0.95,
+        severity: 'high',
+        languageCode: 'en',
+      );
+
+      expect(result.summary, equals('Offline guideline summary'));
+      expect(result.interpretationId, isNull);
+
+      expect(fakeDiagRepo.updatedDiagnosisId, equals('diag-2'));
+      expect(fakeDiagRepo.updatedSource, equals(TreatmentSource.localFallback));
+      expect(fakeDiagRepo.updatedLlmInterpretationId, isNull);
+    });
   });
 }

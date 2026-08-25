@@ -37,10 +37,13 @@ class ResolveTreatmentUseCase {
       authToken: authToken,
     );
 
-    // Record that this diagnosis has resolved LLM treatment guidance
+    // Record whether treatment guidance came from LLM or local fallback
+    final source = response.interpretationId != null
+        ? TreatmentSource.llm
+        : TreatmentSource.localFallback;
     await diagnosisRepository.updateTreatmentSource(
       diagnosisId,
-      source: TreatmentSource.llm,
+      source: source,
       llmInterpretationId: response.interpretationId,
     );
 

@@ -90,5 +90,34 @@ void main() {
         authToken: 'fake_jwt',
       );
     });
+
+    test('fetchReferenceData calls GET /reference-data with Authorization header and since param', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/reference-data');
+        expect(request.url.queryParameters['since'], '2026-01-01T00:00:00Z');
+        expect(request.headers['Authorization'], 'Bearer fake_jwt');
+        return http.Response(
+          jsonEncode({
+            'crops': [{'id': 'tomato', 'name_en': 'Tomato'}],
+            'diseases': [{'id': 'tomato_early_blight', 'crop_id': 'tomato', 'name_en': 'Early Blight'}],
+            'guidelines': [{'id': 'tg-1', 'disease_id': 'tomato_early_blight', 'guideline_version': 'v1.0'}]
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final client = SyncApiClient(httpClient: mockClient);
+      final result = await client.fetchReferenceData(
+        since: '2026-01-01T00:00:00Z',
+        authToken: 'fake_jwt',
+      );
+
+      expect(result['crops'], isList);
+      expect((result['crops'] as List).length, 1);
+      expect((result['diseases'] as List).length, 1);
+      expect((result['guidelines'] as List).length, 1);
+    });
   });
 }

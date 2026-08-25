@@ -152,4 +152,31 @@ class SyncApiClient {
       );
     }
   }
+
+  /// Fetches downstream reference data updates (crops, diseases, guidelines).
+  Future<Map<String, dynamic>> fetchReferenceData({
+    String? since,
+    required String authToken,
+  }) async {
+    final queryParams = since != null ? {'since': since} : null;
+    final uri = Uri.parse('$baseUrl/reference-data').replace(
+      queryParameters: queryParams,
+    );
+    final response = await _httpClient.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw SyncApiException(
+        'Failed to fetch reference data: ${response.body}',
+        response.statusCode,
+      );
+    }
+  }
 }

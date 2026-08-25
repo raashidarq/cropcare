@@ -39,6 +39,9 @@ class _FakeSyncRepository implements SyncRepository {
     lastAuthToken = authToken;
     pendingCount = 0;
   }
+
+  @override
+  Future<void> syncReferenceData({required String authToken}) async {}
 }
 
 class _FakeAuthRepository implements AuthRepository {

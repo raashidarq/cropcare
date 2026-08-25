@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/auth/auth_cubit.dart';
 import '../../application/auth/auth_state.dart';
+import '../../application/sync/sync_cubit.dart';
 import '../../domain/entities/local_user.dart';
 import '../onboarding/localization/localization_provider.dart';
 
@@ -98,6 +99,14 @@ class _AuthScreenState extends State<AuthScreen>
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state is AuthSuccess) {
+            // Auto-sync offline guest data to newly authenticated cloud account
+            final token = state.user.sessionToken;
+            if (token != null && token.isNotEmpty) {
+              try {
+                context.read<SyncCubit?>()?.syncNow(token: token);
+              } catch (_) {}
+            }
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),

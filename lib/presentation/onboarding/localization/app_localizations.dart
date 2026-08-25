@@ -66,6 +66,7 @@ class AppLocalizations {
       'recheck_after_days': 'Recheck in',
       'days': 'days',
       'treatment_source_llm': 'AI Generated Advice',
+      'offline_guideline_badge': 'Offline Guide',
       'treatment_observations_label': 'Add Your Observations (Optional)',
       'treatment_observations_hint':
           'e.g. Started 3 days ago, leaves yellowing at bottom, heavy rain recently...',
@@ -180,6 +181,7 @@ class AppLocalizations {
       'recheck_after_days': 'නැවත පරීක්ෂා කරන්න',
       'days': 'දිනකින්',
       'treatment_source_llm': 'AI මගින් ජනනය කරන ලද උපදෙස්',
+      'offline_guideline_badge': 'නොබැඳි මාර්ගෝපදේශය',
       'treatment_observations_label': 'ඔබගේ නිරීක්ෂණ ඇතුළත් කරන්න (අවශ්‍ය නම් පමණි)',
       'treatment_observations_hint':
           'උදා: දින 3කට පෙර ආරම්භ විය, පහළ කොළ කහ පැහැ වේ, වර්ෂාව ලැබුණි...',
@@ -296,6 +298,7 @@ class AppLocalizations {
       'recheck_after_days': 'மீண்டும் பரிசோதிக்கவும்',
       'days': 'நாட்களில்',
       'treatment_source_llm': 'AI உருவாக்கிய ஆலோசனை',
+      'offline_guideline_badge': 'ஆஃப்லைன் வழிகாட்டி',
       'treatment_observations_label': 'உங்கள் அவதானிப்புகளைச் சேர்க்கவும் (விருப்பத்திற்குரியது)',
       'treatment_observations_hint':
           'எ.கா. 3 நாட்களுக்கு முன் தொடங்கியது, கீழ் இலைகள் மஞ்சள் நிறமாகிறது...',

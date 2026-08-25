@@ -21,4 +21,6 @@ abstract class SyncRepository {
   });
 
   Future<void> syncPendingOperations({required String authToken});
+
+  Future<void> syncReferenceData({required String authToken});
 }

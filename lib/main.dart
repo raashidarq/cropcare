@@ -47,7 +47,10 @@ void main() async {
   final diagnosisRepository = DiagnosisRepositoryImpl(database);
   final escalationRepository = EscalationRepositoryImpl(database);
   final treatmentApiClient = TreatmentApiClient();
-  final treatmentRepository = TreatmentRepositoryImpl(apiClient: treatmentApiClient);
+  final treatmentRepository = TreatmentRepositoryImpl(
+    apiClient: treatmentApiClient,
+    db: database,
+  );
   final authApiClient = AuthApiClient();
   final authRepository = AuthRepositoryImpl(
     apiClient: authApiClient,

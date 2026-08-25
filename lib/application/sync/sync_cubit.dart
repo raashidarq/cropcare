@@ -7,49 +7,56 @@ import '../../domain/repositories/sync_repository.dart';
 import 'sync_state.dart';
 
 class SyncCubit extends Cubit<SyncState> {
-  final SyncRepository _syncRepository;
-  final AuthRepository _authRepository;
+  final SyncRepository syncRepository;
+  final AuthRepository authRepository;
 
   SyncCubit({
-    required SyncRepository syncRepository,
-    required AuthRepository authRepository,
-  })  : _syncRepository = syncRepository,
-        _authRepository = authRepository,
-        super(const SyncInitial());
+    required this.syncRepository,
+    required this.authRepository,
+  }) : super(const SyncInitial());
 
   Future<void> refreshPendingCount() async {
     try {
-      final count = await _syncRepository.getPendingCount();
+      final count = await syncRepository.getPendingCount();
       emit(SyncInitial(pendingCount: count));
     } catch (_) {}
   }
 
-  Future<void> syncNow() async {
-    final count = await _syncRepository.getPendingCount();
-    if (count == 0) {
-      emit(const SyncSuccess(syncedCount: 0, pendingCount: 0));
-      return;
-    }
+  Future<void> syncNow({String? token}) async {
+    final count = await syncRepository.getPendingCount();
 
-    final token = await _authRepository.getStoredToken();
+    final effectiveToken = token ?? await authRepository.getStoredToken();
 
-    if (token == null || token.isEmpty) {
-      emit(SyncError(
-        message: 'Please link or sign in to your CropCare account to sync scans to the cloud.',
-        pendingCount: count,
-      ));
+    if (effectiveToken == null || effectiveToken.isEmpty) {
+      if (count > 0) {
+        emit(SyncError(
+          message: 'Please link or sign in to your CropCare account to sync scans to the cloud.',
+          pendingCount: count,
+        ));
+      } else {
+        emit(const SyncInitial(pendingCount: 0));
+      }
       return;
     }
 
     emit(SyncInProgress(pendingCount: count));
 
     try {
-      await _syncRepository.syncPendingOperations(authToken: token);
-      final remaining = await _syncRepository.getPendingCount();
+      if (count > 0) {
+        await syncRepository.syncPendingOperations(authToken: effectiveToken);
+      }
+      // Attempt downstream reference data sync
+      try {
+        await syncRepository.syncReferenceData(authToken: effectiveToken);
+      } catch (_) {
+        // Non-fatal reference data sync error
+      }
+
+      final remaining = await syncRepository.getPendingCount();
       final synced = count - remaining;
-      emit(SyncSuccess(syncedCount: synced > 0 ? synced : count, pendingCount: remaining));
+      emit(SyncSuccess(syncedCount: synced >= 0 ? synced : count, pendingCount: remaining));
     } catch (e) {
-      final remaining = await _syncRepository.getPendingCount();
+      final remaining = await syncRepository.getPendingCount();
       emit(SyncError(
         message: e.toString(),
         pendingCount: remaining,

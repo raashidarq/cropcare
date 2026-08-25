@@ -10,14 +10,13 @@ import '../local/database/app_database.dart';
 import '../remote/sync_api_client.dart';
 
 class SyncRepositoryImpl implements SyncRepository {
-  final AppDatabase _db;
+  final AppDatabase db;
   final SyncApiClient _apiClient;
 
   SyncRepositoryImpl({
-    required AppDatabase db,
+    required this.db,
     SyncApiClient? apiClient,
-  })  : _db = db,
-        _apiClient = apiClient ?? SyncApiClient();
+  }) : _apiClient = apiClient ?? SyncApiClient();
 
   @override
   Future<void> enqueueOperation({
@@ -31,7 +30,7 @@ class SyncRepositoryImpl implements SyncRepository {
     final payloadJsonStr = jsonEncode(payload);
 
     // Check if an existing pending operation exists for this entity
-    final existing = await (_db.select(_db.syncOperationTable)
+    final existing = await (db.select(db.syncOperationTable)
           ..where((t) =>
               t.entityId.equals(entityId) &
               t.entityType.equals(typeStr) &
@@ -39,7 +38,7 @@ class SyncRepositoryImpl implements SyncRepository {
         .getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.syncOperationTable)
+      await (db.update(db.syncOperationTable)
             ..where((t) => t.id.equals(existing.id)))
           .write(
         SyncOperationTableCompanion(
@@ -50,7 +49,7 @@ class SyncRepositoryImpl implements SyncRepository {
       );
     } else {
       final opId = 'sync_${DateTime.now().millisecondsSinceEpoch}_${entityId.substring(0, entityId.length > 8 ? 8 : entityId.length)}';
-      await _db.into(_db.syncOperationTable).insert(
+      await db.into(db.syncOperationTable).insert(
             SyncOperationTableCompanion.insert(
               id: opId,
               entityId: entityId,
@@ -68,7 +67,7 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<List<SyncOperation>> getPendingOperations({int maxRetries = 3}) async {
-    final rows = await (_db.select(_db.syncOperationTable)
+    final rows = await (db.select(db.syncOperationTable)
           ..where((t) =>
               (t.status.equals('PENDING') | t.status.equals('FAILED')) &
               t.retryCount.isSmallerThanValue(maxRetries))
@@ -82,12 +81,12 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<int> getPendingCount() async {
-    final countExp = _db.syncOperationTable.id.count();
-    final query = _db.selectOnly(_db.syncOperationTable)
+    final countExp = db.syncOperationTable.id.count();
+    final query = db.selectOnly(db.syncOperationTable)
       ..addColumns([countExp])
-      ..where((_db.syncOperationTable.status.equals('PENDING') |
-              _db.syncOperationTable.status.equals('FAILED')) &
-          _db.syncOperationTable.retryCount.isSmallerThanValue(3));
+      ..where((db.syncOperationTable.status.equals('PENDING') |
+              db.syncOperationTable.status.equals('FAILED')) &
+          db.syncOperationTable.retryCount.isSmallerThanValue(3));
 
     final result = await query.getSingle();
     return result.read(countExp) ?? 0;
@@ -102,7 +101,7 @@ class SyncRepositoryImpl implements SyncRepository {
     final now = DateTime.now().toIso8601String();
     final statusStr = _mapStatusToString(status);
 
-    await (_db.update(_db.syncOperationTable)
+    await (db.update(db.syncOperationTable)
           ..where((t) => t.id.equals(operationId)))
         .write(
       SyncOperationTableCompanion(
@@ -129,6 +128,7 @@ class SyncRepositoryImpl implements SyncRepository {
         switch (op.entityType) {
           case SyncEntityType.scan:
             final imagePath = payload['image_local_path'] as String?;
+            String? remoteImageUrl;
             if (imagePath != null && imagePath.isNotEmpty) {
               final file = File(imagePath);
               if (await file.exists()) {
@@ -141,11 +141,26 @@ class SyncRepositoryImpl implements SyncRepository {
                   signedUrl: signedUrl,
                   imageBytes: bytes,
                 );
+                final uri = Uri.tryParse(signedUrl);
+                if (uri != null) {
+                  remoteImageUrl = '${uri.scheme}://${uri.host}${uri.path}';
+                }
               }
             }
             await _apiClient.syncScan(
               scanData: payload,
               authToken: authToken,
+            );
+
+            // Enrich local scan record with remote scan id and remote image url
+            final scanNow = DateTime.now().toIso8601String();
+            await (db.update(db.scanTable)..where((t) => t.id.equals(op.entityId)))
+                .write(
+              ScanTableCompanion(
+                imageRemoteUrl: remoteImageUrl != null ? Value(remoteImageUrl) : const Value.absent(),
+                remoteScanId: Value(op.entityId),
+                updatedAt: Value(scanNow),
+              ),
             );
             break;
 
@@ -169,13 +184,13 @@ class SyncRepositoryImpl implements SyncRepository {
           status: SyncOperationStatus.completed,
         );
       } catch (e) {
-        final row = await (_db.select(_db.syncOperationTable)
+        final row = await (db.select(db.syncOperationTable)
               ..where((t) => t.id.equals(op.id)))
             .getSingleOrNull();
         final currentRetries = row?.retryCount ?? 0;
 
         final now = DateTime.now().toIso8601String();
-        await (_db.update(_db.syncOperationTable)
+        await (db.update(db.syncOperationTable)
               ..where((t) => t.id.equals(op.id)))
             .write(
           SyncOperationTableCompanion(
@@ -187,6 +202,85 @@ class SyncRepositoryImpl implements SyncRepository {
         );
       }
     }
+  }
+
+  @override
+  Future<void> syncReferenceData({required String authToken}) async {
+    final appState = await (db.select(db.appStateTable)..where((t) => t.id.equals(1))).getSingleOrNull();
+    final since = appState?.lastSyncAt;
+
+    final data = await _apiClient.fetchReferenceData(
+      since: since,
+      authToken: authToken,
+    );
+
+    // Upsert crops if present in downstream payload
+    if (data.containsKey('crops') && data['crops'] is List) {
+      for (final crop in data['crops'] as List) {
+        if (crop is Map<String, dynamic>) {
+          await db.into(db.cropTable).insertOnConflictUpdate(
+                CropTableCompanion.insert(
+                  id: crop['id'] as String,
+                  nameEn: crop['name_en'] as String? ?? crop['name'] as String? ?? 'Crop',
+                  nameSi: Value(crop['name_si'] as String?),
+                  nameTa: Value(crop['name_ta'] as String?),
+                  isSupported: Value(crop['is_supported'] == false ? 0 : 1),
+                  iconAsset: Value(crop['icon_asset'] as String?),
+                ),
+              );
+        }
+      }
+    }
+
+    // Upsert diseases if present in downstream payload
+    if (data.containsKey('diseases') && data['diseases'] is List) {
+      for (final disease in data['diseases'] as List) {
+        if (disease is Map<String, dynamic>) {
+          await db.into(db.diseaseTable).insertOnConflictUpdate(
+                DiseaseTableCompanion.insert(
+                  id: disease['id'] as String,
+                  cropId: disease['crop_id'] as String,
+                  nameEn: disease['name_en'] as String? ?? disease['name'] as String? ?? 'Disease',
+                  nameSi: Value(disease['name_si'] as String?),
+                  nameTa: Value(disease['name_ta'] as String?),
+                  severityDefault: Value(disease['severity_default'] as String?),
+                ),
+              );
+        }
+      }
+    }
+
+    // Upsert treatment guidelines if present in downstream payload
+    if (data.containsKey('guidelines') && data['guidelines'] is List) {
+      for (final g in data['guidelines'] as List) {
+        if (g is Map<String, dynamic>) {
+          await db.into(db.treatmentGuidelineTable).insertOnConflictUpdate(
+                TreatmentGuidelineTableCompanion.insert(
+                  id: g['id'] as String,
+                  diseaseId: g['disease_id'] as String,
+                  guidelineVersion: g['guideline_version'] as String? ?? 'v1.0',
+                  summaryEn: Value(g['summary_en'] as String?),
+                  summarySi: Value(g['summary_si'] as String?),
+                  summaryTa: Value(g['summary_ta'] as String?),
+                  whatToDoEn: Value(g['what_to_do_en'] as String?),
+                  whatToDoSi: Value(g['what_to_do_si'] as String?),
+                  whatToDoTa: Value(g['what_to_do_ta'] as String?),
+                  whatToAvoidEn: Value(g['what_to_avoid_en'] as String?),
+                  whatToAvoidSi: Value(g['what_to_avoid_si'] as String?),
+                  whatToAvoidTa: Value(g['what_to_avoid_ta'] as String?),
+                  recheckAfterDays: Value(g['recheck_after_days'] as int?),
+                  publishedAt: Value(g['published_at'] as String?),
+                ),
+              );
+        }
+      }
+    }
+
+    // Update lastSyncAt timestamp
+    final nowIso = DateTime.now().toIso8601String();
+    await (db.update(db.appStateTable)..where((t) => t.id.equals(1))).write(
+      AppStateTableCompanion(lastSyncAt: Value(nowIso)),
+    );
   }
 
   SyncOperation _mapToDomain(SyncOperationTableData row) {
