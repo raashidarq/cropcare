@@ -2,7 +2,7 @@
 
 > **Purpose:** Compact, accurate description of the **current** Flutter codebase for future AI coding agents.
 > **Source hierarchy:** Actual code > `CropCare_System_Architecture.md` > `CropCare_Build_Checklist.md`
-> **Last updated:** 2026-08-25
+> **Last updated:** 2026-08-25 (connectivity listener + WorkManager periodic sync added)
 
 ---
 
@@ -36,20 +36,15 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | Embedded Scan History (HomeScreen history section, HistoryCubit, filter chips, tap-to-review) | Done |
 | Authentication & Guest-to-Registered User Upgrade (AuthApiClient, AuthRepository, AuthCubit, AuthScreen, secure storage, post-auth auto-sync hook) | Done |
 | Offline Sync Engine (`sync_operation` outbox Drift table, SyncApiClient with signed URL binary upload + idempotency, ScanTable enrichment, SyncRepositoryImpl, SyncCubit, downstream reference data sync) | Done |
+| App-level connectivity listener (auto-sync on network recovery, 3 s debounce, offline→online transition only) | Done |
+| Background periodic WorkManager worker (15-min interval, `NETWORK_CONNECTED` constraint, Dart background isolate via `workmanager` plugin) | Done |
 | Settings screen (Account with guest upgrade & sign out, Language, Offline Data & Cloud Sync with manual trigger, Coming Soon shells) | Done |
 | SQLite schema (11 Drift tables defined + migrations, schemaVersion=4) | Done |
 | Full localization string tables (EN/SI/TA) | Done |
 | Full automated test suite (45/45 Flutter tests passing) | Done |
 
-### What is partially implemented
-- Settings sections: Language, Account, and Offline Data & Cloud Sync are fully functional. Accessibility and Notifications show Coming Soon dialogs.
-
 ### What is not implemented
-- Push notifications / WorkManager periodic background worker.
-
-### Immediate development priorities
-1. App-level connectivity listener to auto-sync when recovering network connection.
-2. Background periodic worker (WorkManager) for scheduled outbox flushes.
+- Push notifications.
 
 ---
 
@@ -60,6 +55,9 @@ cropcare/
 ├── lib/
 │   ├── main.dart                    # Entry point; DB + repos + seeders + ML model + cubits
 │   ├── app.dart                     # CropCareApp widget; BlocProvider root; routing logic
+│   ├── services/
+│   │   ├── connectivity_service.dart    # connectivity_plus wrapper; debounced bool stream
+│   │   └── work_manager_helper.dart     # callbackDispatcher + WorkManagerHelper (init/schedule/cancel)
 │   ├── application/                 # Cubits (state management, one per feature)
 │   │   ├── auth/                    # AuthCubit + AuthState (register, login, upgrade, signout)
 │   │   ├── diagnosis/               # DiagnosisCubit + DiagnosisState (treatment guidance fetch)
@@ -203,8 +201,8 @@ cropcare/
 | Local Data (SQLite) | All 11 tables defined: app_state, local_user, crop, disease, treatment_guideline, model_version, scan, image_validation, diagnosis, escalation, sync_operation | — | — | — |
 | ML Inference | On-device TFLite MobileNetV2 (float32, 224x224 NHWC, 38-class softmax) via `tflite_flutter` + `image` | — | — | — |
 | Remote Data | FastAPI clients: AuthApiClient, TreatmentApiClient, SyncApiClient (outbox upload + reference data sync) | — | — | — |
-| Platform Services | Camera (`image_picker`, `camera`), Permissions (`permission_handler`), Secure Storage (`flutter_secure_storage`), Sharing (`share_plus`), TTS (`flutter_tts`, Android 11+ `<queries>`) | — | WorkManager | — |
-| Sync Engine | Outbox table (`sync_operation`), auto-enqueue in repositories, two-stage binary image upload via signed URLs, scan record enrichment, idempotent upserts, post-auth auto-trigger, manual UI sync, downstream reference data sync | Connectivity listener | Periodic background worker | — |
+| Platform Services | Camera (`image_picker`, `camera`), Permissions (`permission_handler`), Secure Storage (`flutter_secure_storage`), Sharing (`share_plus`), TTS (`flutter_tts`, Android 11+ `<queries>`), Connectivity (`connectivity_plus`, `ACCESS_NETWORK_STATE`), WorkManager (`workmanager` plugin, 15-min periodic background isolate) | — | — | — |
+| Sync Engine | Outbox table (`sync_operation`), auto-enqueue in repositories, two-stage binary image upload via signed URLs, scan record enrichment, idempotent upserts, post-auth auto-trigger, manual UI sync, downstream reference data sync, connectivity listener (auto-sync on reconnect), periodic WorkManager background worker | — | — | — |
 
 ---
 
@@ -318,7 +316,8 @@ SyncCubit.syncNow(token?):
 | `flutter_secure_storage ^9.2.2` | Yes | Encrypted JWT access and refresh token storage |
 | `share_plus ^10.1.4` | Yes | WhatsApp escalation card with leaf photo attachment |
 | `flutter_tts ^4.2.2` | Yes | Localized Text-to-Speech playback for treatment guidance |
-| `cupertino_icons ^1.0.8` | Yes | Icons |
+| `connectivity_plus ^6.1.4` | Yes | `ConnectivityService` — debounced online/offline stream for auto-sync on reconnect |
+| `workmanager ^0.5.2` | Yes | `WorkManagerHelper` + `callbackDispatcher` — 15-min periodic Dart background isolate outbox flush |
 | `drift_dev ^2.9.0` | dev | Code generation |
 | `build_runner ^2.4.0` | dev | Code generation |
 | `flutter_lints ^6.0.0` | dev | Linting |

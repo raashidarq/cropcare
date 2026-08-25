@@ -9,6 +9,8 @@ import 'data/local/ml/ml_inference_service.dart';
 import 'data/remote/auth_api_client.dart';
 import 'data/remote/sync_api_client.dart';
 import 'data/remote/treatment_api_client.dart';
+import 'services/connectivity_service.dart';
+import 'services/work_manager_helper.dart';
 import 'data/repositories/app_state_repository_impl.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/crop_repository_impl.dart';
@@ -35,6 +37,10 @@ import 'domain/usecases/onboarding/set_language_use_case.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Background worker ─────────────────────────────────────────────────────
+  await WorkManagerHelper.initialize();
+  await WorkManagerHelper.scheduleSyncWork();
 
   // ── Database ──────────────────────────────────────────────────────────────
   final database = AppDatabase();
@@ -114,9 +120,12 @@ void main() async {
     signOutUseCase: signOutUseCase,
   );
 
+  final connectivityService = ConnectivityService();
+
   final syncCubit = SyncCubit(
     syncRepository: syncRepository,
     authRepository: authRepository,
+    connectivityService: connectivityService,
   );
 
   runApp(CropCareApp(

@@ -1,19 +1,55 @@
-// lib/application/sync/sync_cubit.dart
+﻿// lib/application/sync/sync_cubit.dart
+
+import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/sync_repository.dart';
+import '../../services/connectivity_service.dart';
 import 'sync_state.dart';
 
 class SyncCubit extends Cubit<SyncState> {
   final SyncRepository syncRepository;
   final AuthRepository authRepository;
+  final ConnectivityService? connectivityService;
+
+  StreamSubscription<bool>? _connectivitySubscription;
+
+  /// Tracks the previous connectivity state so we only trigger sync on the
+  /// offline → online transition (not on every `true` emission).
+  bool _wasOnline = true;
 
   SyncCubit({
     required this.syncRepository,
     required this.authRepository,
-  }) : super(const SyncInitial());
+    this.connectivityService,
+  }) : super(const SyncInitial()) {
+    _subscribeToConnectivity();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Connectivity listener
+  // ---------------------------------------------------------------------------
+
+  void _subscribeToConnectivity() {
+    final service = connectivityService;
+    if (service == null) return;
+
+    _connectivitySubscription = service.connectivityStream().listen((isOnline) {
+      final wasOffline = !_wasOnline;
+      _wasOnline = isOnline;
+
+      // Only auto-sync on the offline → online transition.
+      if (isOnline && wasOffline) {
+        syncNow();
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
 
   Future<void> refreshPendingCount() async {
     try {
@@ -62,5 +98,11 @@ class SyncCubit extends Cubit<SyncState> {
         pendingCount: remaining,
       ));
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _connectivitySubscription?.cancel();
+    return super.close();
   }
 }
