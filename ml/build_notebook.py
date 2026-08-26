@@ -139,6 +139,22 @@ LR_HEAD       = 1e-3
 LR_FINE       = 1e-4
 FINE_TUNE_AT  = 100          # unfreeze layers from this index up
 VAL_FRACTION  = 0.15
+
+# Fraction of the field dataset (PlantDoc) used for TRAINING rather than test.
+#
+# It was 0 - the whole of PlantDoc was held out. That produced a test that
+# could only fail: 19 of the 34 classes have PlantVillage as their only other
+# source, so holding out all of PlantDoc left them with lab plates alone to
+# learn from, and then tested them exclusively on field photographs. The first
+# run scored 89% on validation and 12.6% on PlantDoc, which was not a
+# generalisation gap at all - the two numbers were measuring disjoint sets of
+# classes.
+#
+# Splitting it gives those classes some field exposure while still testing on
+# images the model has never seen. The test is now "held-out field images"
+# rather than "held-out field dataset" - slightly weaker as evidence, and far
+# more useful than a guaranteed zero.
+PLANTDOC_TRAIN_FRACTION = 0.5
 LABEL_SMOOTH  = 0.05         # the labels are not perfectly clean; do not let
                              # the model become certain about them
 DROPOUT       = 0.3
@@ -368,9 +384,26 @@ for (cls, srckey), g in df.groupby(["class_id", "source"]):
     capped.append(g)
 df = pd.concat(capped, ignore_index=True)
 
-# --- hold PlantDoc out entirely -------------------------------------------
-test_df  = df[df["source"].isin(HELD_OUT_SOURCES)].reset_index(drop=True)
-train_pool = df[~df["source"].isin(HELD_OUT_SOURCES)].reset_index(drop=True)
+# --- split the field dataset ---------------------------------------------
+# Part of PlantDoc joins training so the lab-only classes see real field
+# photographs; the rest is never trained on and remains the honest test.
+held  = df[df["source"].isin(HELD_OUT_SOURCES)]
+other = df[~df["source"].isin(HELD_OUT_SOURCES)]
+
+field_train_parts, field_test_parts = [], []
+for cls, g in held.groupby("class_id"):
+    g = g.sample(frac=1.0, random_state=SEED)
+    n_train = int(len(g) * PLANTDOC_TRAIN_FRACTION)
+    field_train_parts.append(g.iloc[:n_train])
+    field_test_parts.append(g.iloc[n_train:])
+
+train_pool = pd.concat([other] + field_train_parts, ignore_index=True)
+test_df = (pd.concat(field_test_parts, ignore_index=True)
+           if field_test_parts else held.reset_index(drop=True))
+
+if len(held):
+    print(f"Field data: {sum(len(g) for g in field_train_parts):,} images into "
+          f"training, {len(test_df):,} held back for the test.")
 
 # --- stratified train/val -------------------------------------------------
 train_parts, val_parts = [], []
@@ -611,48 +644,85 @@ fix — not more epochs.
 """)
 
 code('''
-print("Validation (same distribution as training — the flattering number):")
-val_metrics = model.evaluate(val_ds, verbose=0)
-for name, v in zip(model.metrics_names, val_metrics):
-    print(f"   {name}: {v:.4f}")
+def metrics_of(ds):
+    """Named metrics. Keras 3 collapses metrics_names to ['loss',
+    'compile_metrics'], so ask for a dict instead of indexing by name."""
+    return model.evaluate(ds, verbose=0, return_dict=True)
+
+val_m = metrics_of(val_ds)
+print("Validation (same distribution as training - the flattering number):")
+for k, v in val_m.items():
+    print(f"   {k}: {v:.4f}")
 
 if test_ds is not None:
-    print("\\nPlantDoc — unseen field photographs (the honest number):")
-    test_metrics = model.evaluate(test_ds, verbose=0)
-    for name, v in zip(model.metrics_names, test_metrics):
-        print(f"   {name}: {v:.4f}")
+    test_m = metrics_of(test_ds)
+    print("\\nField photographs held back from training (the honest number):")
+    for k, v in test_m.items():
+        print(f"   {k}: {v:.4f}")
 
-    val_acc  = val_metrics[model.metrics_names.index("acc")]
-    test_acc = test_metrics[model.metrics_names.index("acc")]
+    val_acc, test_acc = val_m.get("acc", 0.0), test_m.get("acc", 0.0)
     gap = (val_acc - test_acc) * 100
     print(f"\\nLab-to-field gap: {gap:.1f} points")
     if gap > 40:
-        print("   SEVERE — this is the PlantVillage failure mode. The model is "
-              "reading backgrounds. More epochs will not help; more field data will.")
+        print("   SEVERE. Check the per-class table below before touching "
+              "hyperparameters - if whole classes read 0.00, the problem is "
+              "data coverage, not training.")
     elif gap > 20:
-        print("   Large but workable. Consider raising augmentation strength or "
+        print("   Large but workable. Try raising PLANTDOC_TRAIN_FRACTION or "
               "lowering MAX_LAB_IMAGES_PER_CLASS.")
     else:
         print("   Reasonable generalisation.")
 
-    # Per-class field accuracy: an average hides a class that never works, and
-    # a disease that is always wrong is worse than one the app refuses to name.
-    print("\\nPer-class accuracy on field images:")
+    # --- per class, split by whether the class had field training data -----
+    # An average over classes trained on lab plates and classes trained on
+    # field photos is two different measurements added together.
     y_true, y_pred = [], []
     for xb, yb in test_ds:
         y_true.extend(yb.numpy())
         y_pred.extend(np.argmax(model.predict(xb, verbose=0), axis=1))
     y_true, y_pred = np.array(y_true), np.array(y_pred)
+
+    field_backed = set(
+        train_df.loc[~train_df["source"].isin(LAB_SOURCES), "class_id"]
+    )
+
+    print("\\nPer-class accuracy on unseen field images:")
+    print(f"{'class':<38} {'n':>4} {'acc':>6}  {'train data':<12} most confused with")
     for i, cls in enumerate(CLASS_IDS):
         m = y_true == i
         if m.sum() == 0:
             continue
         acc = (y_pred[m] == i).mean()
-        flag = "   <-- weak" if acc < 0.5 else ""
-        print(f"   {cls:<38} {m.sum():>4} imgs   {acc:.2f}{flag}")
+        wrong = y_pred[m][y_pred[m] != i]
+        confused = CLASS_IDS[np.bincount(wrong).argmax()] if len(wrong) else "-"
+        backing = "field+lab" if cls in field_backed else "LAB ONLY"
+        print(f"{cls:<38} {m.sum():>4} {acc:>6.2f}  {backing:<12} {confused}")
+
+    tested = {CLASS_IDS[i] for i in set(y_true)}
+    lab_only_tested = sorted(tested - field_backed)
+    if lab_only_tested:
+        print(f"\\n{len(lab_only_tested)} tested classes have NO field training "
+              f"data. Their score here measures the lab-to-field gap directly "
+              f"and cannot be fixed by training longer:")
+        for c in lab_only_tested:
+            print(f"   {c}")
+
+    # --- where are the predictions actually going? ------------------------
+    # If the model answers one crop for everything, the training set is
+    # unbalanced by crop and no amount of epochs will fix it.
+    pred_crop = collections.Counter(
+        CLASS_IDS[i].split("_")[0] for i in y_pred)
+    true_crop = collections.Counter(
+        CLASS_IDS[i].split("_")[0] for i in y_true)
+    print("\\nCrop distribution on the field test set:")
+    print(f"{'crop':<12} {'actual':>8} {'predicted':>10}")
+    for crop in sorted(set(pred_crop) | set(true_crop)):
+        print(f"{crop:<12} {true_crop.get(crop,0):>8} {pred_crop.get(crop,0):>10}")
+    print("   A predicted column that piles onto one crop means the training "
+          "set is dominated by it.")
 else:
-    print("\\nNo held-out field set attached, so there is no generalisation "
-          "number. Do not ship on the validation figure alone.")
+    print("\\nNo field test set, so there is no generalisation number. "
+          "Do not ship on the validation figure alone.")
 ''')
 
 # ---------------------------------------------------------------------------
