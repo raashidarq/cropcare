@@ -30,6 +30,16 @@ class AppStateTable extends Table {
 
   TextColumn get lastSyncAt => text().nullable()();
 
+  /// ISO8601 timestamp of the sync run currently holding the advisory lock,
+  /// or null when no run is active.
+  ///
+  /// Sync can be triggered from the UI, the connectivity listener, the
+  /// post-auth hook, AND a WorkManager background isolate. The isolate has
+  /// its own memory, so an in-process flag cannot exclude it — the lock has
+  /// to live somewhere both can see, i.e. the database. Treated as stale
+  /// after a timeout so a crashed run cannot deadlock sync forever.
+  TextColumn get syncLockedAt => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -322,12 +332,30 @@ class SyncOperationTable extends Table {
   /// JSON payload representation for idempotent upsert
   TextColumn get payloadJson => text()();
 
-  /// 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
+  /// 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' |
+  /// 'PERMANENTLY_FAILED' | 'AUTH_REQUIRED'
+  ///
+  /// PERMANENTLY_FAILED: retrying will not help (the server rejected the
+  /// payload, or the transient-retry budget is exhausted). Surfaced to the
+  /// user rather than silently dropped.
+  /// AUTH_REQUIRED: the session expired mid-sync. Held, not retried, until
+  /// the user signs in again — retrying with a dead token just burns the
+  /// retry budget and loses the backlog silently.
   TextColumn get status =>
       text().withDefault(const Constant('PENDING'))();
 
   IntColumn get retryCount =>
       integer().withDefault(const Constant(0))();
+
+  /// Remote URL of an image that has ALREADY been uploaded for this
+  /// operation. Set immediately after a successful upload, before the
+  /// metadata POST is attempted.
+  ///
+  /// Image upload happens before the metadata POST, so without this a
+  /// failure of the POST would make the retry re-upload the same bytes from
+  /// scratch — expensive on a metered rural connection, and it orphans a
+  /// blob in remote storage every attempt.
+  TextColumn get uploadedImageUrl => text().nullable()();
 
   TextColumn get lastError => text().nullable()();
 
@@ -338,3 +366,95 @@ class SyncOperationTable extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+
+// ============================================================
+// DISEASE EXPLANATION — offline "what am I looking at" content
+// ============================================================
+//
+// Distinct from treatment_guideline: that answers "what do I DO about it",
+// this answers "what IS this, and how sure should I be". Kept in its own
+// table because it is authored, reviewed and shipped on a different cadence
+// from treatment advice, and because a farmer may want the explanation for a
+// result they never ask for treatment on.
+//
+// Follows the per-language-column convention used by crop, disease and
+// treatment_guideline rather than a row-per-language, so a single lookup
+// returns every language and the repository picks the column.
+//
+// Content is authored elsewhere; nothing seeds this table in code.
+class DiseaseExplanationTable extends Table {
+  @override
+  String get tableName => 'disease_explanation';
+
+  TextColumn get id => text()();
+
+  TextColumn get diseaseId =>
+      text().references(DiseaseTable, #id)();
+
+  /// What the plant itself is — crop, habit, what a healthy one looks like.
+  TextColumn get plantDescriptionEn => text().nullable()();
+  TextColumn get plantDescriptionSi => text().nullable()();
+  TextColumn get plantDescriptionTa => text().nullable()();
+
+  /// What the scan result suggests, in plain language, including how much
+  /// weight to put on it.
+  TextColumn get resultMeaningEn => text().nullable()();
+  TextColumn get resultMeaningSi => text().nullable()();
+  TextColumn get resultMeaningTa => text().nullable()();
+
+  /// Content revision, e.g. 'ex-2026.03' — mirrors guideline_version.
+  TextColumn get explanationVersion => text().nullable()();
+
+  TextColumn get updatedAt => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================
+// DISEASE CONFUSION — "this is easily mistaken for ..."
+// ============================================================
+//
+// One row per look-alike condition for a given disease. A separate table
+// rather than a JSON blob on disease_explanation because these are queried
+// as a list, ordered, and each look-alike carries its own trilingual text.
+//
+// [confusedWithDiseaseId] points at another row in `disease` when the
+// look-alike is something the model itself can predict. It is nullable
+// because the most dangerous look-alikes often are NOT diseases at all —
+// nutrient deficiency, water stress, spray burn — and those have no disease
+// row to point at; those use [confusedWithLabel*] instead.
+class DiseaseConfusionTable extends Table {
+  @override
+  String get tableName => 'disease_confusion';
+
+  TextColumn get id => text()();
+
+  /// The diagnosed disease this look-alike is listed under.
+  // Two columns reference `disease`, so both need explicit reference names
+  // or Drift cannot generate distinct manager filters for them.
+  @ReferenceName('confusionsForDisease')
+  TextColumn get diseaseId =>
+      text().references(DiseaseTable, #id)();
+
+  /// The look-alike, when it is itself a known disease.
+  @ReferenceName('confusionsNamingDisease')
+  TextColumn get confusedWithDiseaseId =>
+      text().nullable().references(DiseaseTable, #id)();
+
+  /// The look-alike's name, when it is not a row in `disease`.
+  TextColumn get confusedWithLabelEn => text().nullable()();
+  TextColumn get confusedWithLabelSi => text().nullable()();
+  TextColumn get confusedWithLabelTa => text().nullable()();
+
+  /// How to tell the two apart in the field.
+  TextColumn get distinguishingSymptomsEn => text().nullable()();
+  TextColumn get distinguishingSymptomsSi => text().nullable()();
+  TextColumn get distinguishingSymptomsTa => text().nullable()();
+
+  /// Display order; lower first.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

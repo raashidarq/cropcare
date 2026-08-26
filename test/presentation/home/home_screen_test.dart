@@ -38,6 +38,15 @@ class _FakeScanRepository implements ScanRepository {
   Future<void> updateScanCrop(String scanId, String cropId) async {}
 
   @override
+  Future<void> rejectInvalidScan({
+    required String scanId,
+    required String rejectionReason,
+  }) async {}
+
+  @override
+  Future<int> purgeFailedScans() async => 0;
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => history;
 
   @override
@@ -98,25 +107,25 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // 1. Scan Hero Button exists
+    // The scan action is the screen's primary affordance.
     expect(find.byKey(const Key('home_start_scan_button')), findsOneWidget);
+    expect(find.text('Check a plant'), findsOneWidget);
 
-    // 2. Smart Account Icon exists on AppBar
+    // Account is reachable both from the AppBar and as a labelled tab.
     expect(find.byKey(const Key('home_account_icon')), findsOneWidget);
 
-    // 3. Hero card displays clean welcome and subtitle
-    expect(find.text('Welcome to CropCare!'), findsOneWidget);
-    expect(find.text('Detect crop diseases and get treatment advice instantly.'), findsOneWidget);
-    expect(find.byKey(const Key('home_link_account_button')), findsNothing);
+    // Bottom navigation replaced the icon-only AppBar affordances: three
+    // labelled, permanently visible destinations.
+    expect(find.byKey(const Key('app_bottom_nav')), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
 
-    // 4. Scan History section is present with history item, Export button, filter dropdown, and scan count
-    expect(find.text('Scan History'), findsOneWidget);
-    expect(find.byKey(const Key('home_export_history_icon')), findsOneWidget);
-    expect(find.text('Export'), findsOneWidget);
-    expect(find.byKey(const Key('home_history_filter_dropdown')), findsOneWidget);
-    expect(find.byKey(const Key('home_history_scan_count_badge')), findsOneWidget);
-    expect(find.text('1 scans'), findsOneWidget);
-    expect(find.byKey(const Key('history_card_scan-hist-1')), findsOneWidget);
+    // Home shows a summary and the most recent scans; the full, filterable
+    // history now lives in its own tab rather than being embedded here.
+    expect(find.text('Total scans'), findsOneWidget);
+    expect(find.text('Recent scans'), findsOneWidget);
+    expect(find.text('See all'), findsOneWidget);
     expect(find.text('Tomato Early Blight'), findsOneWidget);
     expect(find.text('88%'), findsOneWidget);
   });

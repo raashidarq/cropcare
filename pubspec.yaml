@@ -77,6 +77,25 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/plant_disease_mobilenetv2.tflite
+    - assets/fonts/OFL.txt
+
+  # Bundled (not runtime-fetched) so trilingual text renders identically on
+  # every device and works on a first launch with no connectivity — CropCare
+  # is offline-first and its users are frequently offline.
+  #
+  # These are variable fonts: one file per family covers every weight, which
+  # is smaller than shipping separate static weights. Licensed under the SIL
+  # Open Font License; assets/fonts/OFL.txt ships with the app.
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Variable.ttf
+    - family: NotoSansSinhala
+      fonts:
+        - asset: assets/fonts/NotoSansSinhala-Variable.ttf
+    - family: NotoSansTamil
+      fonts:
+        - asset: assets/fonts/NotoSansTamil-Variable.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

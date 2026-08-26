@@ -86,11 +86,17 @@ class RunDiagnosisUseCase {
     try {
       final result = await inferenceService.runInference(imageLocalPath);
 
-      // Determine result state
+      // Determine result state. A prediction is only CONFIDENT when BOTH
+      // the top-1 softmax probability clears the threshold AND the overall
+      // distribution is low-entropy (peaked) — requiring both closes the
+      // failure mode where an out-of-distribution image (that slipped past
+      // ValidateImageUseCase's content gate) still scores a deceptively
+      // high top-1 confidence. See MlInferenceService header comment.
       final DiagnosisResultState state;
       if (!result.isSupported) {
         state = DiagnosisResultState.unsupported;
-      } else if (result.confidence >= MlInferenceService.confidenceThreshold) {
+      } else if (result.confidence >= MlInferenceService.confidenceThreshold &&
+          result.entropy <= MlInferenceService.entropyThreshold) {
         state = DiagnosisResultState.confident;
       } else {
         state = DiagnosisResultState.lowConfidence;
@@ -113,6 +119,15 @@ class RunDiagnosisUseCase {
         await scanRepository!.updateScanCrop(scanId, derivedCropId);
       }
 
+      // Inherit severity from the resolved disease row, if any.
+      String? severity;
+      if (result.diseaseId != null) {
+        final diseaseRow = await (db.select(db.diseaseTable)
+              ..where((t) => t.id.equals(result.diseaseId!)))
+            .getSingleOrNull();
+        severity = diseaseRow?.severityDefault;
+      }
+
       final diagnosis = Diagnosis(
         id: _generateUuid(),
         scanId: scanId,
@@ -120,6 +135,7 @@ class RunDiagnosisUseCase {
         modelVersionId: _modelVersionId,
         confidence: result.confidence,
         resultState: state,
+        severity: severity,
         alternatives: alternatives,
         treatmentSource: TreatmentSource.localFallback,
         inferredAt: DateTime.now().toIso8601String(),
@@ -139,6 +155,29 @@ class RunDiagnosisUseCase {
       );
       return diagnosisRepository.createDiagnosis(failedDiagnosis);
     }
+  }
+
+  /// Cleans up after an image that failed [ValidateImageUseCase].
+  ///
+  /// The scan row — and the cloud-upload operation [ScanRepository.createScan]
+  /// enqueues with it — are created BEFORE validation runs. Without this,
+  /// a rejected photo (a desk, a blurry frame, an unlit shot) is left behind
+  /// as an orphaned CREATED scan with a queued upload and no record of why it
+  /// was rejected. Callers that short-circuit on `!validationResult.isUsable`
+  /// should call this instead of [call].
+  Future<void> rejectInvalidImage({
+    required String scanId,
+    required ImageValidationResult validationResult,
+  }) async {
+    final reason = validationResult.rejectionReason != null
+        ? ValidateImageUseCase.rejectionReasonToString(
+            validationResult.rejectionReason!)
+        : 'UNKNOWN';
+
+    await scanRepository?.rejectInvalidScan(
+      scanId: scanId,
+      rejectionReason: reason,
+    );
   }
 
   // ---------------------------------------------------------------------------

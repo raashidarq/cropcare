@@ -83,6 +83,13 @@ class _ScanResultScreenState extends State<ScanResultScreen> {
                                 child: Image.file(
                                   File(_scan!.imageLocalPath),
                                   fit: BoxFit.cover,
+                                  // Cap decode at screen width rather than
+                                  // decoding the full-resolution photo.
+                                  cacheWidth:
+                                      (MediaQuery.sizeOf(context).width *
+                                              MediaQuery.devicePixelRatioOf(
+                                                  context))
+                                          .round(),
                                 ),
                               ),
                             ),

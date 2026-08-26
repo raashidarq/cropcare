@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/theme/app_colors.dart';
+
 import '../../application/auth/auth_cubit.dart';
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/settings/settings_cubit.dart';
@@ -14,6 +16,7 @@ import '../../domain/usecases/history/export_scan_history_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../onboarding/widgets/change_language_dialog.dart';
 import 'accessibility_screen.dart';
+import '../onboarding/onboarding_screen.dart';
 import 'faq_screen.dart';
 import 'feedback_screen.dart';
 import 'offline_screen.dart';
@@ -80,7 +83,7 @@ class _SettingsView extends StatelessWidget {
             const Icon(
               Icons.construction,
               size: 48,
-              color: Colors.orange,
+              color: AppColors.warning,
             ),
             const SizedBox(height: 16),
             Text(
@@ -325,6 +328,40 @@ class _SettingsView extends StatelessWidget {
 
               // ── 4. Support & Legal Section ───────────────────────────────
               _buildSectionHeader(context, 'section_support_legal'),
+
+              // TEMPORARY — preview entry point for the onboarding redesign.
+              // Runs the flow in preview mode: it shows the slides without
+              // the closing account step and without re-running onboarding
+              // state. Remove once the flow has been signed off.
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  key: const Key('settings_replay_onboarding_row'),
+                  leading: CircleAvatar(
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(Icons.slideshow_outlined,
+                        color: theme.colorScheme.primary),
+                  ),
+                  title: Text(
+                    context.tr('replay_onboarding'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    context.tr('replay_onboarding_desc'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingScreen(isPreview: true),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
               Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ListTile(
@@ -461,9 +498,9 @@ class _SettingsView extends StatelessWidget {
               builder: (_) => syncCubit != null
                   ? BlocProvider.value(
                       value: syncCubit!,
-                      child: const OfflineScreen(),
+                      child: OfflineScreen(user: user, authCubit: authCubit),
                     )
-                  : const OfflineScreen(),
+                  : OfflineScreen(user: user, authCubit: authCubit),
             ),
           );
         },

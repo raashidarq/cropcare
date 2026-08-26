@@ -1,11 +1,25 @@
-import 'dart:io';
+// lib/presentation/home/home_screen.dart
+//
+// App shell: a bottom navigation bar over three destinations.
+//
+// Why a bottom nav at all: the previous home screen carried the scan action,
+// the entire scan history with its filters, and reached Settings and Profile
+// only through small unlabelled icons in the AppBar. Icon-only affordances in
+// a top corner are the least discoverable control on a phone, which is a poor
+// fit for an audience that may not read fluently. Labelled destinations along
+// the bottom are permanently visible, thumb-reachable, and carry a word as
+// well as a glyph.
+//
+// Each destination supplies its own Scaffold and AppBar; this shell provides
+// only the body and the navigation bar.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/auth/auth_cubit.dart';
 import '../../application/history/history_cubit.dart';
-import '../../application/history/history_state.dart';
 import '../../application/sync/sync_cubit.dart';
+import '../../core/theme/app_colors.dart';
 import '../../domain/entities/crop.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/entities/scan.dart';
@@ -13,6 +27,7 @@ import '../../domain/entities/scan_history_item.dart';
 import '../../domain/repositories/crop_repository.dart';
 import '../../domain/repositories/scan_repository.dart';
 import '../../domain/usecases/crop/get_supported_crops_use_case.dart';
+import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
@@ -23,10 +38,12 @@ import '../../domain/usecases/history/get_scan_history_use_case.dart';
 import '../auth/auth_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
-import '../scan/add_photo_screen.dart';
+import '../scan/capture_screen.dart';
 import '../scan/scan_result_screen.dart';
 import '../settings/profile_screen.dart';
 import '../settings/settings_screen.dart';
+import 'widgets/history_view.dart';
+import 'widgets/home_dashboard.dart';
 
 class _FallbackCropRepository implements CropRepository {
   @override
@@ -41,7 +58,7 @@ class _FallbackCropRepository implements CropRepository {
           id: 'chili',
           nameEn: 'Chili',
           nameSi: 'මිරිස්',
-          nameTa: 'මිளகாய்',
+          nameTa: 'மிளகாய்',
         ),
       ];
 }
@@ -66,6 +83,15 @@ class _FallbackScanRepository implements ScanRepository {
   Future<void> updateScanCrop(String scanId, String cropId) async {}
 
   @override
+  Future<void> rejectInvalidScan({
+    required String scanId,
+    required String rejectionReason,
+  }) async {}
+
+  @override
+  Future<int> purgeFailedScans() async => 0;
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
 
   @override
@@ -80,10 +106,16 @@ class HomeScreen extends StatefulWidget {
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
+
+  /// Opens the account screen immediately after launch. Set when the user
+  /// chose "Create an account" at the end of onboarding, so that choice is
+  /// not silently dropped on the way to Home.
+  final bool openAccountOnLaunch;
 
   const HomeScreen({
     super.key,
@@ -94,10 +126,12 @@ class HomeScreen extends StatefulWidget {
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
+    this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
+    this.openAccountOnLaunch = false,
   });
 
   @override
@@ -127,9 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onUserUpdated(LocalUser updatedUser) {
-    setState(() {
-      _user = updatedUser;
-    });
+    setState(() => _user = updatedUser);
   }
 
   @override
@@ -138,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
       create: (_) => HistoryCubit(
         getScanHistoryUseCase: _getScanHistoryUseCase,
       )..loadHistory(),
-      child: _HomeScreenView(
+      child: _AppShell(
         user: _user,
         authCubit: widget.authCubit,
         syncCubit: widget.syncCubit,
@@ -147,15 +179,17 @@ class _HomeScreenState extends State<HomeScreen> {
         validateImageUseCase: widget.validateImageUseCase,
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
         resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+        getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
         createEscalationUseCase: widget.createEscalationUseCase,
         exportScanHistoryUseCase: widget.exportScanHistoryUseCase,
         submitFeedbackUseCase: widget.submitFeedbackUseCase,
+        openAccountOnLaunch: widget.openAccountOnLaunch,
       ),
     );
   }
 }
 
-class _HomeScreenView extends StatelessWidget {
+class _AppShell extends StatefulWidget {
   final LocalUser user;
   final AuthCubit? authCubit;
   final SyncCubit? syncCubit;
@@ -164,11 +198,13 @@ class _HomeScreenView extends StatelessWidget {
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
+  final bool openAccountOnLaunch;
 
-  const _HomeScreenView({
+  const _AppShell({
     required this.user,
     this.authCubit,
     this.syncCubit,
@@ -177,678 +213,261 @@ class _HomeScreenView extends StatelessWidget {
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
+    this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
+    this.openAccountOnLaunch = false,
   });
 
-  Future<void> _handleAccountAction(BuildContext context) async {
-    if (authCubit == null) return;
-    final currentUser = authCubit!.currentUser;
-    if (currentUser.isGuest) {
-      final updated = await Navigator.push<LocalUser>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: authCubit!,
-            child: AuthScreen(currentUser: currentUser),
-          ),
-        ),
-      );
-      if (updated != null) {
-        onUserUpdated(updated);
-      }
-    } else {
-      final updated = await Navigator.push<LocalUser>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: authCubit!,
-            child: ProfileScreen(
-              user: currentUser,
-              authCubit: authCubit,
-            ),
-          ),
-        ),
-      );
-      if (updated != null) {
-        onUserUpdated(updated);
-      }
+  @override
+  State<_AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<_AppShell> {
+  int _index = 0;
+
+  /// Tabs the user has actually opened. IndexedStack builds every child
+  /// eagerly, which would construct the entire Settings tree — and resolve
+  /// its dependencies — during the first frame of the app, on a device where
+  /// that cost is real. Tabs are therefore built on first visit and kept
+  /// alive afterwards, which is what IndexedStack is actually wanted for.
+  final Set<int> _visited = {0};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openAccountOnLaunch) {
+      // Deferred to the first frame: the shell has to exist before anything
+      // can be pushed on top of it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _handleAccountAction();
+      });
     }
+  }
+
+  /// Straight to the viewfinder. There is no longer an intermediate
+  /// "camera or gallery?" screen — gallery lives inside the camera UI, so
+  /// the common case costs one tap instead of two.
+  Future<void> _startScan() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CaptureScreen(
+          user: widget.user,
+          validateImageUseCase: widget.validateImageUseCase,
+          runDiagnosisUseCase: widget.runDiagnosisUseCase,
+          resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+        getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
+          createEscalationUseCase: widget.createEscalationUseCase,
+        ),
+      ),
+    );
+    if (mounted) context.read<HistoryCubit>().loadHistory();
+  }
+
+  void _openScan(ScanHistoryItem item) {
+    final diagnosis = item.diagnosis;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => diagnosis == null
+            ? ScanResultScreen(scan: item.scan)
+            : DiagnosisResultScreen(
+                scan: item.scan,
+                diagnosis: diagnosis,
+                resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+        getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
+                createEscalationUseCase: widget.createEscalationUseCase,
+              ),
+      ),
+    );
+  }
+
+  Future<void> _handleAccountAction() async {
+    final authCubit = widget.authCubit;
+    if (authCubit == null) return;
+    final currentUser = authCubit.currentUser;
+
+    final updated = await Navigator.push<LocalUser>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: authCubit,
+          child: currentUser.isGuest
+              ? AuthScreen(currentUser: currentUser)
+              : ProfileScreen(user: currentUser, authCubit: authCubit),
+        ),
+      ),
+    );
+    if (updated != null) widget.onUserUpdated(updated);
+  }
+
+  /// Builds [tab] only once its index has been visited; an unvisited tab
+  /// occupies its slot with nothing.
+  Widget _lazy(int index, Widget Function() tab) {
+    if (!_visited.contains(index)) return const SizedBox.shrink();
+    return tab();
+  }
+
+  void _select(int index) {
+    setState(() {
+      _index = index;
+      _visited.add(index);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isGuest = user.isGuest;
+    final destinations = [
+      NavigationDestination(
+        icon: const Icon(Icons.home_outlined),
+        selectedIcon: const Icon(Icons.home_rounded),
+        label: context.tr('nav_home'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.history_outlined),
+        selectedIcon: const Icon(Icons.history_rounded),
+        label: context.tr('nav_history'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.person_outline_rounded),
+        selectedIcon: const Icon(Icons.person_rounded),
+        label: context.tr('nav_account'),
+      ),
+    ];
 
     return Scaffold(
+      // IndexedStack keeps each tab's scroll position and state alive when
+      // switching, which is what users expect from a bottom nav.
+      body: IndexedStack(
+        index: _index,
+        children: [
+          // Order must match `destinations` below.
+          _lazy(0, () => _HomeTab(
+            user: widget.user,
+            onStartScan: _startScan,
+            onSeeAllHistory: () => _select(1),
+            onLinkAccount: _handleAccountAction,
+            onOpenScan: _openScan,
+          )),
+          _lazy(1, () => _HistoryTab(
+            exportScanHistoryUseCase: widget.exportScanHistoryUseCase,
+            onOpenScan: _openScan,
+            onStartScan: _startScan,
+          )),
+          _lazy(2, () => SettingsScreen(
+            user: widget.user,
+            authCubit: widget.authCubit,
+            syncCubit: widget.syncCubit,
+            exportScanHistoryUseCase: widget.exportScanHistoryUseCase,
+            submitFeedbackUseCase: widget.submitFeedbackUseCase,
+          )),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        key: const Key('app_bottom_nav'),
+        selectedIndex: _index,
+        onDestinationSelected: _select,
+        destinations: destinations,
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Tabs
+// =============================================================================
+
+class _HomeTab extends StatelessWidget {
+  final LocalUser user;
+  final VoidCallback onStartScan;
+  final VoidCallback onSeeAllHistory;
+  final VoidCallback onLinkAccount;
+  final ValueChanged<ScanHistoryItem> onOpenScan;
+
+  const _HomeTab({
+    required this.user,
+    required this.onStartScan,
+    required this.onSeeAllHistory,
+    required this.onLinkAccount,
+    required this.onOpenScan,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('home_title')),
-        elevation: 0,
+        title: Text(context.tr('app_title')),
         actions: [
           IconButton(
             key: const Key('home_account_icon'),
             icon: Icon(
-              isGuest ? Icons.account_circle_outlined : Icons.account_circle,
-              color: isGuest ? null : Colors.green.shade700,
+              user.isGuest
+                  ? Icons.account_circle_outlined
+                  : Icons.account_circle,
+              color: AppColors.onPrimary,
             ),
-            tooltip: isGuest ? context.tr('link_account_btn') : context.tr('profile_title'),
-            onPressed: () => _handleAccountAction(context),
-          ),
-          IconButton(
-            key: const Key('home_settings_icon'),
-            icon: const Icon(Icons.settings),
-            tooltip: context.tr('settings_title'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SettingsScreen(
-                    user: user,
-                    authCubit: authCubit,
-                    syncCubit: syncCubit,
-                    exportScanHistoryUseCase: exportScanHistoryUseCase,
-                    submitFeedbackUseCase: submitFeedbackUseCase,
-                  ),
-                ),
-              );
-            },
+            tooltip: user.isGuest
+                ? context.tr('link_account_btn')
+                : context.tr('profile_title'),
+            onPressed: onLinkAccount,
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await context.read<HistoryCubit>().loadHistory();
-        },
-        child: CustomScrollView(
-          slivers: [
-            // ── 1. Hero Card: Welcome & Scan Now ───────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: _HeroScanCard(
-                  onStartScan: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AddPhotoScreen(
-                          user: user,
-                          getSupportedCropsUseCase: getSupportedCropsUseCase,
-                          validateImageUseCase: validateImageUseCase,
-                          runDiagnosisUseCase: runDiagnosisUseCase,
-                          resolveTreatmentUseCase: resolveTreatmentUseCase,
-                          createEscalationUseCase: createEscalationUseCase,
-                        ),
-                      ),
-                    );
-                    // Refresh history upon return
-                    if (context.mounted) {
-                      context.read<HistoryCubit>().loadHistory();
-                    }
-                  },
-                ),
-              ),
-            ),
-
-            // ── 2. Embedded Scan History Section Header ────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: _HistoryHeaderAndFilters(
-                  exportScanHistoryUseCase: exportScanHistoryUseCase,
-                ),
-              ),
-            ),
-
-            // ── 3. History List Items ──────────────────────────────────────
-            _HistoryListSliver(
-              resolveTreatmentUseCase: resolveTreatmentUseCase,
-              createEscalationUseCase: createEscalationUseCase,
-            ),
-
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 24),
-            ),
-          ],
-        ),
+      body: HomeDashboard(
+        user: user,
+        onStartScan: onStartScan,
+        onSeeAllHistory: onSeeAllHistory,
+        onLinkAccount: onLinkAccount,
+        onOpenScan: onOpenScan,
       ),
     );
   }
 }
 
-// =============================================================================
-// Hero Scan Card
-// =============================================================================
-
-class _HeroScanCard extends StatelessWidget {
+class _HistoryTab extends StatelessWidget {
+  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
+  final ValueChanged<ScanHistoryItem> onOpenScan;
   final VoidCallback onStartScan;
 
-  const _HeroScanCard({
+  const _HistoryTab({
+    this.exportScanHistoryUseCase,
+    required this.onOpenScan,
     required this.onStartScan,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Future<void> _export(BuildContext context) async {
+    final useCase = exportScanHistoryUseCase;
+    if (useCase == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final successText = context.tr('export_data_success');
+    final emptyText = context.tr('export_data_empty');
 
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: theme.colorScheme.primary,
-                  child: const Icon(
-                    Icons.eco,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('home_welcome'),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        context.tr('home_subtitle'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                key: const Key('home_start_scan_button'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.camera_alt, size: 22),
-                label: Text(
-                  context.tr('start_scan'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                onPressed: onStartScan,
-              ),
-            ),
-          ],
-        ),
-      ),
+    final count = await useCase.execute();
+    messenger.showSnackBar(
+      SnackBar(content: Text(count > 0 ? successText : emptyText)),
     );
   }
-}
-
-// =============================================================================
-// History Section Header & Filter Chips
-// =============================================================================
-
-class _HistoryHeaderAndFilters extends StatelessWidget {
-  final ExportScanHistoryUseCase? exportScanHistoryUseCase;
-
-  const _HistoryHeaderAndFilters({
-    this.exportScanHistoryUseCase,
-  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cubit = context.watch<HistoryCubit>();
-    final state = cubit.state;
-
-    int totalCount = 0;
-    String? activeFilter;
-    if (state is HistoryLoaded) {
-      totalCount = state.items.length;
-      activeFilter = state.activeStatusFilter;
-    } else if (state is HistoryEmpty) {
-      totalCount = 0;
-      activeFilter = state.activeStatusFilter;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Row 1: "Scan History" title + "Export" [download icon] ───────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              context.tr('scan_history_title'),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton.icon(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(context.tr('history_title')),
+        actions: [
+          if (exportScanHistoryUseCase != null)
+            IconButton(
               key: const Key('home_export_history_icon'),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                foregroundColor: theme.colorScheme.primary,
-              ),
-              icon: const Icon(Icons.file_download_outlined, size: 18),
-              label: Text(
-                context.tr('export_btn'),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () async {
-                if (exportScanHistoryUseCase != null) {
-                  final count = await exportScanHistoryUseCase!.execute();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          count > 0
-                              ? context.tr('export_data_success')
-                              : context.tr('export_data_empty'),
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              },
+              icon: const Icon(Icons.file_download_outlined),
+              tooltip: context.tr('export_btn'),
+              onPressed: () => _export(context),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // ── Row 2: Filter Dropdown + Number of Scans ('15 scans') ────────
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    key: const Key('home_history_filter_dropdown'),
-                    isExpanded: true,
-                    value: activeFilter ?? 'ALL',
-                    icon: const Icon(Icons.arrow_drop_down),
-                    items: [
-                      DropdownMenuItem(
-                        value: 'ALL',
-                        child: Text(context.tr('filter_all'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'HEALTHY',
-                        child: Text(context.tr('filter_healthy'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'LOW_CONFIDENCE',
-                        child: Text(context.tr('filter_low_conf'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'SHARED',
-                        child: Text(context.tr('filter_shared'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'DATE_TODAY',
-                        child: Text(context.tr('filter_date_today'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'DATE_WEEK',
-                        child: Text(context.tr('filter_date_week'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'DATE_MONTH',
-                        child: Text(context.tr('filter_date_month'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CROP_TOMATO',
-                        child: Text(context.tr('filter_crop_tomato'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CROP_CHILI',
-                        child: Text(context.tr('filter_crop_chili'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CROP_PADDY',
-                        child: Text(context.tr('filter_crop_paddy'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CROP_CORN',
-                        child: Text(context.tr('filter_crop_corn'), style: const TextStyle(fontSize: 13)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'CROP_POTATO',
-                        child: Text(context.tr('filter_crop_potato'), style: const TextStyle(fontSize: 13)),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      cubit.filterByStatus(val == 'ALL' ? null : val);
-                    },
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$totalCount ${context.tr('scans_count')}',
-                key: const Key('home_history_scan_count_badge'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================================
-// History List Sliver
-// =============================================================================
-
-class _HistoryListSliver extends StatelessWidget {
-  final ResolveTreatmentUseCase? resolveTreatmentUseCase;
-  final CreateEscalationUseCase? createEscalationUseCase;
-
-  const _HistoryListSliver({
-    this.resolveTreatmentUseCase,
-    this.createEscalationUseCase,
-  });
-
-  String _formatDate(DateTime dt) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    final month = months[dt.month - 1];
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day} $month ${dt.year}, $hour:$minute';
-  }
-
-  String _formatDiseaseName(String? diseaseId) {
-    if (diseaseId == null) return 'Analyzing / No match';
-    return diseaseId
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-        .join(' ');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final languageCode =
-        LocalizationProvider.of(context)?.languageCode ?? 'en';
-    final state = context.watch<HistoryCubit>().state;
-
-    if (state is HistoryLoading) {
-      return const SliverToBoxAdapter(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 40),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-
-    if (state is HistoryEmpty) {
-      return SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: Card(
-            elevation: 0,
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(28.0),
-              child: Column(
-                children: [
-                  Icon(Icons.history_toggle_off,
-                      size: 48, color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(height: 12),
-                  Text(
-                    context.tr('scan_history_empty'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (state is HistoryLoaded) {
-      final items = state.items;
-
-      return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final item = items[index];
-              final scan = item.scan;
-              final diag = item.diagnosis;
-              final cropName = item.crop?.getLocalizedName(languageCode) ??
-                  scan.cropId.toUpperCase();
-              final diseaseName = _formatDiseaseName(diag?.diseaseId);
-              final isHealthy = diag?.isHealthy ?? false;
-              final isLowConfidence = diag != null &&
-                  !isHealthy &&
-                  (diag.confidence < 0.80);
-
-              final file = File(scan.imageLocalPath);
-              final hasImage = file.existsSync();
-
-              return Card(
-                key: Key('history_card_${scan.id}'),
-                elevation: 1.5,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () {
-                    if (diag != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DiagnosisResultScreen(
-                            scan: scan,
-                            diagnosis: diag,
-                            resolveTreatmentUseCase: resolveTreatmentUseCase,
-                            createEscalationUseCase: createEscalationUseCase,
-                          ),
-                        ),
-                      );
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ScanResultScreen(scan: scan),
-                        ),
-                      );
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        // Image thumbnail
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: hasImage
-                              ? Image.file(
-                                  file,
-                                  width: 68,
-                                  height: 68,
-                                  fit: BoxFit.cover,
-                                )
-                              : Container(
-                                  width: 68,
-                                  height: 68,
-                                  color: theme.colorScheme.surfaceContainerHighest,
-                                  child: const Icon(Icons.grass, size: 32),
-                                ),
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    cropName,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _StatusPill(status: scan.status.value),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                diseaseName,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: isHealthy
-                                      ? Colors.green.shade800
-                                      : theme.colorScheme.onSurface,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _formatDate(scan.capturedAt),
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  if (diag != null)
-                                    Text(
-                                      '${(diag.confidence * 100).toStringAsFixed(0)}%',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                        color: isLowConfidence
-                                            ? Colors.orange.shade800
-                                            : Colors.green.shade800,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-            childCount: items.length,
-          ),
-        ),
-      );
-    }
-
-    return const SliverToBoxAdapter(child: SizedBox.shrink());
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String status;
-
-  const _StatusPill({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color;
-    switch (status) {
-      case 'SHARED':
-        color = const Color(0xFF25D366);
-        break;
-      case 'DIAGNOSED':
-        color = Colors.blue;
-        break;
-      case 'ESCALATED':
-        color = Colors.orange;
-        break;
-      default:
-        color = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
+        ],
       ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: color,
-        ),
+      body: HistoryView(
+        onOpenScan: onOpenScan,
+        onStartScan: onStartScan,
       ),
     );
   }

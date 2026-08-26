@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cropcare/data/local/tts/text_to_speech_service.dart';
 
 class _FakeTtsService implements TtsService {
+  double? lastSpeechRate;
   final ValueNotifier<bool> _playingNotifier = ValueNotifier<bool>(false);
   String? lastSpokenText;
   String? lastLanguageCode;
@@ -15,7 +16,9 @@ class _FakeTtsService implements TtsService {
   Future<void> speak({
     required String text,
     required String languageCode,
+    double speechRate = 0.5,
   }) async {
+    lastSpeechRate = speechRate;
     lastSpokenText = text;
     lastLanguageCode = languageCode;
     _playingNotifier.value = true;

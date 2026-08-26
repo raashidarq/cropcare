@@ -8,8 +8,18 @@
 //   - Preprocessing: resize to 224×224, normalize to [0,1] (divide by 255)
 //
 // CLASS_NAMES order matches the 38-element output vector.
-// Only indices for tomato and chili map to disease IDs in our DB.
-// All other indices resolve to null → result_state = UNSUPPORTED.
+// All 38 output classes map to a disease ID in our DB (see TD-006) — the
+// `isSupported`/`unsupported` result state is therefore no longer reachable
+// from a normal model prediction; it only exists as a safety net for a
+// future model version whose class map might not be fully populated yet.
+//
+// Because this is a closed-set softmax classifier, it ALWAYS produces a
+// normalized, confident-looking probability distribution — even for input
+// that isn't a plant at all (a desk, a wall, a hand, ...). Softmax has no
+// concept of "none of the above". Out-of-distribution rejection is handled
+// upstream (ValidateImageUseCase, a cheap pre-inference content gate) and
+// downstream (the entropy check below, defense-in-depth) — NOT by this
+// class's own confidence score, which alone is not a reliable OOD signal.
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -36,12 +46,22 @@ class InferenceResult {
   /// Top-5 (index, probability) pairs in descending probability order.
   final List<(int, double)> topFive;
 
+  /// Normalized Shannon entropy of the full 38-class softmax distribution,
+  /// in [0, 1]. 0 = fully peaked on one class, 1 = uniform/maximally
+  /// uncertain. Used as a defense-in-depth OOD signal alongside [confidence]:
+  /// a well-formed, in-distribution leaf photo should produce a low-entropy
+  /// distribution; an out-of-distribution image that still happens to score
+  /// a high top-1 confidence tends to have a less clean/higher-entropy
+  /// overall shape than a genuine match.
+  final double entropy;
+
   const InferenceResult({
     required this.topClassIndex,
     required this.confidence,
     required this.diseaseId,
     required this.isSupported,
     required this.topFive,
+    required this.entropy,
   });
 }
 
@@ -53,6 +73,11 @@ class MlInferenceService {
 
   // Confidence threshold: results below this → LOW_CONFIDENCE result state.
   static const double confidenceThreshold = 0.60;
+
+  // Normalized-entropy ceiling: results ABOVE this (i.e. distribution too
+  // "spread out" to trust even if top-1 confidence cleared the threshold
+  // above) are downgraded to LOW_CONFIDENCE. See [InferenceResult.entropy].
+  static const double entropyThreshold = 0.50;
 
   // ── Class index → disease_id mapping ──────────────────────────────────────
   // Maps all 38 PlantVillage output classes to their SQLite disease IDs.
@@ -185,6 +210,7 @@ class MlInferenceService {
       diseaseId: diseaseId,
       isSupported: diseaseId != null,
       topFive: topFive,
+      entropy: _normalizedEntropy(probs),
     );
   }
 
@@ -237,6 +263,21 @@ class MlInferenceService {
     final exps = logits.map((l) => math.exp(l - maxLogit)).toList();
     final sum = exps.reduce((a, b) => a + b);
     return exps.map((e) => e / sum).toList();
+  }
+
+  /// Shannon entropy of [probs], normalized to [0, 1] by dividing by
+  /// log(n) (the maximum possible entropy for an n-class uniform
+  /// distribution). 0 = one class carries all the probability mass,
+  /// 1 = perfectly uniform/uncertain.
+  double _normalizedEntropy(List<double> probs) {
+    if (probs.length <= 1) return 0;
+    double h = 0;
+    for (final p in probs) {
+      if (p <= 0) continue; // 0 * log(0) := 0
+      h -= p * math.log(p);
+    }
+    final maxH = math.log(probs.length);
+    return maxH == 0 ? 0 : (h / maxH).clamp(0.0, 1.0);
   }
 
   /// Release interpreter resources. Call when the service is no longer needed.

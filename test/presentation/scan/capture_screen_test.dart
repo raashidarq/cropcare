@@ -9,7 +9,9 @@ import 'package:cropcare/domain/entities/scan_history_item.dart';
 import 'package:cropcare/domain/repositories/scan_repository.dart';
 import 'package:cropcare/domain/usecases/scan/capture_scan_use_case.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
+import 'package:camera/camera.dart';
 import 'package:cropcare/presentation/scan/capture_screen.dart';
+import 'package:cropcare/services/camera_service.dart';
 
 class FakeCameraPermissionService implements CameraPermissionService {
   final PermissionStatus status;
@@ -56,10 +58,35 @@ class FakeScanRepository implements ScanRepository {
   Future<void> updateScanCrop(String scanId, String cropId) async {}
 
   @override
+  Future<void> rejectInvalidScan({
+    required String scanId,
+    required String rejectionReason,
+  }) async {}
+
+  @override
+  Future<int> purgeFailedScans() async => 0;
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
 
   @override
   Future<void> deleteAllLocalScans() async {}
+}
+
+/// Stands in for a device with no usable camera — a tablet, an emulator, or
+/// a test host with no platform channel. Exercises the gallery-fallback path
+/// without needing camera hardware.
+class _NoCameraService implements CameraService {
+  @override
+  Future<List<CameraDescription>> availableCameras() async => const [];
+
+  @override
+  CameraController createController(
+    CameraDescription description, {
+    ResolutionPreset resolution = ResolutionPreset.high,
+  }) {
+    throw UnimplementedError('no camera in this test');
+  }
 }
 
 void main() {
@@ -111,7 +138,7 @@ void main() {
     expect(find.byKey(const Key('capture_button')), findsNothing);
   });
 
-  testWidgets('CaptureScreen displays camera, gallery pick, and cancel buttons when permission is granted', (WidgetTester tester) async {
+  testWidgets('CaptureScreen shows the viewfinder shell and a gallery fallback when the device has no camera', (WidgetTester tester) async {
     final fakePermissionService = FakeCameraPermissionService(
       status: PermissionStatus.granted,
     );
@@ -138,6 +165,7 @@ void main() {
             cropId: 'tomato',
             user: user,
             scanCubit: scanCubit,
+            cameraService: _NoCameraService(),
           ),
         ),
       ),
@@ -147,7 +175,15 @@ void main() {
 
     expect(find.byKey(const Key('cancel_scan_button')), findsOneWidget);
     expect(find.byKey(const Key('camera_ready_view')), findsOneWidget);
+    // The shutter and gallery controls still render; the shutter is disabled
+    // until the preview reports itself live.
     expect(find.byKey(const Key('capture_button')), findsOneWidget);
     expect(find.byKey(const Key('gallery_pick_button')), findsOneWidget);
+    // A device with no camera must still offer a way through, rather than
+    // silently doing nothing as the old screen did.
+    expect(
+      find.byKey(const Key('camera_unavailable_gallery_button')),
+      findsOneWidget,
+    );
   });
 }

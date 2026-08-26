@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/theme/app_text_styles.dart';
+
 import '../../application/onboarding/app_state_cubit.dart';
 import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
+import 'onboarding_screen.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -15,6 +18,19 @@ class LanguageSelectionScreen extends StatefulWidget {
 
 class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   String _selectedLanguage = 'en';
+
+  /// Completes onboarding and enters the app. [openAuth] routes straight to
+  /// account creation; otherwise the user lands on Home as a guest.
+  Future<void> _finish(BuildContext context, {required bool openAuth}) async {
+    final navigator = Navigator.of(context);
+    await context.read<AppStateCubit>().completeOnboarding(_selectedLanguage);
+    if (!context.mounted) return;
+    navigator.pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(openAccountOnLaunch: openAuth),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +82,18 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                       ),
                       child: ListTile(
                         key: lang['widgetKey'] as Key,
+                        // Each language is rendered in its OWN script's
+                        // face, not the currently-active one. At this point
+                        // in onboarding the user has not chosen a language
+                        // yet, so the only reliable way to recognise "your
+                        // language" is to see it written the way you write
+                        // it — "සිංහල" in Sinhala, "தமிழ்" in Tamil.
                         title: Text(
                           context.tr(lang['key'] as String),
                           style: theme.textTheme.titleMedium?.copyWith(
+                            fontFamily: AppTextStyles.fontFamilyFor(code),
+                            fontFamilyFallback:
+                                AppTextStyles.fontFamilyFallbackFor(code),
                             fontWeight: isSelected
                                 ? FontWeight.bold
                                 : FontWeight.normal,
@@ -99,18 +124,29 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                   ),
                 ),
                 onPressed: () async {
+                  // Apply the language now so the introduction that follows
+                  // is already translated, but do NOT mark onboarding
+                  // complete — that happens at the end of the flow.
                   await context
                       .read<AppStateCubit>()
-                      .completeOnboarding(_selectedLanguage);
+                      .setLanguage(_selectedLanguage);
                   if (!context.mounted) return;
                   Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => OnboardingScreen(
+                        onCreateAccount: () => _finish(
+                          context,
+                          openAuth: true,
+                        ),
+                        onContinueAsGuest: () => _finish(
+                          context,
+                          openAuth: false,
+                        ),
+                      ),
+                    ),
                   );
                 },
-                child: Text(
-                  context.tr('confirm'),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: Text(context.tr('confirm')),
               ),
             ],
           ),

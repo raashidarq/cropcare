@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+
 import '../../domain/entities/local_user.dart';
 import '../../domain/usecases/feedback/submit_feedback_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
@@ -56,7 +58,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(context.tr('feedback_success')),
-            backgroundColor: Colors.green.shade700,
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );

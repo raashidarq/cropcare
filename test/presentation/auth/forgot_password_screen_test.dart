@@ -118,10 +118,12 @@ void main() {
     expect(find.byKey(const Key('forgot_password_email_field')), findsOneWidget);
     expect(find.byKey(const Key('forgot_password_submit_button')), findsOneWidget);
 
-    // Try submitting empty
+    // Try submitting empty. An empty field now reports that it is required
+    // rather than that it is invalid — the two are different problems and
+    // the message should say which one it is.
     await tester.tap(find.byKey(const Key('forgot_password_submit_button')));
     await tester.pumpAndSettle();
-    expect(find.text('Please enter a valid email address'), findsOneWidget);
+    expect(find.text('Enter your email address'), findsOneWidget);
 
     // Enter valid email and submit
     await tester.enterText(

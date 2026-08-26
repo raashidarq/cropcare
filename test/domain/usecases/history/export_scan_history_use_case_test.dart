@@ -30,6 +30,15 @@ class _FakeScanRepository implements ScanRepository {
   Future<void> updateScanCrop(String scanId, String cropId) async {}
 
   @override
+  Future<void> rejectInvalidScan({
+    required String scanId,
+    required String rejectionReason,
+  }) async {}
+
+  @override
+  Future<int> purgeFailedScans() async => 0;
+
+  @override
   Future<void> deleteAllLocalScans() async {}
 }
 

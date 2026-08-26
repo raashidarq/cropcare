@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/theme/app_colors.dart';
+
 import '../../application/escalation/escalation_cubit.dart';
 import '../../application/escalation/escalation_state.dart';
 import '../../domain/entities/diagnosis.dart';
@@ -92,7 +94,7 @@ class _EscalationViewState extends State<_EscalationView> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(context.tr('summary_copied')),
-        backgroundColor: Colors.green.shade700,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -115,16 +117,18 @@ class _EscalationViewState extends State<_EscalationView> {
         listener: (context, state) {
           if (state is EscalationSharedSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('WhatsApp share opened successfully.'),
-                backgroundColor: Colors.green,
+              SnackBar(
+                content: Text(context.tr('whatsapp_share_opened')),
+                backgroundColor: AppColors.success,
               ),
             );
           } else if (state is EscalationError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Share error: ${state.error}'),
-                backgroundColor: theme.colorScheme.error,
+                // The raw error is deliberately not shown: it is an
+                // untranslated Dart exception string.
+                content: Text(context.tr('share_failed')),
+                backgroundColor: AppColors.error,
               ),
             );
           }
@@ -162,15 +166,20 @@ class _EscalationViewState extends State<_EscalationView> {
                             child: Image.file(
                               file,
                               fit: BoxFit.cover,
+                              // Cap decode at screen width; the source is a
+                              // full-resolution camera photo.
+                              cacheWidth: (MediaQuery.sizeOf(context).width *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
                             ),
                           )
                         else
                           Container(
                             height: 120,
-                            color: Colors.grey.shade200,
+                            color: AppColors.surfaceVariant,
                             child: const Center(
                               child: Icon(Icons.image_not_supported,
-                                  size: 48, color: Colors.grey),
+                                  size: 48, color: AppColors.onSurfaceVariant),
                             ),
                           ),
                         Padding(
@@ -202,7 +211,7 @@ class _EscalationViewState extends State<_EscalationView> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: Colors.orange.shade100,
+                                        color: AppColors.warningContainer,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -210,7 +219,7 @@ class _EscalationViewState extends State<_EscalationView> {
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.orange.shade900,
+                                          color: AppColors.onWarningContainer,
                                         ),
                                       ),
                                     ),
@@ -290,8 +299,8 @@ class _EscalationViewState extends State<_EscalationView> {
                     child: ElevatedButton.icon(
                       key: const Key('whatsapp_share_button'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF25D366), // WhatsApp green
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.whatsapp,
+                        foregroundColor: AppColors.onWhatsapp,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -302,10 +311,10 @@ class _EscalationViewState extends State<_EscalationView> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.onWhatsapp,
                               ),
                             )
-                          : const Icon(Icons.share, color: Colors.white),
+                          : const Icon(Icons.share, color: AppColors.onWhatsapp),
                       label: Text(
                         context.tr('share_whatsapp_btn'),
                         style: const TextStyle(

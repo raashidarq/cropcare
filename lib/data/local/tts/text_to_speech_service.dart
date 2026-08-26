@@ -11,6 +11,10 @@ abstract class TtsService {
   Future<void> speak({
     required String text,
     required String languageCode,
+    /// Playback pace, 0.0–1.0. The Accessibility screen exposes this because
+    /// read-aloud is a primary path through the app for anyone who does not
+    /// read comfortably, and the right pace differs a lot per person.
+    double speechRate,
   });
   Future<void> stop();
   void dispose();
@@ -52,6 +56,7 @@ class TextToSpeechService implements TtsService {
   Future<void> speak({
     required String text,
     required String languageCode,
+    double speechRate = 0.5,
   }) async {
     if (text.trim().isEmpty) return;
 
@@ -59,7 +64,8 @@ class TextToSpeechService implements TtsService {
       // Map app language code to BCP-47 locale tag
       final ttsLanguage = _mapLanguageCode(languageCode);
 
-      await _flutterTts.setSpeechRate(0.5); // Clear, moderate pace for farmers
+      // Was hardcoded to 0.5, which silently ignored the user's setting.
+      await _flutterTts.setSpeechRate(speechRate.clamp(0.1, 1.0));
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
 

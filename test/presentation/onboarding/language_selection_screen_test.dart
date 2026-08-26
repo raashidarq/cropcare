@@ -8,8 +8,8 @@ import 'package:cropcare/domain/repositories/app_state_repository.dart';
 import 'package:cropcare/domain/usecases/onboarding/complete_onboarding_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/get_app_state_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/set_language_use_case.dart';
-import 'package:cropcare/presentation/home/home_screen.dart';
 import 'package:cropcare/presentation/onboarding/language_selection_screen.dart';
+import 'package:cropcare/presentation/onboarding/onboarding_screen.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
 
 class FakeAppStateRepository implements AppStateRepository {
@@ -34,7 +34,7 @@ class FakeAppStateRepository implements AppStateRepository {
 
 void main() {
   testWidgets(
-    'selecting a language navigates to Home and persists the choice',
+    'selecting a language applies it and continues into onboarding',
     (WidgetTester tester) async {
       final repository = FakeAppStateRepository();
       final cubit = AppStateCubit(
@@ -63,10 +63,14 @@ void main() {
       await tester.tap(find.byKey(const Key('confirm_language')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(HomeScreen), findsOneWidget);
+      // Language selection now runs BEFORE the introduction, so the
+      // introduction is shown already translated. It applies the language
+      // but does not yet mark onboarding complete — that happens at the end
+      // of the flow, after the account-or-guest choice.
+      expect(find.byType(OnboardingScreen), findsOneWidget);
 
-      expect(repository.appState.onboardingCompleted, isTrue);
       expect(repository.appState.languageCode, equals('si'));
+      expect(repository.appState.onboardingCompleted, isFalse);
     },
   );
 }

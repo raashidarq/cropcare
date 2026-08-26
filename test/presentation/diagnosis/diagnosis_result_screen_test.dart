@@ -92,7 +92,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Healthy Plant'), findsOneWidget);
+    expect(find.text('Looks healthy'), findsOneWidget);
     expect(
       find.text('Your plant appears healthy! Keep up your current crop management practices.'),
       findsOneWidget,
@@ -144,6 +144,16 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
+    // Treatment guidance is no longer fetched on open — it is behind an
+    // explicit button so it cannot spend a farmer's mobile data unasked.
+    // The screen is long, so scroll the button into view before tapping.
+    final getTreatmentBtn =
+        find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(getTreatmentBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(getTreatmentBtn);
     await tester.pumpAndSettle();
 
     expect(find.text('Tomato Early Blight'), findsOneWidget);
@@ -200,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Low confidence AI result (<80%). We suggest consulting an agricultural expert via WhatsApp.'),
+      find.text('Not confident about this'),
       findsOneWidget,
     );
     expect(find.text('WhatsApp Share with Expert'), findsWidgets);
@@ -249,6 +259,16 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
+    // Treatment guidance is no longer fetched on open — it is behind an
+    // explicit button so it cannot spend a farmer's mobile data unasked.
+    // The screen is long, so scroll the button into view before tapping.
+    final getTreatmentBtn =
+        find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(getTreatmentBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(getTreatmentBtn);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_tts_button')), findsOneWidget);
@@ -300,6 +320,16 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    // Treatment guidance is no longer fetched on open — it is behind an
+    // explicit button so it cannot spend a farmer's mobile data unasked.
+    // The screen is long, so scroll the button into view before tapping.
+    final getTreatmentBtn =
+        find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(getTreatmentBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(getTreatmentBtn);
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
     expect(find.text('AI'), findsOneWidget);
   });
@@ -348,6 +378,16 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
+    // Treatment guidance is no longer fetched on open — it is behind an
+    // explicit button so it cannot spend a farmer's mobile data unasked.
+    // The screen is long, so scroll the button into view before tapping.
+    final getTreatmentBtn =
+        find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(getTreatmentBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(getTreatmentBtn);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);

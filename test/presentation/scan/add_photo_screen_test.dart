@@ -9,6 +9,7 @@ import 'package:cropcare/domain/usecases/crop/get_supported_crops_use_case.dart'
 import 'package:cropcare/presentation/home/home_screen.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
 import 'package:cropcare/presentation/scan/add_photo_screen.dart';
+import 'package:cropcare/presentation/scan/capture_screen.dart';
 
 class _FakeCropRepository implements CropRepository {
   @override
@@ -85,32 +86,44 @@ void main() {
     expect(find.byKey(const Key('supported_crop_chip_potato')), findsOneWidget);
   });
 
-  testWidgets('HomeScreen New Scan action navigates directly to AddPhotoScreen', (tester) async {
-    final getCropsUseCase = GetSupportedCropsUseCase(_FakeCropRepository());
+  testWidgets(
+    'HomeScreen scan action goes straight to the camera, not to a '
+    'camera-or-gallery chooser screen',
+    (tester) async {
+      final getCropsUseCase = GetSupportedCropsUseCase(_FakeCropRepository());
 
-    await tester.pumpWidget(
-      LocalizationProvider(
-        languageCode: 'en',
-        child: MaterialApp(
-          home: HomeScreen(
-            user: user,
-            getSupportedCropsUseCase: getCropsUseCase,
+      await tester.pumpWidget(
+        LocalizationProvider(
+          languageCode: 'en',
+          child: MaterialApp(
+            home: HomeScreen(
+              user: user,
+              getSupportedCropsUseCase: getCropsUseCase,
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    // Tap "Start New Scan" hero button
-    await tester.tap(find.byKey(const Key('home_start_scan_button')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home_start_scan_button')));
+      // Bounded pumps, not pumpAndSettle: the viewfinder shows an
+      // indeterminate progress indicator while it works out whether the
+      // device has a camera, and pumpAndSettle never returns on one.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
-    // Verify it opened AddPhotoScreen
-    expect(find.byType(AddPhotoScreen), findsOneWidget);
-    expect(find.byKey(const Key('add_photo_camera_button')), findsOneWidget);
-    expect(find.byKey(const Key('add_photo_gallery_button')), findsOneWidget);
-  });
+      // The intermediate AddPhotoScreen was removed from the scan path:
+      // gallery is now a control inside the camera UI, so the common case
+      // ("I am standing in front of a sick plant") costs one tap, not two.
+      expect(find.byType(AddPhotoScreen), findsNothing);
+      expect(find.byType(CaptureScreen), findsOneWidget);
+      // Which state CaptureScreen lands in depends on the camera permission,
+      // which the test host denies; the viewfinder's own controls are
+      // asserted in capture_screen_test.dart. What matters here is only that
+      // the chooser screen is no longer in the path.
+    },
+  );
 
   testWidgets('Gallery cancellation leaves AddPhotoScreen cleanly without crashing', (tester) async {
     final getCropsUseCase = GetSupportedCropsUseCase(_FakeCropRepository());

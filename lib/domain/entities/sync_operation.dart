@@ -10,7 +10,22 @@ enum SyncOperationStatus {
   pending,
   inProgress,
   completed,
+
+  /// Failed, but worth retrying (network timeout, server 5xx). Counts
+  /// against the retry budget.
   failed,
+
+  /// Retrying will not help — the server rejected the payload (4xx other
+  /// than 401), or the retry budget is exhausted. Previously these were
+  /// silently excluded from the pending query and vanished with no user
+  /// signal; they are now surfaced so a farmer can see the scan did not
+  /// reach the cloud.
+  permanentlyFailed,
+
+  /// The session expired mid-sync. Held rather than retried: retrying with
+  /// a dead token just burns the retry budget and silently loses the
+  /// backlog. Cleared when the user signs in again.
+  authRequired,
 }
 
 class SyncOperation {

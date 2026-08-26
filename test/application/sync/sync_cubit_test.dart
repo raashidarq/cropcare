@@ -22,7 +22,37 @@ class _FakeSyncRepository implements SyncRepository {
   }
 
   @override
-  Future<List<SyncOperation>> getPendingOperations({int maxRetries = 3}) async => [];
+  Future<List<SyncOperation>> getPendingOperations({
+    int maxRetries = 3,
+    int? limit,
+  }) async =>
+      [];
+
+  @override
+  Future<int> recoverStalledOperations() async => 0;
+
+  List<SyncOperation> failedOperations = [];
+  final List<String> retriedOperationIds = [];
+  int clearAuthHoldCalls = 0;
+
+  @override
+  Future<List<SyncOperation>> getFailedOperations() async => failedOperations;
+
+  @override
+  Future<void> retryOperation(String operationId) async {
+    retriedOperationIds.add(operationId);
+    failedOperations =
+        failedOperations.where((o) => o.id != operationId).toList();
+    pendingCount++;
+  }
+
+  @override
+  Future<void> clearAuthHold() async {
+    clearAuthHoldCalls++;
+    failedOperations = failedOperations
+        .where((o) => o.status != SyncOperationStatus.authRequired)
+        .toList();
+  }
 
   @override
   Future<int> getPendingCount() async => pendingCount;
@@ -163,13 +193,38 @@ void main() {
       await sub.cancel();
     });
 
-    test('toggleAutoSync updates autoSyncEnabled in state', () {
-      expect(cubit.state.autoSyncEnabled, isTrue);
-      cubit.toggleAutoSync(false);
+    test('auto-sync is off by default', () {
+      // Opt-in: syncing uploads photos over a frequently metered connection,
+      // and a guest has no account to sync to.
       expect(cubit.state.autoSyncEnabled, isFalse);
+    });
+
+    test('enabling auto-sync requires a signed-in session', () async {
+      fakeAuthRepo.storedToken = null;
+      await cubit.toggleAutoSync(true);
       expect(cubit.autoSyncEnabled, isFalse);
-      cubit.toggleAutoSync(true);
+      expect(cubit.state, isA<SyncError>());
+
+      fakeAuthRepo.storedToken = 'token-123';
+      await cubit.toggleAutoSync(true);
+      expect(cubit.autoSyncEnabled, isTrue);
       expect(cubit.state.autoSyncEnabled, isTrue);
+    });
+
+    test('disabling auto-sync always works', () async {
+      fakeAuthRepo.storedToken = 'token-123';
+      await cubit.toggleAutoSync(true);
+      await cubit.toggleAutoSync(false);
+      expect(cubit.autoSyncEnabled, isFalse);
+      expect(cubit.state.autoSyncEnabled, isFalse);
+    });
+
+    test('signing out clears auto-sync so a later guest does not inherit it',
+        () async {
+      fakeAuthRepo.storedToken = 'token-123';
+      await cubit.toggleAutoSync(true);
+      await cubit.disableAutoSyncOnSignOut();
+      expect(cubit.autoSyncEnabled, isFalse);
     });
 
     test('deleteAllLocalScans resets pendingCount to 0', () async {
@@ -177,6 +232,90 @@ void main() {
       expect(cubit.state.pendingCount, 2);
       await cubit.deleteAllLocalScans();
       expect(cubit.state.pendingCount, 0);
+    });
+  });
+
+  group('SyncCubit failed operations', () {
+    SyncOperation op(String id, SyncOperationStatus status) => SyncOperation(
+          id: id,
+          entityId: 'entity-$id',
+          entityType: SyncEntityType.scan,
+          payloadJson: '{}',
+          status: status,
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+    test('surfaces operations the engine stopped retrying', () async {
+      final repo = _FakeSyncRepository()
+        ..failedOperations = [
+          op('a', SyncOperationStatus.permanentlyFailed),
+        ];
+      final cubit = SyncCubit(
+        syncRepository: repo,
+        authRepository: _FakeAuthRepository(),
+      );
+
+      await cubit.refreshPendingCount();
+
+      expect(cubit.state.failedOperations, hasLength(1));
+      expect(cubit.state.needsReauth, isFalse);
+      await cubit.close();
+    });
+
+    test('needsReauth is true only when something is held on auth', () async {
+      final repo = _FakeSyncRepository()
+        ..failedOperations = [
+          op('a', SyncOperationStatus.permanentlyFailed),
+          op('b', SyncOperationStatus.authRequired),
+        ];
+      final cubit = SyncCubit(
+        syncRepository: repo,
+        authRepository: _FakeAuthRepository(),
+      );
+
+      await cubit.refreshPendingCount();
+
+      expect(cubit.state.needsReauth, isTrue);
+      await cubit.close();
+    });
+
+    test('retrying a failed operation re-queues it and drops it from the list',
+        () async {
+      final repo = _FakeSyncRepository()
+        ..failedOperations = [
+          op('a', SyncOperationStatus.permanentlyFailed),
+        ];
+      final cubit = SyncCubit(
+        syncRepository: repo,
+        authRepository: _FakeAuthRepository(),
+      );
+      await cubit.refreshPendingCount();
+
+      await cubit.retryFailedOperation('a');
+
+      expect(repo.retriedOperationIds, ['a']);
+      expect(cubit.state.failedOperations, isEmpty);
+      await cubit.close();
+    });
+
+    test('resumeAfterReauth releases the auth hold before syncing', () async {
+      final repo = _FakeSyncRepository()
+        ..failedOperations = [op('b', SyncOperationStatus.authRequired)];
+      final cubit = SyncCubit(
+        syncRepository: repo,
+        authRepository: _FakeAuthRepository(),
+      );
+
+      await cubit.resumeAfterReauth();
+
+      expect(repo.clearAuthHoldCalls, 1);
+      expect(
+        cubit.state.failedOperations
+            .where((o) => o.status == SyncOperationStatus.authRequired),
+        isEmpty,
+      );
+      await cubit.close();
     });
   });
 }

@@ -2,27 +2,39 @@
 //
 // Displays ML inference results and AI-powered treatment guidance.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/diagnosis/diagnosis_cubit.dart';
+import '../../application/settings/accessibility_cubit.dart';
 import '../../application/diagnosis/diagnosis_state.dart';
+import '../../core/constants/crop_visuals.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/utils/app_haptics.dart';
 import '../../data/local/database/app_database.dart';
 import '../../data/local/tts/text_to_speech_service.dart';
 import '../../data/repositories/escalation_repository_impl.dart';
 import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/diagnosis.dart';
+import '../../domain/entities/disease_explanation.dart';
 import '../../domain/entities/scan.dart';
 import '../../domain/entities/treatment.dart';
+import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../escalation/escalation_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
+import '../shared/widgets/app_components.dart';
 
 class DiagnosisResultScreen extends StatelessWidget {
   final Scan scan;
   final Diagnosis diagnosis;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
 
@@ -31,6 +43,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     required this.scan,
     required this.diagnosis,
     this.resolveTreatmentUseCase,
+    this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
   });
@@ -45,6 +58,7 @@ class DiagnosisResultScreen extends StatelessWidget {
         child: _DiagnosisResultView(
           scan: scan,
           diagnosis: diagnosis,
+          getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
           createEscalationUseCase: createEscalationUseCase,
           ttsService: ttsService,
         ),
@@ -54,6 +68,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     return _DiagnosisResultView(
       scan: scan,
       diagnosis: diagnosis,
+      getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
       createEscalationUseCase: createEscalationUseCase,
       ttsService: ttsService,
     );
@@ -63,12 +78,14 @@ class DiagnosisResultScreen extends StatelessWidget {
 class _DiagnosisResultView extends StatefulWidget {
   final Scan scan;
   final Diagnosis diagnosis;
+  final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
 
   const _DiagnosisResultView({
     required this.scan,
     required this.diagnosis,
+    this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
   });
@@ -80,7 +97,12 @@ class _DiagnosisResultView extends StatefulWidget {
 class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   final TextEditingController _observationsController = TextEditingController();
   late final TtsService _ttsService;
-  bool _hasAutoFetched = false;
+
+  /// Offline explanation content, loaded once on open. A Future rather than
+  /// cubit state because it is a single local read with no transitions worth
+  /// modelling, and it must not block or interact with treatment fetching.
+  Future<DiseaseExplanation?>? _explanationFuture;
+  bool _explanationRequested = false;
 
   @override
   void initState() {
@@ -91,12 +113,27 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasAutoFetched &&
-        !widget.diagnosis.isHealthy &&
-        widget.diagnosis.diseaseId != null) {
-      _hasAutoFetched = true;
-      _fetchTreatment(context);
-    }
+
+    // Treatment guidance is NO LONGER fetched automatically. It costs a
+    // network round trip and, on a metered rural connection, a farmer who
+    // only wanted to know what the plant has should not pay for advice they
+    // did not ask for. It is now behind an explicit button.
+
+    if (_explanationRequested) return;
+    _explanationRequested = true;
+
+    final useCase = widget.getDiseaseExplanationUseCase;
+    final diseaseId = widget.diagnosis.diseaseId;
+    if (useCase == null || diseaseId == null) return;
+
+    final languageCode =
+        LocalizationProvider.of(context)?.languageCode ?? 'en';
+    setState(() {
+      _explanationFuture = useCase(
+        diseaseId: diseaseId,
+        languageCode: languageCode,
+      );
+    });
   }
 
   @override
@@ -125,6 +162,27 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
     );
   }
 
+  // Fallback wiring, used only when this screen is constructed without an
+  // injected use case (tests, or a direct push). main.dart owns the real
+  // AppDatabase and threads the use case down in normal navigation.
+  //
+  // These are static and lazy on purpose: the previous code constructed
+  // `AppDatabase()` inline — twice in one expression — on every navigation
+  // to escalation, and never closed them. Each one opens a fresh background
+  // SQLite connection, so repeated scanning leaked connections and risked
+  // "database is locked" contention with the app's real connection (and with
+  // the background sync isolate). Capped at one shared instance instead.
+  static AppDatabase? _fallbackDb;
+  static CreateEscalationUseCase? _fallbackUseCase;
+
+  static CreateEscalationUseCase _fallbackEscalationUseCase() {
+    final db = _fallbackDb ??= AppDatabase();
+    return _fallbackUseCase ??= CreateEscalationUseCase(
+      escalationRepository: EscalationRepositoryImpl(db),
+      scanRepository: ScanRepositoryImpl(db),
+    );
+  }
+
   void _navigateToEscalation(BuildContext context) {
     Navigator.push(
       context,
@@ -135,11 +193,8 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
           initialNotes: _observationsController.text.trim().isNotEmpty
               ? _observationsController.text.trim()
               : null,
-          createEscalationUseCase: widget.createEscalationUseCase ??
-              CreateEscalationUseCase(
-                escalationRepository: EscalationRepositoryImpl(AppDatabase()),
-                scanRepository: ScanRepositoryImpl(AppDatabase()),
-              ),
+          createEscalationUseCase:
+              widget.createEscalationUseCase ?? _fallbackEscalationUseCase(),
         ),
       ),
     );
@@ -159,57 +214,65 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.xl,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── 1. Classification Result Header Card ─────────────────────
-              _HeaderCard(
-                scan: widget.scan,
-                diagnosis: widget.diagnosis,
-              ),
-              const SizedBox(height: 16),
+              // ── 1. The photo, the verdict, the confidence ────────────────
+              _ResultHero(scan: widget.scan, diagnosis: widget.diagnosis),
+              const SizedBox(height: AppSpacing.md),
 
-              // ── 2. Low Confidence Advisory Banner (< 80%) ───────────────
+              // ── 2. Hedging comes BEFORE the advice ───────────────────────
+              // A farmer may act on the first thing they read, so any reason
+              // to doubt the result is placed above the treatment guidance
+              // rather than below it.
               if (isLowConfidence) ...[
                 _LowConfidenceBanner(
                   onEscalate: () => _navigateToEscalation(context),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.smPlus),
+              ],
+              const _AiDisclaimerBanner(),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── 3. Understanding the result (offline) ────────────────────
+              // Placed before treatment: what this is, and whether to
+              // believe it, comes before what to do about it.
+              if (_explanationFuture != null) ...[
+                _ExplanationSection(future: _explanationFuture!),
+                const SizedBox(height: AppSpacing.lg),
               ],
 
-              // ── 3. AI Disclaimer ─────────────────────────────────────────
-              _AiDisclaimerBanner(),
-              const SizedBox(height: 20),
-
-              // ── 4. Branching: Healthy vs Disease / Treatment ──────────────
+              // ── 4. Healthy vs disease ────────────────────────────────────
               if (isHealthy) ...[
-                _HealthyCard(),
-                const SizedBox(height: 24),
+                const _HealthyCard(),
+                const SizedBox(height: AppSpacing.lg),
               ] else if (widget.diagnosis.diseaseId != null) ...[
-                // Observations Input Card (Optional)
                 _ObservationsCard(
                   controller: _observationsController,
-                  onSubmit: () => _fetchTreatment(context),
                 ),
-                const SizedBox(height: 20),
-
-                // Treatment Guidance Section (BlocBuilder)
+                const SizedBox(height: AppSpacing.md),
                 _TreatmentGuidanceSection(
                   ttsService: _ttsService,
-                  onRetry: () => _fetchTreatment(context),
+                  onFetch: () => _fetchTreatment(context),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.md),
+                const _ChatWithResultPlaceholder(),
+                const SizedBox(height: AppSpacing.lg),
               ],
 
-              // ── 5. Bottom Action Buttons ──────────────────────────────────
+              // ── 4. Actions ───────────────────────────────────────────────
               _BottomActions(
                 onScanAgain: () {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 onConsultExpert: () => _navigateToEscalation(context),
               ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -225,261 +288,225 @@ class _LowConfidenceBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.warning_amber_rounded,
-                  color: Colors.orange.shade900, size: 24),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  context.tr('low_confidence_advisory'),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.orange.shade900,
-                    fontWeight: FontWeight.bold,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: onEscalate,
-              icon: const Icon(Icons.share, size: 16, color: Color(0xFF25D366)),
-              label: Text(
-                context.tr('get_expert_help'),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return AppBanner.warning(
+      title: context.tr('low_confidence_title'),
+      message: context.tr('low_confidence_msg'),
+      actionLabel: context.tr('get_expert_help'),
+      onAction: onEscalate,
     );
   }
 }
 
 // =============================================================================
-// Header Card — ML Output & Metadata
+// Result hero — the photo, the verdict, and how much to trust it
 // =============================================================================
 
-class _HeaderCard extends StatelessWidget {
+/// Leads with the farmer's own photo.
+///
+/// The previous header was a text-only card that opened with a green
+/// "Confident AI Match" badge. That is the wrong emphasis for a closed-set
+/// classifier that cannot tell it has been shown something it was never
+/// trained on: it presented a guess with the confidence of a fact. This
+/// version shows the photo that produced the result, states the verdict
+/// plainly, and puts the confidence figure next to it rather than leading
+/// with a reassuring badge.
+class _ResultHero extends StatelessWidget {
   final Scan scan;
   final Diagnosis diagnosis;
 
-  const _HeaderCard({
-    required this.scan,
-    required this.diagnosis,
-  });
-
-  String _formatDiseaseName(String? diseaseId) {
-    if (diseaseId == null) return 'Unknown Plant Issue';
-    return diseaseId
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-        .join(' ');
-  }
+  const _ResultHero({required this.scan, required this.diagnosis});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
     final isHealthy = diagnosis.isHealthy;
-    final diseaseName = _formatDiseaseName(diagnosis.diseaseId);
+    final visual = CropVisuals.forCrop(scan.cropId);
 
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final title = isHealthy
+        ? context.tr('result_healthy_title')
+        : (_formatDiseaseName(diagnosis.diseaseId) ??
+            context.tr('unknown_disease'));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: AppRadius.lg,
+          child: AspectRatio(
+            aspectRatio: 16 / 10,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                _ResultBadge(resultState: diagnosis.resultState),
-                Chip(
-                  avatar: const Icon(Icons.grass, size: 16),
-                  label: Text(
-                    scan.cropId.toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              isHealthy ? 'Healthy Plant' : context.tr('disease_detected'),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              diseaseName,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: isHealthy ? Colors.green.shade700 : theme.colorScheme.error,
-              ),
-            ),
-            const Divider(height: 28),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _MetaChip(
-                    icon: Icons.analytics_outlined,
-                    label: context.tr('confidence'),
-                    value: '${(diagnosis.confidence * 100).toStringAsFixed(1)}%',
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-                if (diagnosis.severity != null) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _MetaChip(
-                      icon: Icons.warning_amber_rounded,
-                      label: context.tr('severity'),
-                      value: diagnosis.severity!.toUpperCase(),
-                      color: _getSeverityColor(diagnosis.severity),
+                _ScanImage(path: scan.imageLocalPath),
+                // Bottom-up scrim so the overlaid crop chip stays readable
+                // whatever the photo happens to look like.
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.center,
+                      colors: [Color(0xCC000000), Color(0x00000000)],
                     ),
                   ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getSeverityColor(String? severity) {
-    switch (severity?.toLowerCase()) {
-      case 'high':
-        return Colors.red.shade700;
-      case 'moderate':
-        return Colors.orange.shade800;
-      case 'low':
-        return Colors.amber.shade800;
-      default:
-        return Colors.grey.shade700;
-    }
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _MetaChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                Positioned(
+                  left: AppSpacing.smPlus,
+                  bottom: AppSpacing.smPlus,
+                  right: AppSpacing.smPlus,
+                  child: Row(
+                    children: [
+                      Icon(visual.icon, size: 18, color: Colors.white),
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          _cropLabel(context, languageCode),
+                          style: theme.textTheme.labelMedium
+                              ?.copyWith(color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          isHealthy
+              ? context.tr('result_healthy_msg')
+              : context.tr('disease_detected'),
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          title,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: isHealthy ? AppColors.success : AppColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            _stateChip(context),
+            if (diagnosis.severity != null)
+              AppStatusChip.severity(
+                diagnosis.severity,
+                '${context.tr('severity_label')}: ${diagnosis.severity!}',
+              ),
+          ],
+        ),
+        if (!isHealthy) ...[
+          const SizedBox(height: AppSpacing.md),
+          AppConfidenceMeter(
+            confidence: diagnosis.confidence,
+            label: context.tr('confidence_label'),
+          ),
         ],
-      ),
+      ],
     );
+  }
+
+  String _cropLabel(BuildContext context, String languageCode) {
+    final id = scan.cropId;
+    if (id.isEmpty || id == 'unknown') return context.tr('unknown_disease');
+    return _formatDiseaseName(id) ?? id;
+  }
+
+  Widget _stateChip(BuildContext context) {
+    switch (diagnosis.resultState) {
+      case DiagnosisResultState.confident:
+        return AppStatusChip(
+          icon: Icons.check_circle_outline_rounded,
+          // "Likely match", not "Confident AI Match" — the model cannot
+          // distinguish an unfamiliar input from a familiar one, so the
+          // wording should not promise more than it can deliver.
+          label: context.tr('badge_confident'),
+          foreground: AppColors.onInfoContainer,
+          background: AppColors.infoContainer,
+        );
+      case DiagnosisResultState.lowConfidence:
+        return AppStatusChip(
+          icon: Icons.help_outline_rounded,
+          label: context.tr('badge_low_confidence'),
+          foreground: AppColors.onWarningContainer,
+          background: AppColors.warningContainer,
+        );
+      case DiagnosisResultState.unsupported:
+        return AppStatusChip(
+          icon: Icons.block_outlined,
+          label: context.tr('badge_unsupported'),
+          foreground: AppColors.onSurfaceVariant,
+          background: AppColors.surfaceVariant,
+        );
+      case DiagnosisResultState.analysisFailed:
+        return AppStatusChip(
+          icon: Icons.error_outline_rounded,
+          label: context.tr('badge_failed'),
+          foreground: AppColors.onErrorContainer,
+          background: AppColors.errorContainer,
+        );
+    }
   }
 }
 
-class _ResultBadge extends StatelessWidget {
-  final DiagnosisResultState resultState;
+/// `tomato_late_blight` -> `Tomato Late Blight`.
+///
+/// English-only: a Diagnosis carries a disease *id*, and the localized
+/// `name_si` / `name_ta` columns live on the `disease` table, which is not
+/// joined into this screen. Worth fixing — disease names are exactly what a
+/// Sinhala or Tamil speaker most needs in their own language — but it needs
+/// the disease row threaded through the diagnosis read path.
+String? _formatDiseaseName(String? id) {
+  if (id == null || id.isEmpty) return null;
+  return id
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
 
-  const _ResultBadge({required this.resultState});
+class _ScanImage extends StatelessWidget {
+  final String path;
+
+  const _ScanImage({required this.path});
 
   @override
   Widget build(BuildContext context) {
-    final Color color;
-    final String label;
-    switch (resultState) {
-      case DiagnosisResultState.confident:
-        label = 'Confident AI Match';
-        color = Colors.green;
-        break;
-      case DiagnosisResultState.lowConfidence:
-        label = 'Low Confidence';
-        color = Colors.orange;
-        break;
-      case DiagnosisResultState.unsupported:
-        label = 'Crop Not Supported';
-        color = Colors.grey;
-        break;
-      case DiagnosisResultState.analysisFailed:
-        label = 'Analysis Failed';
-        color = Colors.red;
-        break;
+    final file = File(path);
+    if (!file.existsSync()) {
+      return const ColoredBox(
+        color: AppColors.surfaceVariant,
+        child: Center(
+          child: Icon(
+            Icons.image_not_supported_outlined,
+            size: 40,
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+      );
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
+    return Image.file(
+      file,
+      fit: BoxFit.cover,
+      // Decode at display width, not the camera's full sensor resolution.
+      cacheWidth: (MediaQuery.sizeOf(context).width *
+              MediaQuery.devicePixelRatioOf(context))
+          .round(),
+      errorBuilder: (_, _, _) => const ColoredBox(
+        color: AppColors.surfaceVariant,
+        child: Center(
+          child: Icon(
+            Icons.broken_image_outlined,
+            size: 40,
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -491,32 +518,13 @@ class _ResultBadge extends StatelessWidget {
 // =============================================================================
 
 class _AiDisclaimerBanner extends StatelessWidget {
+  const _AiDisclaimerBanner();
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.amber.shade300),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline, size: 18, color: Colors.amber.shade900),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.tr('ai_disclaimer'),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.amber.shade900,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return AppBanner.aiDisclaimer(
+      title: context.tr('ai_disclaimer_title'),
+      message: context.tr('ai_disclaimer_msg'),
     );
   }
 }
@@ -526,37 +534,40 @@ class _AiDisclaimerBanner extends StatelessWidget {
 // =============================================================================
 
 class _HealthyCard extends StatelessWidget {
+  const _HealthyCard();
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      color: Colors.green.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.green.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.green.shade100,
-              child: Icon(Icons.check_circle, color: Colors.green.shade800, size: 30),
+    final theme = Theme.of(context);
+    return AppCard(
+      color: AppColors.successContainer,
+      borderColor: AppColors.successContainer,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppColors.success,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                context.tr('healthy_crop_msg'),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green.shade900,
-                ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: AppColors.onSuccess,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              context.tr('healthy_crop_msg'),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSuccessContainer,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -568,12 +579,8 @@ class _HealthyCard extends StatelessWidget {
 
 class _ObservationsCard extends StatelessWidget {
   final TextEditingController controller;
-  final VoidCallback onSubmit;
 
-  const _ObservationsCard({
-    required this.controller,
-    required this.onSubmit,
-  });
+  const _ObservationsCard({required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -618,14 +625,54 @@ class _ObservationsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onSubmit,
-                icon: const Icon(Icons.send_rounded, size: 16),
-                label: Text(context.tr('get_treatment_btn')),
+            // Speaking is far more realistic than typing here: the keyboard
+            // for Sinhala and Tamil is slow, and this is a field where a
+            // farmer is holding a phone in one hand. Entry point placed
+            // now; implementation is a separate piece of work.
+            _VoiceInputPlaceholder(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Inert entry point for speaking observations instead of typing them.
+class _VoiceInputPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => showComingSoon(context),
+      borderRadius: AppRadius.md,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mic_none_rounded,
+                size: 20,
+                color: AppColors.primary,
               ),
             ),
+            const SizedBox(width: AppSpacing.smPlus),
+            Expanded(
+              child: Text(
+                context.tr('speak_observations'),
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            const ComingSoonPill(),
           ],
         ),
       ),
@@ -638,11 +685,11 @@ class _ObservationsCard extends StatelessWidget {
 // =============================================================================
 
 class _TreatmentGuidanceSection extends StatelessWidget {
-  final VoidCallback onRetry;
+  final VoidCallback onFetch;
   final TtsService? ttsService;
 
   const _TreatmentGuidanceSection({
-    required this.onRetry,
+    required this.onFetch,
     this.ttsService,
   });
 
@@ -652,6 +699,15 @@ class _TreatmentGuidanceSection extends StatelessWidget {
     if (cubit == null) return const SizedBox.shrink();
 
     final state = cubit.state;
+
+    // Nothing requested yet: offer the action rather than firing it. The
+    // request tries the online source first and only drops to the on-device
+    // guidelines if that fails (see TreatmentRepositoryImpl), so it can cost
+    // mobile data — that should be the farmer's decision, not a side effect
+    // of opening the screen.
+    if (state is DiagnosisInitial || state is DiagnosisHealthy) {
+      return _TreatmentPrompt(onFetch: onFetch);
+    }
 
     if (state is DiagnosisTreatmentLoading) {
       return Card(
@@ -674,55 +730,22 @@ class _TreatmentGuidanceSection extends StatelessWidget {
     }
 
     if (state is DiagnosisTreatmentError) {
-      return Card(
-        elevation: 2,
-        color: Colors.amber.shade50,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.amber.shade300),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.wifi_off_rounded,
-                      color: Colors.amber.shade900, size: 24),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      context.tr('offline_connection_msg'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.amber.shade900,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: Text(context.tr('retry_btn')),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber.shade800,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      return AppBanner(
+        icon: Icons.wifi_off_rounded,
+        message: context.tr('offline_connection_msg'),
+        foreground: AppColors.onWarningContainer,
+        background: AppColors.warningContainer,
+        actionLabel: context.tr('retry_btn'),
+        onAction: onFetch,
       );
     }
 
     if (state is DiagnosisTreatmentLoaded) {
+      AppHaptics.resultReady(context);
+      // Honours the "read results aloud automatically" setting, which
+      // previously existed in the UI but was wired to nothing. Opt-in and
+      // off by default — unexpected audio is worse than none.
+      _maybeAutoRead(context, state.treatment);
       return _TreatmentLoadedCard(
         treatment: state.treatment,
         ttsService: ttsService,
@@ -730,6 +753,45 @@ class _TreatmentGuidanceSection extends StatelessWidget {
     }
 
     return const SizedBox.shrink();
+  }
+}
+
+/// Speaks the guidance once, if auto-read is enabled. Guarded by a set of
+/// already-spoken treatments so a rebuild does not restart playback.
+final Set<String> _autoReadFired = <String>{};
+
+void _maybeAutoRead(BuildContext context, TreatmentResponse treatment) {
+  final AccessibilityCubit cubit;
+  try {
+    cubit = context.read<AccessibilityCubit>();
+  } catch (_) {
+    return;
+  }
+  if (!cubit.state.autoReadDiagnosis) return;
+
+  final signature = '${treatment.interpretationId}|${treatment.summary}';
+  if (!_autoReadFired.add(signature)) return;
+
+  final section = context.findAncestorWidgetOfExactType<_TreatmentGuidanceSection>();
+  final tts = section?.ttsService;
+  if (tts == null) return;
+
+  final lang = LocalizationProvider.of(context)?.languageCode ?? 'en';
+  final text =
+      '${treatment.summary}. ${context.tr('treatment_what_to_do')}: ${treatment.whatToDo}. ${context.tr('treatment_what_to_avoid')}: ${treatment.whatToAvoid}.';
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    tts.speak(text: text, languageCode: lang, speechRate: cubit.state.speechRate);
+  });
+}
+
+/// Reads the user's chosen playback pace, falling back to the default when
+/// the accessibility cubit is not in scope (tests, isolated widget use).
+double _speechRateOf(BuildContext context) {
+  try {
+    return context.read<AccessibilityCubit>().state.speechRate;
+  } catch (_) {
+    return 0.5;
   }
 }
 
@@ -766,47 +828,27 @@ class _TreatmentLoadedCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
+                // Where this advice came from — a live AI call or the
+                // on-device fallback guidelines — stated plainly, because it
+                // changes how much a farmer should trust the specifics.
+                Builder(
                   key: const Key('treatment_source_badge'),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: treatment.interpretationId != null
-                        ? Colors.purple.shade50
-                        : Colors.teal.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: treatment.interpretationId != null
-                          ? Colors.purple.shade200
-                          : Colors.teal.shade200,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        treatment.interpretationId != null
-                            ? Icons.auto_awesome
-                            : Icons.offline_pin_outlined,
-                        size: 14,
-                        color: treatment.interpretationId != null
-                            ? Colors.purple.shade700
-                            : Colors.teal.shade700,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        treatment.interpretationId != null
-                            ? context.tr('treatment_source_ai')
-                            : context.tr('treatment_source_offline'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: treatment.interpretationId != null
-                              ? Colors.purple.shade900
-                              : Colors.teal.shade900,
-                        ),
-                      ),
-                    ],
-                  ),
+                  builder: (context) {
+                    final isAi = treatment.interpretationId != null;
+                    final color = isAi
+                        ? AppColors.treatmentSourceAi
+                        : AppColors.treatmentSourceOffline;
+                    return AppStatusChip(
+                      icon: isAi
+                          ? Icons.auto_awesome
+                          : Icons.offline_pin_outlined,
+                      label: isAi
+                          ? context.tr('treatment_source_ai')
+                          : context.tr('treatment_source_offline'),
+                      foreground: color,
+                      background: AppColors.surfaceVariant,
+                    );
+                  },
                 ),
               ],
             ),
@@ -821,35 +863,31 @@ class _TreatmentLoadedCard extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       key: const Key('treatment_tts_button'),
+                      // Read-aloud matters more here than in most apps: it is
+                      // the path through the treatment advice for a farmer
+                      // who does not read comfortably. Given full width and
+                      // a stateful label rather than a small icon button.
                       style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        foregroundColor: isPlaying
-                            ? Colors.red.shade700
-                            : theme.colorScheme.primary,
+                        foregroundColor:
+                            isPlaying ? AppColors.error : AppColors.primary,
                         side: BorderSide(
-                          color: isPlaying
-                              ? Colors.red.shade300
-                              : theme.colorScheme.primary.withValues(alpha: 0.5),
+                          color:
+                              isPlaying ? AppColors.error : AppColors.primary,
+                          width: 1.5,
                         ),
-                        backgroundColor: isPlaying ? Colors.red.shade50 : null,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        backgroundColor:
+                            isPlaying ? AppColors.errorContainer : null,
                       ),
                       icon: Icon(
                         isPlaying
                             ? Icons.stop_circle_outlined
-                            : Icons.volume_up_outlined,
+                            : Icons.volume_up_rounded,
                         size: 20,
                       ),
                       label: Text(
                         isPlaying
                             ? context.tr('stop_reading')
                             : context.tr('read_aloud'),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
                       ),
                       onPressed: () {
                         if (isPlaying) {
@@ -863,6 +901,7 @@ class _TreatmentLoadedCard extends StatelessWidget {
                           ttsService!.speak(
                             text: speechText,
                             languageCode: lang,
+                            speechRate: _speechRateOf(context),
                           );
                         }
                       },
@@ -879,8 +918,8 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 title: context.tr('treatment_summary'),
                 content: treatment.summary,
                 icon: Icons.article_outlined,
-                iconColor: Colors.blue.shade700,
-                backgroundColor: Colors.blue.shade50.withValues(alpha: 0.5),
+                iconColor: AppColors.info,
+                backgroundColor: AppColors.infoContainer,
               ),
               const SizedBox(height: 14),
             ],
@@ -891,8 +930,8 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 title: context.tr('treatment_what_to_do'),
                 content: treatment.whatToDo,
                 icon: Icons.check_circle_outline,
-                iconColor: Colors.green.shade700,
-                backgroundColor: Colors.green.shade50.withValues(alpha: 0.5),
+                iconColor: AppColors.success,
+                backgroundColor: AppColors.successContainer,
               ),
               const SizedBox(height: 14),
             ],
@@ -903,8 +942,8 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 title: context.tr('treatment_what_to_avoid'),
                 content: treatment.whatToAvoid,
                 icon: Icons.cancel_outlined,
-                iconColor: Colors.red.shade700,
-                backgroundColor: Colors.red.shade50.withValues(alpha: 0.5),
+                iconColor: AppColors.error,
+                backgroundColor: AppColors.errorContainer,
               ),
               const SizedBox(height: 14),
             ],
@@ -915,13 +954,13 @@ class _TreatmentLoadedCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
+                  color: AppColors.infoContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 18, color: theme.colorScheme.secondary),
+                    Icon(Icons.event_available_rounded,
+                        size: 18, color: AppColors.info),
                     const SizedBox(width: 10),
                     Text(
                       '${context.tr('recheck_after_days')} ${treatment.recheckAfterDays} ${context.tr('days')}',
@@ -1038,4 +1077,375 @@ class _BottomActions extends StatelessWidget {
       ],
     );
   }
+}
+
+// =============================================================================
+// Offline explanation — "what am I actually looking at?"
+// =============================================================================
+//
+// Reads content shipped with the app rather than fetched, so it is available
+// with no connection and costs nothing to show. Content is authored
+// separately; this renders whatever is present and stays quiet about what is
+// not, field by field.
+
+class _ExplanationSection extends StatelessWidget {
+  final Future<DiseaseExplanation?> future;
+
+  const _ExplanationSection({required this.future});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DiseaseExplanation?>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _ExplanationSkeleton();
+        }
+
+        final explanation = snapshot.data;
+        if (explanation == null || explanation.isEmpty) {
+          return const _ExplanationUnavailable();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppSectionHeader(
+              title: context.tr('understand_result_title'),
+              icon: Icons.menu_book_outlined,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (explanation.hasPlantDescription) ...[
+              _ExplanationCard(
+                icon: Icons.local_florist_outlined,
+                title: context.tr('about_this_plant'),
+                body: explanation.plantDescription!,
+              ),
+              const SizedBox(height: AppSpacing.smPlus),
+            ],
+            if (explanation.hasResultMeaning) ...[
+              _ExplanationCard(
+                icon: Icons.help_outline_rounded,
+                title: context.tr('what_result_suggests'),
+                body: explanation.resultMeaning!,
+              ),
+              const SizedBox(height: AppSpacing.smPlus),
+            ],
+            if (explanation.hasConfusions)
+              _ConfusionCard(
+                confusions:
+                    explanation.confusions.where((c) => !c.isEmpty).toList(),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ExplanationCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+
+  const _ExplanationCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(body, style: theme.textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+}
+
+/// Look-alike conditions. Deliberately its own card with a cautionary tone:
+/// the whole point is to stop a farmer acting on a confident-looking result
+/// when something else produces the same spots.
+class _ConfusionCard extends StatelessWidget {
+  final List<DiseaseConfusion> confusions;
+
+  const _ConfusionCard({required this.confusions});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.compare_arrows_rounded,
+                size: 20,
+                color: AppColors.warning,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  context.tr('could_be_confused_with'),
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr('could_be_confused_with_desc'),
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.smPlus),
+          for (var i = 0; i < confusions.length; i++) ...[
+            if (i > 0) const Divider(height: AppSpacing.lg),
+            _ConfusionRow(confusion: confusions[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfusionRow extends StatelessWidget {
+  final DiseaseConfusion confusion;
+
+  const _ConfusionRow({required this.confusion});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = confusion.label;
+    final symptoms = confusion.distinguishingSymptoms;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null && label.trim().isNotEmpty)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 6),
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: AppColors.warning,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
+            ],
+          ),
+        if (symptoms != null && symptoms.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 14, top: AppSpacing.xs),
+            child: Text(symptoms, style: theme.textTheme.bodySmall),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExplanationSkeleton extends StatelessWidget {
+  const _ExplanationSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: AppSpacing.smPlus),
+          Expanded(
+            child: Text(
+              context.tr('loading_explanation'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the device holds no explanation content for this disease.
+/// Stated plainly rather than hidden, so the absence reads as "not delivered
+/// yet" rather than "this screen is broken".
+class _ExplanationUnavailable extends StatelessWidget {
+  const _ExplanationUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBanner.info(
+      title: context.tr('understand_result_title'),
+      message: context.tr('explanation_unavailable_msg'),
+    );
+  }
+}
+
+// =============================================================================
+// Treatment prompt — the explicit ask
+// =============================================================================
+
+class _TreatmentPrompt extends StatelessWidget {
+  final VoidCallback onFetch;
+
+  const _TreatmentPrompt({required this.onFetch});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.medical_services_outlined,
+                size: 20,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  context.tr('treatment_guidance_title'),
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr('get_treatment_prompt_desc'),
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.smPlus),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              key: const Key('get_treatment_guidance_button'),
+              icon: const Icon(Icons.medical_information_outlined),
+              label: Text(context.tr('get_treatment_btn')),
+              onPressed: onFetch,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Placeholders for features not yet built
+// =============================================================================
+//
+// Both are deliberately inert and visibly marked. They exist so the entry
+// point's placement can be reviewed alongside the rest of the screen. The
+// implementation briefs live in docs/future/.
+
+class _ChatWithResultPlaceholder extends StatelessWidget {
+  const _ChatWithResultPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      color: AppColors.surfaceVariant,
+      onTap: () => showComingSoon(context),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: AppRadius.md,
+            ),
+            child: const Icon(Icons.forum_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        context.tr('chat_with_result_title'),
+                        style: theme.textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const ComingSoonPill(),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  context.tr('chat_with_result_desc'),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Marks an entry point as not yet functional. Shared by the chat and
+/// voice-input placeholders so they read as one class of thing.
+class ComingSoonPill extends StatelessWidget {
+  const ComingSoonPill({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.infoContainer,
+        borderRadius: AppRadius.full,
+      ),
+      child: Text(
+        context.tr('coming_soon'),
+        style: Theme.of(context)
+            .textTheme
+            .labelSmall
+            ?.copyWith(color: AppColors.onInfoContainer),
+      ),
+    );
+  }
+}
+
+void showComingSoon(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(context.tr('coming_soon_msg'))),
+  );
 }

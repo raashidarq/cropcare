@@ -43,9 +43,17 @@ class DiagnosisCubit extends Cubit<DiagnosisState> {
         languageCode: languageCode,
         userObservations: userObservations,
       );
+      // Which source actually answered is decided inside
+      // TreatmentRepositoryImpl: it calls the API first and only falls back
+      // to the on-device guideline table if that throws. A null
+      // interpretationId is the fallback's signature. Reporting llm
+      // unconditionally (as this did before) mislabelled every offline
+      // answer as an AI one.
       emit(DiagnosisTreatmentLoaded(
         treatment: treatment,
-        source: TreatmentSource.llm,
+        source: treatment.interpretationId != null
+            ? TreatmentSource.llm
+            : TreatmentSource.localFallback,
       ));
     } catch (e) {
       emit(DiagnosisTreatmentError(

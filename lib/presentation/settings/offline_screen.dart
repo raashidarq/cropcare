@@ -3,12 +3,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../application/auth/auth_cubit.dart';
 import '../../application/sync/sync_cubit.dart';
 import '../../application/sync/sync_state.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../domain/entities/local_user.dart';
+import '../../domain/entities/sync_operation.dart';
+import '../auth/auth_screen.dart';
 import '../onboarding/localization/localization_provider.dart';
+import '../shared/widgets/app_components.dart';
 
 class OfflineScreen extends StatelessWidget {
-  const OfflineScreen({super.key});
+  /// Needed only to offer re-authentication when sync operations are held by
+  /// an expired session. Optional so the screen still renders (without that
+  /// affordance) wherever they are not available.
+  final LocalUser? user;
+  final AuthCubit? authCubit;
+
+  const OfflineScreen({super.key, this.user, this.authCubit});
 
   void _showUnsyncedWarningDialog(BuildContext context, int pendingCount) {
     showDialog(
@@ -17,7 +30,7 @@ class OfflineScreen extends StatelessWidget {
         key: const Key('unsynced_warning_dialog'),
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -46,7 +59,7 @@ class OfflineScreen extends StatelessWidget {
           ),
           TextButton(
             key: const Key('delete_anyway_button'),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             onPressed: () async {
               Navigator.of(dialogCtx).pop();
               await context.read<SyncCubit>().deleteAllLocalScans();
@@ -85,8 +98,8 @@ class OfflineScreen extends StatelessWidget {
           ElevatedButton(
             key: const Key('confirm_delete_button'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onError,
             ),
             onPressed: () async {
               Navigator.of(dialogCtx).pop();
@@ -122,6 +135,30 @@ class OfflineScreen extends StatelessWidget {
     );
   }
 
+  /// Sends the user to sign in, then releases the held queue. Clearing the
+  /// hold is the step that actually turns a successful sign-in back into a
+  /// working queue — without it the items stay held indefinitely.
+  Future<void> _handleReauth(BuildContext context, SyncCubit cubit) async {
+    final currentUser = user ?? authCubit?.currentUser;
+    if (currentUser == null || authCubit == null) {
+      // Nothing to sign in with from here; clearing the hold at least lets
+      // the next successful sync pick the items up.
+      await cubit.resumeAfterReauth();
+      return;
+    }
+
+    final navigator = Navigator.of(context);
+    await navigator.push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: authCubit!,
+          child: AuthScreen(currentUser: currentUser),
+        ),
+      ),
+    );
+    await cubit.resumeAfterReauth();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -137,7 +174,7 @@ class OfflineScreen extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(context.tr('sync_success')),
-                backgroundColor: Colors.green.shade700,
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -145,7 +182,7 @@ class OfflineScreen extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: Colors.red.shade700,
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -156,6 +193,7 @@ class OfflineScreen extends StatelessWidget {
           final isSyncing = state is SyncInProgress;
           final pendingCount = state.pendingCount;
           final autoSync = state.autoSyncEnabled;
+          final isSignedIn = !(user?.isGuest ?? true);
 
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -173,16 +211,16 @@ class OfflineScreen extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             backgroundColor: pendingCount > 0
-                                ? Colors.amber.shade100
-                                : Colors.green.shade100,
+                                ? AppColors.warningContainer
+                                : AppColors.successContainer,
                             radius: 24,
                             child: Icon(
                               pendingCount > 0
                                   ? Icons.cloud_upload_outlined
                                   : Icons.cloud_done,
                               color: pendingCount > 0
-                                  ? Colors.amber.shade900
-                                  : Colors.green.shade800,
+                                  ? AppColors.onWarningContainer
+                                  : AppColors.success,
                               size: 28,
                             ),
                           ),
@@ -227,7 +265,7 @@ class OfflineScreen extends StatelessWidget {
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor:
-                                        AlwaysStoppedAnimation<Color>(Colors.white),
+                                        AlwaysStoppedAnimation<Color>(AppColors.onPrimary),
                                   ),
                                 )
                               : const Icon(Icons.sync),
@@ -249,6 +287,13 @@ class OfflineScreen extends StatelessWidget {
                 ),
               ),
 
+              // ── 1b. Anything the engine stopped retrying ────────────────
+              FailedSyncSection(
+                operations: state.failedOperations,
+                cubit: cubit,
+                onSignIn: () => _handleReauth(context, cubit),
+              ),
+
               // ── 2. Auto-Sync Settings ───────────────────────────────────
               _buildSectionHeader(context, 'auto_sync_title'),
               Card(
@@ -267,13 +312,18 @@ class OfflineScreen extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    context.tr('auto_sync_desc'),
+                    isSignedIn
+                        ? context.tr('auto_sync_desc')
+                        : context.tr('auto_sync_requires_account'),
                     style: const TextStyle(fontSize: 12),
                   ),
                   value: autoSync,
-                  onChanged: (val) {
-                    cubit.toggleAutoSync(val);
-                  },
+                  // A guest has no account to sync to, so the control is
+                  // disabled rather than accepting a setting that cannot
+                  // take effect. The subtitle says why.
+                  onChanged: isSignedIn
+                      ? (val) => cubit.toggleAutoSync(val)
+                      : null,
                 ),
               ),
 
@@ -284,24 +334,24 @@ class OfflineScreen extends StatelessWidget {
                 child: ListTile(
                   key: const Key('offline_delete_scans_row'),
                   leading: CircleAvatar(
-                    backgroundColor: Colors.red.shade50,
+                    backgroundColor: AppColors.errorContainer,
                     child: const Icon(
                       Icons.delete_sweep_outlined,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
                   ),
                   title: Text(
                     context.tr('delete_local_scans_title'),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
                   ),
                   subtitle: Text(
                     context.tr('delete_local_scans_desc'),
                     style: const TextStyle(fontSize: 12),
                   ),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.red),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.error),
                   onTap: () {
                     if (pendingCount > 0) {
                       _showUnsyncedWarningDialog(context, pendingCount);
@@ -318,5 +368,182 @@ class OfflineScreen extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+// =============================================================================
+// Failed / held operations
+// =============================================================================
+
+/// Operations the sync engine has given up retrying.
+///
+/// This exists because the engine used to drop them silently: once an
+/// operation exhausted its retry budget it was excluded from every future
+/// query, so a farmer's scan simply never reached the cloud and nothing ever
+/// said so. Anything that stopped retrying is now shown here with a reason
+/// and a way to act on it.
+class FailedSyncSection extends StatelessWidget {
+  final List<SyncOperation> operations;
+  final SyncCubit cubit;
+  final VoidCallback onSignIn;
+
+  const FailedSyncSection({
+    super.key,
+    required this.operations,
+    required this.cubit,
+    required this.onSignIn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (operations.isEmpty) return const SizedBox.shrink();
+
+    final authHeld = operations
+        .where((o) => o.status == SyncOperationStatus.authRequired)
+        .toList();
+    final permanent = operations
+        .where((o) => o.status != SyncOperationStatus.authRequired)
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpacing.md),
+
+          // Session expiry is a different problem from a broken payload: it
+          // is fixable by the user, in one step, and fixing it releases the
+          // whole held batch at once. It therefore leads.
+          if (authHeld.isNotEmpty) ...[
+            AppBanner(
+              key: const Key('sync_reauth_banner'),
+              icon: Icons.lock_outline_rounded,
+              title: context.tr('sync_session_expired_title'),
+              message: context
+                  .tr('sync_session_expired_msg')
+                  .replaceFirst('{count}', '${authHeld.length}'),
+              foreground: AppColors.onWarningContainer,
+              background: AppColors.warningContainer,
+              actionLabel: context.tr('sign_in_again'),
+              onAction: onSignIn,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          if (permanent.isNotEmpty) ...[
+            AppSectionHeader(
+              title: context.tr('sync_failed_title'),
+              icon: Icons.error_outline_rounded,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              context.tr('sync_failed_desc'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.smPlus),
+            for (final op in permanent) ...[
+              _FailedOperationTile(
+                operation: op,
+                onRetry: () => cubit.retryFailedOperation(op.id),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FailedOperationTile extends StatelessWidget {
+  final SyncOperation operation;
+  final VoidCallback onRetry;
+
+  const _FailedOperationTile({
+    required this.operation,
+    required this.onRetry,
+  });
+
+  String _label(BuildContext context) {
+    switch (operation.entityType) {
+      case SyncEntityType.scan:
+        return context.tr('sync_item_scan');
+      case SyncEntityType.diagnosis:
+        return context.tr('sync_item_diagnosis');
+      case SyncEntityType.escalation:
+        return context.tr('sync_item_escalation');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      key: Key('failed_sync_op_${operation.id}'),
+      padding: const EdgeInsets.all(AppSpacing.smPlus),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 20,
+            color: AppColors.error,
+          ),
+          const SizedBox(width: AppSpacing.smPlus),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_label(context), style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  _formatDate(operation.createdAt),
+                  style: theme.textTheme.labelSmall,
+                ),
+                // `lastError` is a raw server/exception string. It is kept
+                // out of the primary line deliberately — it is untranslated
+                // and meaningless to a farmer — but stays reachable for
+                // support.
+                if (operation.lastError != null &&
+                    operation.lastError!.trim().isNotEmpty)
+                  Theme(
+                    data: theme.copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      title: Text(
+                        context.tr('show_details'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            operation.lastError!,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          TextButton(
+            key: Key('retry_sync_op_${operation.id}'),
+            onPressed: onRetry,
+            child: Text(context.tr('retry')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime when) {
+    return '${when.year}-${when.month.toString().padLeft(2, '0')}-'
+        '${when.day.toString().padLeft(2, '0')}';
   }
 }

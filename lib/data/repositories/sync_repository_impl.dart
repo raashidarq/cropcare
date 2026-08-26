@@ -66,17 +66,99 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<List<SyncOperation>> getPendingOperations({int maxRetries = 3}) async {
+  Future<List<SyncOperation>> getPendingOperations({
+    int maxRetries = 3,
+    int? limit,
+  }) async {
+    final query = db.select(db.syncOperationTable)
+      ..where((t) =>
+          (t.status.equals('PENDING') | t.status.equals('FAILED')) &
+          t.retryCount.isSmallerThanValue(maxRetries))
+      // SCAN before DIAGNOSIS/ESCALATION within the batch. A diagnosis
+      // payload references its scan by local id, so uploading it before its
+      // scan risks the server holding a reference to a scan it has never
+      // seen. createdAt ordering alone does not guarantee this.
+      //
+      // Sorted by an explicit priority, NOT by entityType alphabetically —
+      // 'DIAGNOSIS' < 'ESCALATION' < 'SCAN', so an alphabetical sort puts
+      // scans dead last, which is precisely backwards. This must also be
+      // done in SQL rather than in Dart, because `limit` decides which rows
+      // make it into the batch at all.
+      ..orderBy([
+        (t) => OrderingTerm.asc(
+              const CustomExpression<int>(
+                "CASE WHEN entity_type = 'SCAN' THEN 0 ELSE 1 END",
+              ),
+            ),
+        (t) => OrderingTerm.asc(t.createdAt),
+      ]);
+    if (limit != null) query.limit(limit);
+
+    final rows = await query.get();
+    return rows.map(_mapToDomain).toList();
+  }
+
+  /// Resets operations stranded in IN_PROGRESS back to PENDING.
+  ///
+  /// An operation is marked IN_PROGRESS before its network calls. If the
+  /// process dies in between — the OS kills the app, or WorkManager hits its
+  /// execution-time limit mid-batch — nothing ever moved it out of that
+  /// state, and the pending query ignores IN_PROGRESS, so that scan was
+  /// silently excluded from sync forever. Run at startup and at the top of
+  /// the background worker, i.e. both entry points that could be first after
+  /// an interruption.
+  @override
+  Future<int> recoverStalledOperations() async {
+    final now = DateTime.now().toIso8601String();
+    return (db.update(db.syncOperationTable)
+          ..where((t) => t.status.equals('IN_PROGRESS')))
+        .write(
+      SyncOperationTableCompanion(
+        status: const Value('PENDING'),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  @override
+  Future<List<SyncOperation>> getFailedOperations() async {
     final rows = await (db.select(db.syncOperationTable)
           ..where((t) =>
-              (t.status.equals('PENDING') | t.status.equals('FAILED')) &
-              t.retryCount.isSmallerThanValue(maxRetries))
-          ..orderBy([
-            (t) => OrderingTerm.asc(t.createdAt),
-          ]))
+              t.status.equals('PERMANENTLY_FAILED') |
+              t.status.equals('AUTH_REQUIRED'))
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
         .get();
-
     return rows.map(_mapToDomain).toList();
+  }
+
+  @override
+  Future<void> retryOperation(String operationId) async {
+    final now = DateTime.now().toIso8601String();
+    await (db.update(db.syncOperationTable)
+          ..where((t) => t.id.equals(operationId)))
+        .write(
+      SyncOperationTableCompanion(
+        status: const Value('PENDING'),
+        retryCount: const Value(0),
+        lastError: const Value(null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Clears the AUTH_REQUIRED hold after a successful sign-in.
+  @override
+  Future<void> clearAuthHold() async {
+    final now = DateTime.now().toIso8601String();
+    await (db.update(db.syncOperationTable)
+          ..where((t) => t.status.equals('AUTH_REQUIRED')))
+        .write(
+      SyncOperationTableCompanion(
+        status: const Value('PENDING'),
+        retryCount: const Value(0),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   @override
@@ -112,96 +194,208 @@ class SyncRepositoryImpl implements SyncRepository {
     );
   }
 
+  /// Max operations processed per batch, so a huge backlog cannot run
+  /// unbounded inside WorkManager's execution-time budget.
+  static const int batchSize = 20;
+
+  /// Safety cap per run, so one invocation cannot loop indefinitely.
+  static const int maxOperationsPerRun = 200;
+
+  /// A held lock older than this is treated as abandoned (crashed run).
+  static const Duration lockStaleAfter = Duration(minutes: 5);
+
   @override
   Future<void> syncPendingOperations({required String authToken}) async {
-    final pendingOps = await getPendingOperations();
+    // Sync can be triggered from the UI, the connectivity listener, the
+    // post-auth hook AND a WorkManager background isolate. The isolate has
+    // separate memory, so an in-process flag cannot exclude it — the lock
+    // lives in the database, which both can see.
+    if (!await _acquireSyncLock()) return;
 
-    for (final op in pendingOps) {
-      await updateOperationStatus(
-        operationId: op.id,
-        status: SyncOperationStatus.inProgress,
-      );
+    try {
+      // Anything stranded by a previous interrupted run is reclaimed first.
+      await recoverStalledOperations();
 
-      try {
-        final payload = jsonDecode(op.payloadJson) as Map<String, dynamic>;
+      // Each operation gets at most ONE attempt per run. A failure leaves the
+      // row FAILED with retryCount still under the limit, so without this it
+      // would be picked up again by the very next batch and burn its whole
+      // retry budget in a tight loop — hammering a server that is already
+      // failing, instead of backing off until the next sync trigger.
+      final attempted = <String>{};
+      var processed = 0;
 
-        switch (op.entityType) {
-          case SyncEntityType.scan:
-            final imagePath = payload['image_local_path'] as String?;
-            String? remoteImageUrl;
-            if (imagePath != null && imagePath.isNotEmpty) {
-              final file = File(imagePath);
-              if (await file.exists()) {
-                final signedUrl = await _apiClient.getSignedUploadUrl(
-                  scanId: op.entityId,
-                  authToken: authToken,
-                );
-                final bytes = await file.readAsBytes();
-                await _apiClient.uploadImageBinary(
-                  signedUrl: signedUrl,
-                  imageBytes: bytes,
-                );
-                final uri = Uri.tryParse(signedUrl);
-                if (uri != null) {
-                  remoteImageUrl = '${uri.scheme}://${uri.host}${uri.path}';
-                }
-              }
-            }
-            await _apiClient.syncScan(
-              scanData: payload,
-              authToken: authToken,
+      while (processed < maxOperationsPerRun) {
+        final batch = await getPendingOperations(limit: batchSize);
+        final fresh = batch.where((o) => !attempted.contains(o.id)).toList();
+        if (fresh.isEmpty) break;
+
+        for (final op in fresh) {
+          if (processed >= maxOperationsPerRun) break;
+          attempted.add(op.id);
+
+          await updateOperationStatus(
+            operationId: op.id,
+            status: SyncOperationStatus.inProgress,
+          );
+          try {
+            await _executeOperation(op, authToken);
+            await updateOperationStatus(
+              operationId: op.id,
+              status: SyncOperationStatus.completed,
             );
-
-            // Enrich local scan record with remote scan id and remote image url
-            final scanNow = DateTime.now().toIso8601String();
-            await (db.update(db.scanTable)..where((t) => t.id.equals(op.entityId)))
-                .write(
-              ScanTableCompanion(
-                imageRemoteUrl: remoteImageUrl != null ? Value(remoteImageUrl) : const Value.absent(),
-                remoteScanId: Value(op.entityId),
-                updatedAt: Value(scanNow),
-              ),
-            );
-            break;
-
-          case SyncEntityType.diagnosis:
-            await _apiClient.syncDiagnosis(
-              diagnosisData: payload,
-              authToken: authToken,
-            );
-            break;
-
-          case SyncEntityType.escalation:
-            await _apiClient.syncEscalation(
-              escalationData: payload,
-              authToken: authToken,
-            );
-            break;
+          } catch (e) {
+            await _recordFailure(op, e);
+          }
+          processed++;
         }
+      }
+    } finally {
+      await _releaseSyncLock();
+    }
+  }
 
-        await updateOperationStatus(
-          operationId: op.id,
-          status: SyncOperationStatus.completed,
-        );
-      } catch (e) {
+  Future<void> _executeOperation(SyncOperation op, String authToken) async {
+    final payload = jsonDecode(op.payloadJson) as Map<String, dynamic>;
+
+    switch (op.entityType) {
+      case SyncEntityType.scan:
+        // Reuse an image already uploaded by a previous attempt. The upload
+        // happens before the metadata POST, so without this a POST failure
+        // would re-send the whole photo on every retry — costly on a metered
+        // rural connection, and it orphans a blob remotely each time.
         final row = await (db.select(db.syncOperationTable)
               ..where((t) => t.id.equals(op.id)))
             .getSingleOrNull();
-        final currentRetries = row?.retryCount ?? 0;
+        var remoteImageUrl = row?.uploadedImageUrl;
 
-        final now = DateTime.now().toIso8601String();
-        await (db.update(db.syncOperationTable)
-              ..where((t) => t.id.equals(op.id)))
+        if (remoteImageUrl == null) {
+          final imagePath = payload['image_local_path'] as String?;
+          if (imagePath != null && imagePath.isNotEmpty) {
+            final file = File(imagePath);
+            if (await file.exists()) {
+              final signedUrl = await _apiClient.getSignedUploadUrl(
+                scanId: op.entityId,
+                authToken: authToken,
+              );
+              final bytes = await file.readAsBytes();
+              await _apiClient.uploadImageBinary(
+                signedUrl: signedUrl,
+                imageBytes: bytes,
+              );
+              final uri = Uri.tryParse(signedUrl);
+              if (uri != null) {
+                remoteImageUrl = '${uri.scheme}://${uri.host}${uri.path}';
+              }
+              // Persist BEFORE the metadata POST — that is the whole point.
+              await (db.update(db.syncOperationTable)
+                    ..where((t) => t.id.equals(op.id)))
+                  .write(
+                SyncOperationTableCompanion(
+                  uploadedImageUrl: Value(remoteImageUrl),
+                  updatedAt: Value(DateTime.now().toIso8601String()),
+                ),
+              );
+            }
+          }
+        }
+
+        await _apiClient.syncScan(scanData: payload, authToken: authToken);
+
+        await (db.update(db.scanTable)..where((t) => t.id.equals(op.entityId)))
             .write(
-          SyncOperationTableCompanion(
-            status: const Value('FAILED'),
-            retryCount: Value(currentRetries + 1),
-            lastError: Value(e.toString()),
-            updatedAt: Value(now),
+          ScanTableCompanion(
+            imageRemoteUrl: remoteImageUrl != null
+                ? Value(remoteImageUrl)
+                : const Value.absent(),
+            remoteScanId: Value(op.entityId),
+            updatedAt: Value(DateTime.now().toIso8601String()),
           ),
         );
-      }
+        break;
+
+      case SyncEntityType.diagnosis:
+        await _apiClient.syncDiagnosis(
+          diagnosisData: payload,
+          authToken: authToken,
+        );
+        break;
+
+      case SyncEntityType.escalation:
+        await _apiClient.syncEscalation(
+          escalationData: payload,
+          authToken: authToken,
+        );
+        break;
     }
+  }
+
+  /// Classifies a failure instead of blindly counting a retry.
+  ///
+  /// Previously every error — a timeout, a 401, a malformed payload — was
+  /// treated identically: increment, and after three attempts drop the
+  /// operation from the pending query forever with no user-visible signal.
+  Future<void> _recordFailure(SyncOperation op, Object error) async {
+    final now = DateTime.now().toIso8601String();
+    final status = error is SyncApiException ? error.statusCode : null;
+
+    String newStatus;
+    var retryCount = op.retryCount;
+
+    if (status == 401 || status == 403) {
+      // Token is dead. Retrying cannot succeed and would burn the budget.
+      newStatus = 'AUTH_REQUIRED';
+    } else if (status != null && status >= 400 && status < 500) {
+      // The server rejected this payload; sending it again unchanged will
+      // be rejected again.
+      newStatus = 'PERMANENTLY_FAILED';
+    } else {
+      // Transient (timeout, 5xx, socket error): retry until the budget runs
+      // out, then surface it rather than letting it disappear.
+      retryCount = op.retryCount + 1;
+      newStatus = retryCount >= 3 ? 'PERMANENTLY_FAILED' : 'FAILED';
+    }
+
+    await (db.update(db.syncOperationTable)..where((t) => t.id.equals(op.id)))
+        .write(
+      SyncOperationTableCompanion(
+        status: Value(newStatus),
+        retryCount: Value(retryCount),
+        lastError: Value(error.toString()),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Returns false if another run currently holds the lock.
+  Future<bool> _acquireSyncLock() async {
+    return db.transaction(() async {
+      final state = await (db.select(db.appStateTable)
+            ..where((t) => t.id.equals(1)))
+          .getSingleOrNull();
+
+      final heldAt = state?.syncLockedAt;
+      if (heldAt != null) {
+        final since = DateTime.tryParse(heldAt);
+        // A lock left behind by a crashed run must not block sync forever.
+        if (since != null &&
+            DateTime.now().difference(since) < lockStaleAfter) {
+          return false;
+        }
+      }
+
+      await (db.update(db.appStateTable)..where((t) => t.id.equals(1))).write(
+        AppStateTableCompanion(
+          syncLockedAt: Value(DateTime.now().toIso8601String()),
+        ),
+      );
+      return true;
+    });
+  }
+
+  Future<void> _releaseSyncLock() async {
+    await (db.update(db.appStateTable)..where((t) => t.id.equals(1))).write(
+      const AppStateTableCompanion(syncLockedAt: Value(null)),
+    );
   }
 
   @override
@@ -331,6 +525,10 @@ class SyncRepositoryImpl implements SyncRepository {
         return 'COMPLETED';
       case SyncOperationStatus.failed:
         return 'FAILED';
+      case SyncOperationStatus.permanentlyFailed:
+        return 'PERMANENTLY_FAILED';
+      case SyncOperationStatus.authRequired:
+        return 'AUTH_REQUIRED';
     }
   }
 
@@ -342,6 +540,10 @@ class SyncRepositoryImpl implements SyncRepository {
         return SyncOperationStatus.completed;
       case 'FAILED':
         return SyncOperationStatus.failed;
+      case 'PERMANENTLY_FAILED':
+        return SyncOperationStatus.permanentlyFailed;
+      case 'AUTH_REQUIRED':
+        return SyncOperationStatus.authRequired;
       case 'PENDING':
       default:
         return SyncOperationStatus.pending;

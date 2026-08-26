@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/theme/app_colors.dart';
+
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/settings/accessibility_cubit.dart';
 import '../../application/settings/accessibility_state.dart';
@@ -107,7 +109,7 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
                   ),
                   color: isHighContrast
                       ? Colors.yellow.shade50
-                      : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                      : AppColors.surfaceVariant,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -117,32 +119,36 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
                           children: [
                             Icon(
                               Icons.eco,
-                              color: isHighContrast ? Colors.green.shade900 : Colors.green.shade700,
-                              size: 24 * textScale,
+                              color: isHighContrast
+                                  ? Colors.black
+                                  : AppColors.primary,
+                              size: 24,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 context.tr('accessibility_sample_disease'),
-                                style: TextStyle(
-                                  fontSize: 16 * textScale,
-                                  fontWeight: FontWeight.bold,
-                                  color: isHighContrast ? Colors.black : theme.colorScheme.onSurface,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: isHighContrast
+                                      ? Colors.black
+                                      : AppColors.onSurface,
                                 ),
                               ),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: isHighContrast ? Colors.black : Colors.green.shade100,
+                                color: isHighContrast
+                                    ? Colors.black
+                                    : AppColors.successContainer,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '94%',
-                                style: TextStyle(
-                                  fontSize: 12 * textScale,
-                                  fontWeight: FontWeight.bold,
-                                  color: isHighContrast ? Colors.yellow : Colors.green.shade900,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: isHighContrast
+                                      ? Colors.yellow
+                                      : AppColors.onSuccessContainer,
                                 ),
                               ),
                             ),
@@ -151,11 +157,12 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
                         const SizedBox(height: 10),
                         Text(
                           context.tr('accessibility_sample_advice'),
-                          style: TextStyle(
-                            fontSize: 14 * textScale,
-                            height: 1.4,
-                            color: isHighContrast ? Colors.black87 : theme.colorScheme.onSurfaceVariant,
-                            fontWeight: isHighContrast ? FontWeight.w600 : FontWeight.normal,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isHighContrast
+                                ? Colors.black
+                                : AppColors.onSurfaceVariant,
+                            fontWeight:
+                                isHighContrast ? FontWeight.w600 : null,
                           ),
                         ),
                       ],
@@ -355,9 +362,12 @@ class _AccessibilityScreenState extends State<AccessibilityScreen> {
                           icon: const Icon(Icons.volume_up_outlined, size: 18),
                           label: Text(context.tr('test_voice_btn')),
                           onPressed: () {
+                            // Uses the rate currently selected, so the
+                            // button actually demonstrates the setting.
                             _ttsService.speak(
                               text: context.tr('test_voice_sample'),
                               languageCode: currentLang,
+                              speechRate: state.speechRate,
                             );
                           },
                         ),

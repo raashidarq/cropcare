@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+
+import '../../core/theme/app_colors.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/onboarding/app_state_state.dart';
 import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
-import 'onboarding_screen.dart';
+import 'language_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   final Duration delay;
@@ -44,8 +46,11 @@ class _SplashScreenState extends State<SplashScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } else {
+      // Language first: the introduction that follows is written in the
+      // user's language, and choosing it is the one thing they can do
+      // before understanding any of the copy.
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (_) => const LanguageSelectionScreen()),
       );
     }
   }
@@ -82,7 +87,9 @@ class _SplashScreenState extends State<SplashScreen> {
             Text(
               context.tr('splash_subtitle'),
               style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                // Solid, not alpha-blended: translucent text over a tinted
+                // surface has an unpredictable contrast ratio in sunlight.
+                color: AppColors.onPrimaryContainer,
               ),
             ),
           ],

@@ -54,7 +54,17 @@ void callbackDispatcher() {
         return true;
       }
 
+      // ── Recover interrupted work ────────────────────────────────────────
+      // This isolate can be killed mid-batch when WorkManager's execution
+      // budget runs out, stranding an operation in IN_PROGRESS. Whichever
+      // entry point runs next must reclaim it — that may well be this one
+      // rather than app startup, since the worker fires without the app.
+      await syncRepository.recoverStalledOperations();
+
       // ── Outbox flush ────────────────────────────────────────────────────
+      // syncPendingOperations takes a DB-backed advisory lock, so if the
+      // user happens to be syncing in the foreground right now this returns
+      // without double-processing the same rows.
       final count = await syncRepository.getPendingCount();
       if (count > 0) {
         await syncRepository.syncPendingOperations(authToken: token);

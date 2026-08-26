@@ -5,7 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/auth/auth_cubit.dart';
 import '../../application/auth/auth_state.dart';
+import '../../core/theme/app_colors.dart';
 import '../onboarding/localization/localization_provider.dart';
+import '../shared/widgets/app_components.dart';
+import 'widgets/auth_form_fields.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -23,10 +26,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void dispose() {
     _emailController.dispose();
     super.dispose();
-  }
-
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim());
   }
 
   void _handleSubmit(BuildContext context) {
@@ -55,7 +54,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: Colors.red.shade700,
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -105,52 +104,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                   // ── Rate Limited Warning ─────────────────────────────────
                   if (state is AuthRateLimited) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.timer_outlined,
-                              color: Colors.orange.shade900, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              state.message,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.orange.shade900,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    AppBanner(
+                      icon: Icons.timer_outlined,
+                      message: state.message,
+                      foreground: AppColors.onWarningContainer,
+                      background: AppColors.warningContainer,
                     ),
                     const SizedBox(height: 20),
                   ],
 
                   // ── Email Input ──────────────────────────────────────────
-                  TextFormField(
-                    key: const Key('forgot_password_email_field'),
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: context.tr('email'),
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                  AutofillGroup(
+                    child: AuthEmailField(
+                      key: const Key('forgot_password_email_field'),
+                      controller: _emailController,
+                      onSubmitted: () => _handleSubmit(context),
                     ),
-                    validator: (val) {
-                      if (val == null || !_isValidEmail(val)) {
-                        return context.tr('email_invalid');
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 24),
 
@@ -171,13 +140,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               height: 22,
                               child: CircularProgressIndicator(strokeWidth: 2.5),
                             )
-                          : Text(
-                              context.tr('send_reset_link'),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          : Text(context.tr('send_reset_link')),
                     ),
                   ),
                 ],
@@ -196,13 +159,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 40,
-            backgroundColor: Colors.green.shade100,
+            backgroundColor: AppColors.successContainer,
             child: Icon(
               Icons.mark_email_read_outlined,
               size: 48,
-              color: Colors.green.shade800,
+              color: AppColors.success,
             ),
           ),
           const SizedBox(height: 24),
@@ -214,13 +177,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          // Deliberately does NOT confirm that an account exists for this
+          // address — saying "no account found" turns the form into an
+          // account-enumeration oracle. Same message either way.
           Text(
             context.tr('reset_link_sent_desc'),
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.5,
-            ),
+            style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 32),
           ElevatedButton(
@@ -232,10 +195,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
             ),
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              context.tr('back_to_sign_in'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: Text(context.tr('back_to_sign_in')),
           ),
         ],
       ),

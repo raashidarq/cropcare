@@ -4,6 +4,8 @@
 // along with a purely informational display of all AI-supported crops.
 
 import 'package:flutter/material.dart';
+
+import '../../core/theme/app_colors.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -277,7 +279,7 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
                   Icon(
                     Icons.eco_rounded,
                     size: 20,
-                    color: Colors.green.shade700,
+                    color: AppColors.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -334,7 +336,7 @@ class _AddPhotoScreenState extends State<AddPhotoScreen> {
                           avatar: const Icon(
                             Icons.check_circle_outline,
                             size: 14,
-                            color: Colors.green,
+                            color: AppColors.success,
                           ),
                           label: Text(
                             localizedName,

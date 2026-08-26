@@ -2,7 +2,7 @@
 
 > **Purpose:** Compact, accurate description of the **current** Flutter codebase for future AI coding agents.
 > **Source hierarchy:** Actual code > `CropCare_System_Architecture.md` > `CropCare_Build_Checklist.md`
-> **Last updated:** 2026-08-25 (Profile Screen, Delete Account, Feedback Submission, and Settings Reorganization added)
+> **Last updated:** 2026-08-26 (design system, camera-first capture, bottom-nav shell, OOD image gate, sync-failure UI)
 
 ---
 
@@ -45,12 +45,27 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | App-level connectivity listener (auto-sync on network recovery, 3 s debounce, offline→online transition only) | Done |
 | Background periodic WorkManager worker (15-min interval, `NETWORK_CONNECTED` constraint, Dart background isolate via `workmanager` plugin) | Done |
 | Reorganized Settings Screen (Profile & Account, Preferences, Data & Storage, Support & Legal, App Version) | Done |
-| SQLite schema (11 Drift tables defined + migrations, schemaVersion=4) | Done |
-| Full localization string tables (EN/SI/TA) | Done |
-| Full automated test suite (70/70 Flutter tests passing) | Done |
+| SQLite schema (13 Drift tables + migrations, schemaVersion=6) | Done |
+| Full localization string tables (EN/SI/TA — 341 keys, parity enforced by review) | Done |
+| Full automated test suite (147 Flutter tests passing) | Done |
+| Design system (`lib/core/theme/`: colours, type, spacing, radius; bundled Noto EN/SI/TA fonts) | Done |
+| Bottom-navigation shell (Home / History / Account, lazily built tabs) | Done |
+| Live camera viewfinder with leaf-framing guide (`camera` package) | Done |
+| Pre-inference image content gate (exposure, blur, vegetation) — rejects non-plant photos | Done |
+| Offline disease-explanation schema + UI (**ships with no content**) | Schema + UI only |
+| Failed-sync & session-expired UI in `OfflineScreen` | Done |
+| "Ask about this result" (chat) | Placeholder entry point + brief only |
+| Speak-your-observations (voice transcription) | Placeholder entry point + brief only |
 
 ### What is not implemented
 - Push notifications.
+- "Ask about this result" chat — inert placeholder on the diagnosis screen;
+  see `docs/future/chat_with_result_implementation.md`.
+- Voice transcription of observations — inert placeholder on the observations
+  card; see `docs/future/voice_observations_implementation.md`.
+  Note: `RECORD_AUDIO` is **not** in `AndroidManifest.xml` yet.
+- Offline explanation **content**. The tables, read path and UI exist; both
+  tables ship empty and nothing seeds them (TD-018).
 
 ---
 
@@ -63,7 +78,17 @@ cropcare/
 │   ├── app.dart                     # CropCareApp widget; BlocProvider root; routing logic
 │   ├── config/
 │   │   └── feature_flags.dart       # kPhoneAuthEnabled flag
+│   ├── core/
+│   │   ├── theme/                   # THE design system — see TD-012
+│   │   │   ├── app_colors.dart      # every semantic colour token
+│   │   │   ├── app_text_styles.dart # language-aware TextTheme (EN/SI/TA)
+│   │   │   ├── app_spacing.dart     # 8pt scale
+│   │   │   ├── app_radius.dart      # 8/12/16/full
+│   │   │   └── app_theme.dart       # AppTheme.light() / .highContrast()
+│   │   └── constants/
+│   │       └── crop_visuals.dart    # per-crop icon + accent colour
 │   ├── services/
+│   │   ├── camera_service.dart          # seam over availableCameras()/CameraController
 │   │   ├── connectivity_service.dart    # connectivity_plus wrapper; debounced bool stream
 │   │   └── work_manager_helper.dart     # callbackDispatcher + WorkManagerHelper (init/schedule/cancel)
 │   ├── application/                 # Cubits (state management, one per feature)
@@ -139,7 +164,11 @@ cropcare/
 │       ├── escalation/
 │       │   └── escalation_screen.dart       # WhatsApp escalation card, 1-tap Copy Summary to Clipboard, Other Apps sharing
 │       ├── home/
-│       │   └── home_screen.dart             # Scan trigger, Smart Account AppBar action (Auth/Profile), embedded filtered scan history
+│       │   ├── home_screen.dart             # bottom-nav shell: Home / History / Account (TD-016)
+│       │   └── widgets/
+│       │       ├── home_dashboard.dart      # scan CTA, stats, sync banner, recent scans
+│       │       ├── history_view.dart        # full filterable history (its own tab)
+│       │       └── scan_history_card.dart   # shared history row
 │       ├── onboarding/
 │       │   ├── splash_screen.dart
 │       │   ├── onboarding_screen.dart
@@ -149,8 +178,16 @@ cropcare/
 │       │   │   └── localization_provider.dart
 │       │   └── widgets/
 │       │       └── change_language_dialog.dart
+│       ├── shared/
+│       │   └── widgets/
+│       │       ├── app_components.dart      # AppCard, AppBanner, AppStatusChip, AppConfidenceMeter, AppSegmentedToggle, ...
+│       │       └── app_state_views.dart     # AppLoadingView / AppEmptyView / AppErrorView
 │       ├── scan/
-│       │   ├── capture_screen.dart          # Camera/Gallery capture, close button, and photo review with Retake/Cancel/Use
+│       │   ├── capture_screen.dart          # camera-first: live viewfinder, shutter, in-camera gallery, review
+│       │   ├── add_photo_screen.dart        # legacy chooser — no longer on the default path (TD-015)
+│       │   ├── widgets/
+│       │   │   ├── camera_preview_view.dart # CameraController lifecycle + no-camera fallback
+│       │   │   └── leaf_frame_overlay.dart  # framing guide CustomPainter
 │       │   └── scan_result_screen.dart
 │       └── settings/
 │           ├── settings_screen.dart         # Reorganized 4 sections: Profile, Preferences, Data & Storage, Support & Legal
@@ -158,7 +195,12 @@ cropcare/
 │           ├── feedback_screen.dart         # Farmer feedback & bug report submission
 │           ├── faq_screen.dart              # Accordion FAQ & Help center
 │           └── terms_privacy_screen.dart    # Terms of Service and Privacy Policy tabs
+├── docs/
+│   └── future/                              # implementation briefs for unbuilt features
+│       ├── chat_with_result_implementation.md
+│       └── voice_observations_implementation.md
 ├── assets/
+│   ├── fonts/                               # bundled Noto (Latin/Sinhala/Tamil) + OFL.txt
 │   ├── icon/
 │   │   └── app_icon.png
 │   └── models/
@@ -194,6 +236,11 @@ cropcare/
 | `lib/data/repositories/sync_repository_impl.dart` | Outbox processor; reads pending ops, executes two-step image + metadata sync, enriches local scan records, syncs downstream reference data, tracks retries | `SyncRepositoryImpl` | Repository | `AppDatabase`, `SyncApiClient` | `SyncCubit`, `main.dart` |
 | `lib/data/repositories/treatment_repository_impl.dart` | Fetches remote AI recommendations with seamless automatic fallback to local SQLite guidelines when offline | `TreatmentRepositoryImpl` | Repository | `TreatmentApiClient`, `AppDatabase` | `ResolveTreatmentUseCase`, `main.dart` |
 | `lib/application/sync/sync_cubit.dart` | Manages pending sync count, token-authenticated sync execution, and reference data sync | `SyncCubit`, `SyncState` | Application | `SyncRepository`, `AuthRepository` | `SettingsScreen`, `AuthScreen`, `main.dart` |
+| `lib/core/theme/app_colors.dart` | Every semantic colour token; single severity→colour mapping | `AppColors` | Core | — | Every screen |
+| `lib/core/theme/app_text_styles.dart` | Language-aware TextTheme; picks Noto face per language with the other two as fallback | `AppTextStyles` | Core | bundled fonts | `AppTheme` |
+| `lib/presentation/shared/widgets/app_components.dart` | Canonical cards, banners, chips, confidence meter, segmented toggle | `AppCard`, `AppBanner`, `AppStatusChip`, `AppConfidenceMeter`, `AppSegmentedToggle` | Presentation | theme tokens | Most screens |
+| `lib/domain/usecases/diagnosis/validate_image_use_case.dart` | Technical + **content** gate before inference; the OOD fix (TD-014) | `ValidateImageUseCase`, `ImageRejectionReason` | Domain | `image` | `ScanCubit`, `RunDiagnosisUseCase` |
+| `lib/services/camera_service.dart` | Testable seam over the camera plugin; empty list when no camera | `CameraService`, `DefaultCameraService` | Services | `camera` | `CaptureScreen` |
 | `lib/presentation/diagnosis/diagnosis_result_screen.dart` | Renders ML diagnosis results, AI / Offline treatment guidance card, and TTS read-aloud button | `DiagnosisResultScreen`, `_TreatmentLoadedCard` | Presentation | `Diagnosis`, `Scan`, `DiagnosisCubit`, `TtsService` | `CaptureScreen`, `HomeScreen` |
 | `lib/presentation/settings/settings_screen.dart` | Account linking/signout, language selector, and Offline Data & Cloud Sync card | `SettingsScreen` | Presentation | `SettingsCubit`, `AuthCubit`, `SyncCubit`, `AppStateCubit` | `HomeScreen` |
 | `lib/presentation/auth/auth_screen.dart` | Tabbed sign-in/register screen with automatic post-auth cloud sync hook | `AuthScreen` | Presentation | `AuthCubit`, `SyncCubit` | `SettingsScreen` |
@@ -235,13 +282,23 @@ main()
 
 ### 2. Image Capture, ML Diagnosis & Treatment Flow
 ```
+HomeScreen scan CTA -> CaptureScreen (live viewfinder, gallery inline)
+  [AddPhotoScreen is no longer on this path — TD-015]
 CaptureScreen (photo captured) -> ScanCubit.confirmPhoto()
   -> CaptureScanUseCase -> ScanRepositoryImpl.createScan() [INSERT scan + enqueue outbox SCAN operation]
-  -> ValidateImageUseCase -> RunDiagnosisUseCase:
+  -> ValidateImageUseCase (exists / size / decodable / dimensions
+       / exposure / blur / vegetation-coverage)
+       -> if REJECTED: RunDiagnosisUseCase.rejectInvalidImage()
+            [writes image_validation, marks scan INVALID_IMAGE,
+             CANCELS the queued upload, deletes the local file]
+          ScanCubit emits ScanImageInvalid -> CaptureScreen shows the reason
+  -> RunDiagnosisUseCase:
        -> INSERT image_validation
        -> MlInferenceService.runInference()
        -> DiagnosisRepositoryImpl.createDiagnosis() [INSERT diagnosis + enqueue outbox DIAGNOSIS operation]
   -> ScanDiagnosed -> DiagnosisResultScreen
+       [offline explanation loads automatically; treatment does NOT]
+  -> user taps "Get Treatment Guidance" (TD-017)
   -> DiagnosisCubit.fetchTreatmentGuidance() -> TreatmentRepositoryImpl:
        -> Try: TreatmentApiClient (POST /interpret-diagnosis)
        -> Catch: Query local SQLite treatment_guideline table
@@ -278,7 +335,7 @@ SyncCubit.syncNow(token?):
 | `DiagnosisCubit` | `application/diagnosis/diagnosis_cubit.dart` | `DiagnosisInitial`, `DiagnosisHealthy`, `DiagnosisTreatmentLoading`, `DiagnosisTreatmentLoaded`, `DiagnosisTreatmentError` | LLM & offline treatment guidance fetching | `ResolveTreatmentUseCase` |
 | `EscalationCubit` | `application/escalation/escalation_cubit.dart` | `EscalationInitial`, `EscalationSharing`, `EscalationSharedSuccess`, `EscalationError` | WhatsApp message formatting & photo share | `CreateEscalationUseCase`, `SharePlus` |
 | `HistoryCubit` | `application/history/history_cubit.dart` | `HistoryInitial`, `HistoryLoading`, `HistoryLoaded`, `HistoryEmpty`, `HistoryError` | Scan history list and active filter chips | `GetScanHistoryUseCase` |
-| `SyncCubit` | `application/sync/sync_cubit.dart` | `SyncInitial`, `SyncInProgress`, `SyncSuccess`, `SyncError` | Outbox sync count, manual & post-auth sync execution, reference data sync | `SyncRepository`, `AuthRepository` |
+| `SyncCubit` | `application/sync/sync_cubit.dart` | `SyncInitial`, `SyncInProgress`, `SyncSuccess`, `SyncError` — all now carry `failedOperations` and `needsReauth` | Outbox count, manual & post-auth sync, reference data sync, surfacing + retrying failed ops, releasing an auth hold | `SyncRepository`, `AuthRepository` |
 | `SettingsCubit` | `application/settings/settings_cubit.dart` | `SettingsState` | Section expansion state | — |
 
 ---
@@ -296,7 +353,7 @@ SyncCubit.syncNow(token?):
 - **`TreatmentResponse`**: `summary`, `whatToDo`, `whatToAvoid`, `recheckAfterDays`, `interpretationId`
 - **`ScanHistoryItem`**: `scan`, `diagnosis`, `crop`
 
-### SQLite Tables (Drift — `schemaVersion = 4`)
+### SQLite Tables (Drift — `schemaVersion = 6`)
 1. **`app_state`**: Singleton app configuration row.
 2. **`local_user`**: Guest and authenticated user profiles & tokens.
 3. **`crop`**: 15 seeded crop records.
@@ -308,6 +365,15 @@ SyncCubit.syncNow(token?):
 9. **`diagnosis`**: Inference results, confidence scores, treatment source, and interpretation IDs.
 10. **`escalation`**: Expert escalation & WhatsApp share records (added in v3).
 11. **`sync_operation`**: Outbox for offline cloud sync operations (added in v4).
+    Gained `uploaded_image_url` in v5 so a retry does not re-upload an image
+    that already succeeded. Status vocabulary now includes
+    `PERMANENTLY_FAILED` and `AUTH_REQUIRED` (TD-019).
+12. **`disease_explanation`**: Offline "what is this / what does the result
+    suggest" content, per language (added in v6). **Ships empty** — TD-018.
+13. **`disease_confusion`**: Look-alike conditions per disease, with
+    distinguishing symptoms (added in v6). **Ships empty** —
+    `confused_with_disease_id` is nullable because the most dangerous
+    look-alikes are often not diseases at all.
 
 ---
 
@@ -330,7 +396,9 @@ SyncCubit.syncNow(token?):
 | `share_plus ^10.1.4` | Yes | WhatsApp escalation card with leaf photo attachment |
 | `flutter_tts ^4.2.2` | Yes | Localized Text-to-Speech playback for treatment guidance |
 | `connectivity_plus ^6.1.4` | Yes | `ConnectivityService` — debounced online/offline stream for auto-sync on reconnect |
-| `workmanager ^0.5.2` | Yes | `WorkManagerHelper` + `callbackDispatcher` — 15-min periodic Dart background isolate outbox flush |
+| `workmanager ^0.6.0` | Yes | `WorkManagerHelper` + `callbackDispatcher` — 15-min periodic Dart background isolate outbox flush |
+| `camera ^0.10.5+9` | Yes | Live viewfinder in `CaptureScreen` via `CameraService` (was an unused dependency before 2026-08-26) |
+| Bundled Noto fonts (assets, not a package) | assets/fonts | Latin/Sinhala/Tamil faces; `google_fonts` deliberately NOT used — TD-013 |
 | `drift_dev ^2.9.0` | dev | Code generation |
 | `build_runner ^2.4.0` | dev | Code generation |
 | `flutter_lints ^6.0.0` | dev | Linting |
@@ -354,3 +422,20 @@ SyncCubit.syncNow(token?):
 13. After any schema change in `tables.dart`, increment `AppDatabase.schemaVersion` and add a migration in `MigrationStrategy.onUpgrade`.
 14. The `sync_operation` table exists in schema version 4 for outbox queueing.
 15. When uncertain, read the relevant source file before making a change.
+16. **Never use `Colors.*` swatches or raw `Color(0x...)` for anything that
+    carries meaning.** Use `AppColors` (TD-012). Alpha-blended colour is for
+    decorative backgrounds and scrims only, never behind text.
+17. Use `AppSpacing` / `AppRadius` rather than raw numbers, and
+    `Theme.of(context).textTheme.*` rather than inline `TextStyle(fontSize:)`.
+    Never multiply a font size by the accessibility text scale — the app
+    applies it globally via `MediaQuery` in `app.dart`; doing it again squares
+    the effect.
+18. Build screens out of `lib/presentation/shared/widgets/` rather than
+    re-deriving cards, banners, chips and empty/error states per screen.
+19. **Never render a raw exception string to the user.** `AppErrorView` has a
+    `technicalDetail` slot that is collapsed by default.
+20. The ML model cannot detect out-of-distribution input (TD-014). Do not add
+    UI that implies more certainty than a closed-set softmax can support, and
+    do not remove the pre-inference content gate in `ValidateImageUseCase`.
+21. `disease_explanation` / `disease_confusion` are intentionally empty. Do not
+    add seed content to satisfy a test — assert the empty path instead.

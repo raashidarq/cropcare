@@ -63,6 +63,17 @@ class $AppStateTableTable extends AppStateTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _syncLockedAtMeta = const VerificationMeta(
+    'syncLockedAt',
+  );
+  @override
+  late final GeneratedColumn<String> syncLockedAt = GeneratedColumn<String>(
+    'sync_locked_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -70,6 +81,7 @@ class $AppStateTableTable extends AppStateTable
     languageCode,
     firstLaunchAt,
     lastSyncAt,
+    syncLockedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -122,6 +134,15 @@ class $AppStateTableTable extends AppStateTable
         ),
       );
     }
+    if (data.containsKey('sync_locked_at')) {
+      context.handle(
+        _syncLockedAtMeta,
+        syncLockedAt.isAcceptableOrUnknown(
+          data['sync_locked_at']!,
+          _syncLockedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -151,6 +172,10 @@ class $AppStateTableTable extends AppStateTable
         DriftSqlType.string,
         data['${effectivePrefix}last_sync_at'],
       ),
+      syncLockedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_locked_at'],
+      ),
     );
   }
 
@@ -174,12 +199,23 @@ class AppStateTableData extends DataClass
   /// ISO8601 — nullable
   final String? firstLaunchAt;
   final String? lastSyncAt;
+
+  /// ISO8601 timestamp of the sync run currently holding the advisory lock,
+  /// or null when no run is active.
+  ///
+  /// Sync can be triggered from the UI, the connectivity listener, the
+  /// post-auth hook, AND a WorkManager background isolate. The isolate has
+  /// its own memory, so an in-process flag cannot exclude it — the lock has
+  /// to live somewhere both can see, i.e. the database. Treated as stale
+  /// after a timeout so a crashed run cannot deadlock sync forever.
+  final String? syncLockedAt;
   const AppStateTableData({
     required this.id,
     required this.onboardingCompleted,
     required this.languageCode,
     this.firstLaunchAt,
     this.lastSyncAt,
+    this.syncLockedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -192,6 +228,9 @@ class AppStateTableData extends DataClass
     }
     if (!nullToAbsent || lastSyncAt != null) {
       map['last_sync_at'] = Variable<String>(lastSyncAt);
+    }
+    if (!nullToAbsent || syncLockedAt != null) {
+      map['sync_locked_at'] = Variable<String>(syncLockedAt);
     }
     return map;
   }
@@ -207,6 +246,9 @@ class AppStateTableData extends DataClass
       lastSyncAt: lastSyncAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncAt),
+      syncLockedAt: syncLockedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncLockedAt),
     );
   }
 
@@ -223,6 +265,7 @@ class AppStateTableData extends DataClass
       languageCode: serializer.fromJson<String>(json['languageCode']),
       firstLaunchAt: serializer.fromJson<String?>(json['firstLaunchAt']),
       lastSyncAt: serializer.fromJson<String?>(json['lastSyncAt']),
+      syncLockedAt: serializer.fromJson<String?>(json['syncLockedAt']),
     );
   }
   @override
@@ -234,6 +277,7 @@ class AppStateTableData extends DataClass
       'languageCode': serializer.toJson<String>(languageCode),
       'firstLaunchAt': serializer.toJson<String?>(firstLaunchAt),
       'lastSyncAt': serializer.toJson<String?>(lastSyncAt),
+      'syncLockedAt': serializer.toJson<String?>(syncLockedAt),
     };
   }
 
@@ -243,6 +287,7 @@ class AppStateTableData extends DataClass
     String? languageCode,
     Value<String?> firstLaunchAt = const Value.absent(),
     Value<String?> lastSyncAt = const Value.absent(),
+    Value<String?> syncLockedAt = const Value.absent(),
   }) => AppStateTableData(
     id: id ?? this.id,
     onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
@@ -251,6 +296,7 @@ class AppStateTableData extends DataClass
         ? firstLaunchAt.value
         : this.firstLaunchAt,
     lastSyncAt: lastSyncAt.present ? lastSyncAt.value : this.lastSyncAt,
+    syncLockedAt: syncLockedAt.present ? syncLockedAt.value : this.syncLockedAt,
   );
   AppStateTableData copyWithCompanion(AppStateTableCompanion data) {
     return AppStateTableData(
@@ -267,6 +313,9 @@ class AppStateTableData extends DataClass
       lastSyncAt: data.lastSyncAt.present
           ? data.lastSyncAt.value
           : this.lastSyncAt,
+      syncLockedAt: data.syncLockedAt.present
+          ? data.syncLockedAt.value
+          : this.syncLockedAt,
     );
   }
 
@@ -277,7 +326,8 @@ class AppStateTableData extends DataClass
           ..write('onboardingCompleted: $onboardingCompleted, ')
           ..write('languageCode: $languageCode, ')
           ..write('firstLaunchAt: $firstLaunchAt, ')
-          ..write('lastSyncAt: $lastSyncAt')
+          ..write('lastSyncAt: $lastSyncAt, ')
+          ..write('syncLockedAt: $syncLockedAt')
           ..write(')'))
         .toString();
   }
@@ -289,6 +339,7 @@ class AppStateTableData extends DataClass
     languageCode,
     firstLaunchAt,
     lastSyncAt,
+    syncLockedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -298,7 +349,8 @@ class AppStateTableData extends DataClass
           other.onboardingCompleted == this.onboardingCompleted &&
           other.languageCode == this.languageCode &&
           other.firstLaunchAt == this.firstLaunchAt &&
-          other.lastSyncAt == this.lastSyncAt);
+          other.lastSyncAt == this.lastSyncAt &&
+          other.syncLockedAt == this.syncLockedAt);
 }
 
 class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
@@ -307,12 +359,14 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
   final Value<String> languageCode;
   final Value<String?> firstLaunchAt;
   final Value<String?> lastSyncAt;
+  final Value<String?> syncLockedAt;
   const AppStateTableCompanion({
     this.id = const Value.absent(),
     this.onboardingCompleted = const Value.absent(),
     this.languageCode = const Value.absent(),
     this.firstLaunchAt = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
+    this.syncLockedAt = const Value.absent(),
   });
   AppStateTableCompanion.insert({
     this.id = const Value.absent(),
@@ -320,6 +374,7 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
     this.languageCode = const Value.absent(),
     this.firstLaunchAt = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
+    this.syncLockedAt = const Value.absent(),
   });
   static Insertable<AppStateTableData> custom({
     Expression<int>? id,
@@ -327,6 +382,7 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
     Expression<String>? languageCode,
     Expression<String>? firstLaunchAt,
     Expression<String>? lastSyncAt,
+    Expression<String>? syncLockedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -335,6 +391,7 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
       if (languageCode != null) 'language_code': languageCode,
       if (firstLaunchAt != null) 'first_launch_at': firstLaunchAt,
       if (lastSyncAt != null) 'last_sync_at': lastSyncAt,
+      if (syncLockedAt != null) 'sync_locked_at': syncLockedAt,
     });
   }
 
@@ -344,6 +401,7 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
     Value<String>? languageCode,
     Value<String?>? firstLaunchAt,
     Value<String?>? lastSyncAt,
+    Value<String?>? syncLockedAt,
   }) {
     return AppStateTableCompanion(
       id: id ?? this.id,
@@ -351,6 +409,7 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
       languageCode: languageCode ?? this.languageCode,
       firstLaunchAt: firstLaunchAt ?? this.firstLaunchAt,
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      syncLockedAt: syncLockedAt ?? this.syncLockedAt,
     );
   }
 
@@ -372,6 +431,9 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
     if (lastSyncAt.present) {
       map['last_sync_at'] = Variable<String>(lastSyncAt.value);
     }
+    if (syncLockedAt.present) {
+      map['sync_locked_at'] = Variable<String>(syncLockedAt.value);
+    }
     return map;
   }
 
@@ -382,7 +444,8 @@ class AppStateTableCompanion extends UpdateCompanion<AppStateTableData> {
           ..write('onboardingCompleted: $onboardingCompleted, ')
           ..write('languageCode: $languageCode, ')
           ..write('firstLaunchAt: $firstLaunchAt, ')
-          ..write('lastSyncAt: $lastSyncAt')
+          ..write('lastSyncAt: $lastSyncAt, ')
+          ..write('syncLockedAt: $syncLockedAt')
           ..write(')'))
         .toString();
   }
@@ -5371,6 +5434,17 @@ class $SyncOperationTableTable extends SyncOperationTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _uploadedImageUrlMeta = const VerificationMeta(
+    'uploadedImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> uploadedImageUrl = GeneratedColumn<String>(
+    'uploaded_image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastErrorMeta = const VerificationMeta(
     'lastError',
   );
@@ -5413,6 +5487,7 @@ class $SyncOperationTableTable extends SyncOperationTable
     payloadJson,
     status,
     retryCount,
+    uploadedImageUrl,
     lastError,
     createdAt,
     updatedAt,
@@ -5482,6 +5557,15 @@ class $SyncOperationTableTable extends SyncOperationTable
         retryCount.isAcceptableOrUnknown(data['retry_count']!, _retryCountMeta),
       );
     }
+    if (data.containsKey('uploaded_image_url')) {
+      context.handle(
+        _uploadedImageUrlMeta,
+        uploadedImageUrl.isAcceptableOrUnknown(
+          data['uploaded_image_url']!,
+          _uploadedImageUrlMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_error')) {
       context.handle(
         _lastErrorMeta,
@@ -5541,6 +5625,10 @@ class $SyncOperationTableTable extends SyncOperationTable
         DriftSqlType.int,
         data['${effectivePrefix}retry_count'],
       )!,
+      uploadedImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uploaded_image_url'],
+      ),
       lastError: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_error'],
@@ -5578,9 +5666,27 @@ class SyncOperationTableData extends DataClass
   /// JSON payload representation for idempotent upsert
   final String payloadJson;
 
-  /// 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
+  /// 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' |
+  /// 'PERMANENTLY_FAILED' | 'AUTH_REQUIRED'
+  ///
+  /// PERMANENTLY_FAILED: retrying will not help (the server rejected the
+  /// payload, or the transient-retry budget is exhausted). Surfaced to the
+  /// user rather than silently dropped.
+  /// AUTH_REQUIRED: the session expired mid-sync. Held, not retried, until
+  /// the user signs in again — retrying with a dead token just burns the
+  /// retry budget and loses the backlog silently.
   final String status;
   final int retryCount;
+
+  /// Remote URL of an image that has ALREADY been uploaded for this
+  /// operation. Set immediately after a successful upload, before the
+  /// metadata POST is attempted.
+  ///
+  /// Image upload happens before the metadata POST, so without this a
+  /// failure of the POST would make the retry re-upload the same bytes from
+  /// scratch — expensive on a metered rural connection, and it orphans a
+  /// blob in remote storage every attempt.
+  final String? uploadedImageUrl;
   final String? lastError;
   final String createdAt;
   final String updatedAt;
@@ -5592,6 +5698,7 @@ class SyncOperationTableData extends DataClass
     required this.payloadJson,
     required this.status,
     required this.retryCount,
+    this.uploadedImageUrl,
     this.lastError,
     required this.createdAt,
     required this.updatedAt,
@@ -5606,6 +5713,9 @@ class SyncOperationTableData extends DataClass
     map['payload_json'] = Variable<String>(payloadJson);
     map['status'] = Variable<String>(status);
     map['retry_count'] = Variable<int>(retryCount);
+    if (!nullToAbsent || uploadedImageUrl != null) {
+      map['uploaded_image_url'] = Variable<String>(uploadedImageUrl);
+    }
     if (!nullToAbsent || lastError != null) {
       map['last_error'] = Variable<String>(lastError);
     }
@@ -5623,6 +5733,9 @@ class SyncOperationTableData extends DataClass
       payloadJson: Value(payloadJson),
       status: Value(status),
       retryCount: Value(retryCount),
+      uploadedImageUrl: uploadedImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uploadedImageUrl),
       lastError: lastError == null && nullToAbsent
           ? const Value.absent()
           : Value(lastError),
@@ -5644,6 +5757,7 @@ class SyncOperationTableData extends DataClass
       payloadJson: serializer.fromJson<String>(json['payloadJson']),
       status: serializer.fromJson<String>(json['status']),
       retryCount: serializer.fromJson<int>(json['retryCount']),
+      uploadedImageUrl: serializer.fromJson<String?>(json['uploadedImageUrl']),
       lastError: serializer.fromJson<String?>(json['lastError']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
@@ -5660,6 +5774,7 @@ class SyncOperationTableData extends DataClass
       'payloadJson': serializer.toJson<String>(payloadJson),
       'status': serializer.toJson<String>(status),
       'retryCount': serializer.toJson<int>(retryCount),
+      'uploadedImageUrl': serializer.toJson<String?>(uploadedImageUrl),
       'lastError': serializer.toJson<String?>(lastError),
       'createdAt': serializer.toJson<String>(createdAt),
       'updatedAt': serializer.toJson<String>(updatedAt),
@@ -5674,6 +5789,7 @@ class SyncOperationTableData extends DataClass
     String? payloadJson,
     String? status,
     int? retryCount,
+    Value<String?> uploadedImageUrl = const Value.absent(),
     Value<String?> lastError = const Value.absent(),
     String? createdAt,
     String? updatedAt,
@@ -5685,6 +5801,9 @@ class SyncOperationTableData extends DataClass
     payloadJson: payloadJson ?? this.payloadJson,
     status: status ?? this.status,
     retryCount: retryCount ?? this.retryCount,
+    uploadedImageUrl: uploadedImageUrl.present
+        ? uploadedImageUrl.value
+        : this.uploadedImageUrl,
     lastError: lastError.present ? lastError.value : this.lastError,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -5706,6 +5825,9 @@ class SyncOperationTableData extends DataClass
       retryCount: data.retryCount.present
           ? data.retryCount.value
           : this.retryCount,
+      uploadedImageUrl: data.uploadedImageUrl.present
+          ? data.uploadedImageUrl.value
+          : this.uploadedImageUrl,
       lastError: data.lastError.present ? data.lastError.value : this.lastError,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -5722,6 +5844,7 @@ class SyncOperationTableData extends DataClass
           ..write('payloadJson: $payloadJson, ')
           ..write('status: $status, ')
           ..write('retryCount: $retryCount, ')
+          ..write('uploadedImageUrl: $uploadedImageUrl, ')
           ..write('lastError: $lastError, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -5738,6 +5861,7 @@ class SyncOperationTableData extends DataClass
     payloadJson,
     status,
     retryCount,
+    uploadedImageUrl,
     lastError,
     createdAt,
     updatedAt,
@@ -5753,6 +5877,7 @@ class SyncOperationTableData extends DataClass
           other.payloadJson == this.payloadJson &&
           other.status == this.status &&
           other.retryCount == this.retryCount &&
+          other.uploadedImageUrl == this.uploadedImageUrl &&
           other.lastError == this.lastError &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -5767,6 +5892,7 @@ class SyncOperationTableCompanion
   final Value<String> payloadJson;
   final Value<String> status;
   final Value<int> retryCount;
+  final Value<String?> uploadedImageUrl;
   final Value<String?> lastError;
   final Value<String> createdAt;
   final Value<String> updatedAt;
@@ -5779,6 +5905,7 @@ class SyncOperationTableCompanion
     this.payloadJson = const Value.absent(),
     this.status = const Value.absent(),
     this.retryCount = const Value.absent(),
+    this.uploadedImageUrl = const Value.absent(),
     this.lastError = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5792,6 +5919,7 @@ class SyncOperationTableCompanion
     required String payloadJson,
     this.status = const Value.absent(),
     this.retryCount = const Value.absent(),
+    this.uploadedImageUrl = const Value.absent(),
     this.lastError = const Value.absent(),
     required String createdAt,
     required String updatedAt,
@@ -5810,6 +5938,7 @@ class SyncOperationTableCompanion
     Expression<String>? payloadJson,
     Expression<String>? status,
     Expression<int>? retryCount,
+    Expression<String>? uploadedImageUrl,
     Expression<String>? lastError,
     Expression<String>? createdAt,
     Expression<String>? updatedAt,
@@ -5823,6 +5952,7 @@ class SyncOperationTableCompanion
       if (payloadJson != null) 'payload_json': payloadJson,
       if (status != null) 'status': status,
       if (retryCount != null) 'retry_count': retryCount,
+      if (uploadedImageUrl != null) 'uploaded_image_url': uploadedImageUrl,
       if (lastError != null) 'last_error': lastError,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -5838,6 +5968,7 @@ class SyncOperationTableCompanion
     Value<String>? payloadJson,
     Value<String>? status,
     Value<int>? retryCount,
+    Value<String?>? uploadedImageUrl,
     Value<String?>? lastError,
     Value<String>? createdAt,
     Value<String>? updatedAt,
@@ -5851,6 +5982,7 @@ class SyncOperationTableCompanion
       payloadJson: payloadJson ?? this.payloadJson,
       status: status ?? this.status,
       retryCount: retryCount ?? this.retryCount,
+      uploadedImageUrl: uploadedImageUrl ?? this.uploadedImageUrl,
       lastError: lastError ?? this.lastError,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5882,6 +6014,9 @@ class SyncOperationTableCompanion
     if (retryCount.present) {
       map['retry_count'] = Variable<int>(retryCount.value);
     }
+    if (uploadedImageUrl.present) {
+      map['uploaded_image_url'] = Variable<String>(uploadedImageUrl.value);
+    }
     if (lastError.present) {
       map['last_error'] = Variable<String>(lastError.value);
     }
@@ -5907,9 +6042,1441 @@ class SyncOperationTableCompanion
           ..write('payloadJson: $payloadJson, ')
           ..write('status: $status, ')
           ..write('retryCount: $retryCount, ')
+          ..write('uploadedImageUrl: $uploadedImageUrl, ')
           ..write('lastError: $lastError, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DiseaseExplanationTableTable extends DiseaseExplanationTable
+    with TableInfo<$DiseaseExplanationTableTable, DiseaseExplanationTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DiseaseExplanationTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _diseaseIdMeta = const VerificationMeta(
+    'diseaseId',
+  );
+  @override
+  late final GeneratedColumn<String> diseaseId = GeneratedColumn<String>(
+    'disease_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES disease (id)',
+    ),
+  );
+  static const VerificationMeta _plantDescriptionEnMeta =
+      const VerificationMeta('plantDescriptionEn');
+  @override
+  late final GeneratedColumn<String> plantDescriptionEn =
+      GeneratedColumn<String>(
+        'plant_description_en',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _plantDescriptionSiMeta =
+      const VerificationMeta('plantDescriptionSi');
+  @override
+  late final GeneratedColumn<String> plantDescriptionSi =
+      GeneratedColumn<String>(
+        'plant_description_si',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _plantDescriptionTaMeta =
+      const VerificationMeta('plantDescriptionTa');
+  @override
+  late final GeneratedColumn<String> plantDescriptionTa =
+      GeneratedColumn<String>(
+        'plant_description_ta',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _resultMeaningEnMeta = const VerificationMeta(
+    'resultMeaningEn',
+  );
+  @override
+  late final GeneratedColumn<String> resultMeaningEn = GeneratedColumn<String>(
+    'result_meaning_en',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resultMeaningSiMeta = const VerificationMeta(
+    'resultMeaningSi',
+  );
+  @override
+  late final GeneratedColumn<String> resultMeaningSi = GeneratedColumn<String>(
+    'result_meaning_si',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resultMeaningTaMeta = const VerificationMeta(
+    'resultMeaningTa',
+  );
+  @override
+  late final GeneratedColumn<String> resultMeaningTa = GeneratedColumn<String>(
+    'result_meaning_ta',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _explanationVersionMeta =
+      const VerificationMeta('explanationVersion');
+  @override
+  late final GeneratedColumn<String> explanationVersion =
+      GeneratedColumn<String>(
+        'explanation_version',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<String> updatedAt = GeneratedColumn<String>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    diseaseId,
+    plantDescriptionEn,
+    plantDescriptionSi,
+    plantDescriptionTa,
+    resultMeaningEn,
+    resultMeaningSi,
+    resultMeaningTa,
+    explanationVersion,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'disease_explanation';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DiseaseExplanationTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('disease_id')) {
+      context.handle(
+        _diseaseIdMeta,
+        diseaseId.isAcceptableOrUnknown(data['disease_id']!, _diseaseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_diseaseIdMeta);
+    }
+    if (data.containsKey('plant_description_en')) {
+      context.handle(
+        _plantDescriptionEnMeta,
+        plantDescriptionEn.isAcceptableOrUnknown(
+          data['plant_description_en']!,
+          _plantDescriptionEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('plant_description_si')) {
+      context.handle(
+        _plantDescriptionSiMeta,
+        plantDescriptionSi.isAcceptableOrUnknown(
+          data['plant_description_si']!,
+          _plantDescriptionSiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('plant_description_ta')) {
+      context.handle(
+        _plantDescriptionTaMeta,
+        plantDescriptionTa.isAcceptableOrUnknown(
+          data['plant_description_ta']!,
+          _plantDescriptionTaMeta,
+        ),
+      );
+    }
+    if (data.containsKey('result_meaning_en')) {
+      context.handle(
+        _resultMeaningEnMeta,
+        resultMeaningEn.isAcceptableOrUnknown(
+          data['result_meaning_en']!,
+          _resultMeaningEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('result_meaning_si')) {
+      context.handle(
+        _resultMeaningSiMeta,
+        resultMeaningSi.isAcceptableOrUnknown(
+          data['result_meaning_si']!,
+          _resultMeaningSiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('result_meaning_ta')) {
+      context.handle(
+        _resultMeaningTaMeta,
+        resultMeaningTa.isAcceptableOrUnknown(
+          data['result_meaning_ta']!,
+          _resultMeaningTaMeta,
+        ),
+      );
+    }
+    if (data.containsKey('explanation_version')) {
+      context.handle(
+        _explanationVersionMeta,
+        explanationVersion.isAcceptableOrUnknown(
+          data['explanation_version']!,
+          _explanationVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DiseaseExplanationTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DiseaseExplanationTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      diseaseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}disease_id'],
+      )!,
+      plantDescriptionEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plant_description_en'],
+      ),
+      plantDescriptionSi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plant_description_si'],
+      ),
+      plantDescriptionTa: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plant_description_ta'],
+      ),
+      resultMeaningEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_meaning_en'],
+      ),
+      resultMeaningSi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_meaning_si'],
+      ),
+      resultMeaningTa: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_meaning_ta'],
+      ),
+      explanationVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}explanation_version'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $DiseaseExplanationTableTable createAlias(String alias) {
+    return $DiseaseExplanationTableTable(attachedDatabase, alias);
+  }
+}
+
+class DiseaseExplanationTableData extends DataClass
+    implements Insertable<DiseaseExplanationTableData> {
+  final String id;
+  final String diseaseId;
+
+  /// What the plant itself is — crop, habit, what a healthy one looks like.
+  final String? plantDescriptionEn;
+  final String? plantDescriptionSi;
+  final String? plantDescriptionTa;
+
+  /// What the scan result suggests, in plain language, including how much
+  /// weight to put on it.
+  final String? resultMeaningEn;
+  final String? resultMeaningSi;
+  final String? resultMeaningTa;
+
+  /// Content revision, e.g. 'ex-2026.03' — mirrors guideline_version.
+  final String? explanationVersion;
+  final String? updatedAt;
+  const DiseaseExplanationTableData({
+    required this.id,
+    required this.diseaseId,
+    this.plantDescriptionEn,
+    this.plantDescriptionSi,
+    this.plantDescriptionTa,
+    this.resultMeaningEn,
+    this.resultMeaningSi,
+    this.resultMeaningTa,
+    this.explanationVersion,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['disease_id'] = Variable<String>(diseaseId);
+    if (!nullToAbsent || plantDescriptionEn != null) {
+      map['plant_description_en'] = Variable<String>(plantDescriptionEn);
+    }
+    if (!nullToAbsent || plantDescriptionSi != null) {
+      map['plant_description_si'] = Variable<String>(plantDescriptionSi);
+    }
+    if (!nullToAbsent || plantDescriptionTa != null) {
+      map['plant_description_ta'] = Variable<String>(plantDescriptionTa);
+    }
+    if (!nullToAbsent || resultMeaningEn != null) {
+      map['result_meaning_en'] = Variable<String>(resultMeaningEn);
+    }
+    if (!nullToAbsent || resultMeaningSi != null) {
+      map['result_meaning_si'] = Variable<String>(resultMeaningSi);
+    }
+    if (!nullToAbsent || resultMeaningTa != null) {
+      map['result_meaning_ta'] = Variable<String>(resultMeaningTa);
+    }
+    if (!nullToAbsent || explanationVersion != null) {
+      map['explanation_version'] = Variable<String>(explanationVersion);
+    }
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<String>(updatedAt);
+    }
+    return map;
+  }
+
+  DiseaseExplanationTableCompanion toCompanion(bool nullToAbsent) {
+    return DiseaseExplanationTableCompanion(
+      id: Value(id),
+      diseaseId: Value(diseaseId),
+      plantDescriptionEn: plantDescriptionEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plantDescriptionEn),
+      plantDescriptionSi: plantDescriptionSi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plantDescriptionSi),
+      plantDescriptionTa: plantDescriptionTa == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plantDescriptionTa),
+      resultMeaningEn: resultMeaningEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultMeaningEn),
+      resultMeaningSi: resultMeaningSi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultMeaningSi),
+      resultMeaningTa: resultMeaningTa == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultMeaningTa),
+      explanationVersion: explanationVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(explanationVersion),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory DiseaseExplanationTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DiseaseExplanationTableData(
+      id: serializer.fromJson<String>(json['id']),
+      diseaseId: serializer.fromJson<String>(json['diseaseId']),
+      plantDescriptionEn: serializer.fromJson<String?>(
+        json['plantDescriptionEn'],
+      ),
+      plantDescriptionSi: serializer.fromJson<String?>(
+        json['plantDescriptionSi'],
+      ),
+      plantDescriptionTa: serializer.fromJson<String?>(
+        json['plantDescriptionTa'],
+      ),
+      resultMeaningEn: serializer.fromJson<String?>(json['resultMeaningEn']),
+      resultMeaningSi: serializer.fromJson<String?>(json['resultMeaningSi']),
+      resultMeaningTa: serializer.fromJson<String?>(json['resultMeaningTa']),
+      explanationVersion: serializer.fromJson<String?>(
+        json['explanationVersion'],
+      ),
+      updatedAt: serializer.fromJson<String?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'diseaseId': serializer.toJson<String>(diseaseId),
+      'plantDescriptionEn': serializer.toJson<String?>(plantDescriptionEn),
+      'plantDescriptionSi': serializer.toJson<String?>(plantDescriptionSi),
+      'plantDescriptionTa': serializer.toJson<String?>(plantDescriptionTa),
+      'resultMeaningEn': serializer.toJson<String?>(resultMeaningEn),
+      'resultMeaningSi': serializer.toJson<String?>(resultMeaningSi),
+      'resultMeaningTa': serializer.toJson<String?>(resultMeaningTa),
+      'explanationVersion': serializer.toJson<String?>(explanationVersion),
+      'updatedAt': serializer.toJson<String?>(updatedAt),
+    };
+  }
+
+  DiseaseExplanationTableData copyWith({
+    String? id,
+    String? diseaseId,
+    Value<String?> plantDescriptionEn = const Value.absent(),
+    Value<String?> plantDescriptionSi = const Value.absent(),
+    Value<String?> plantDescriptionTa = const Value.absent(),
+    Value<String?> resultMeaningEn = const Value.absent(),
+    Value<String?> resultMeaningSi = const Value.absent(),
+    Value<String?> resultMeaningTa = const Value.absent(),
+    Value<String?> explanationVersion = const Value.absent(),
+    Value<String?> updatedAt = const Value.absent(),
+  }) => DiseaseExplanationTableData(
+    id: id ?? this.id,
+    diseaseId: diseaseId ?? this.diseaseId,
+    plantDescriptionEn: plantDescriptionEn.present
+        ? plantDescriptionEn.value
+        : this.plantDescriptionEn,
+    plantDescriptionSi: plantDescriptionSi.present
+        ? plantDescriptionSi.value
+        : this.plantDescriptionSi,
+    plantDescriptionTa: plantDescriptionTa.present
+        ? plantDescriptionTa.value
+        : this.plantDescriptionTa,
+    resultMeaningEn: resultMeaningEn.present
+        ? resultMeaningEn.value
+        : this.resultMeaningEn,
+    resultMeaningSi: resultMeaningSi.present
+        ? resultMeaningSi.value
+        : this.resultMeaningSi,
+    resultMeaningTa: resultMeaningTa.present
+        ? resultMeaningTa.value
+        : this.resultMeaningTa,
+    explanationVersion: explanationVersion.present
+        ? explanationVersion.value
+        : this.explanationVersion,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  DiseaseExplanationTableData copyWithCompanion(
+    DiseaseExplanationTableCompanion data,
+  ) {
+    return DiseaseExplanationTableData(
+      id: data.id.present ? data.id.value : this.id,
+      diseaseId: data.diseaseId.present ? data.diseaseId.value : this.diseaseId,
+      plantDescriptionEn: data.plantDescriptionEn.present
+          ? data.plantDescriptionEn.value
+          : this.plantDescriptionEn,
+      plantDescriptionSi: data.plantDescriptionSi.present
+          ? data.plantDescriptionSi.value
+          : this.plantDescriptionSi,
+      plantDescriptionTa: data.plantDescriptionTa.present
+          ? data.plantDescriptionTa.value
+          : this.plantDescriptionTa,
+      resultMeaningEn: data.resultMeaningEn.present
+          ? data.resultMeaningEn.value
+          : this.resultMeaningEn,
+      resultMeaningSi: data.resultMeaningSi.present
+          ? data.resultMeaningSi.value
+          : this.resultMeaningSi,
+      resultMeaningTa: data.resultMeaningTa.present
+          ? data.resultMeaningTa.value
+          : this.resultMeaningTa,
+      explanationVersion: data.explanationVersion.present
+          ? data.explanationVersion.value
+          : this.explanationVersion,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiseaseExplanationTableData(')
+          ..write('id: $id, ')
+          ..write('diseaseId: $diseaseId, ')
+          ..write('plantDescriptionEn: $plantDescriptionEn, ')
+          ..write('plantDescriptionSi: $plantDescriptionSi, ')
+          ..write('plantDescriptionTa: $plantDescriptionTa, ')
+          ..write('resultMeaningEn: $resultMeaningEn, ')
+          ..write('resultMeaningSi: $resultMeaningSi, ')
+          ..write('resultMeaningTa: $resultMeaningTa, ')
+          ..write('explanationVersion: $explanationVersion, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    diseaseId,
+    plantDescriptionEn,
+    plantDescriptionSi,
+    plantDescriptionTa,
+    resultMeaningEn,
+    resultMeaningSi,
+    resultMeaningTa,
+    explanationVersion,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DiseaseExplanationTableData &&
+          other.id == this.id &&
+          other.diseaseId == this.diseaseId &&
+          other.plantDescriptionEn == this.plantDescriptionEn &&
+          other.plantDescriptionSi == this.plantDescriptionSi &&
+          other.plantDescriptionTa == this.plantDescriptionTa &&
+          other.resultMeaningEn == this.resultMeaningEn &&
+          other.resultMeaningSi == this.resultMeaningSi &&
+          other.resultMeaningTa == this.resultMeaningTa &&
+          other.explanationVersion == this.explanationVersion &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DiseaseExplanationTableCompanion
+    extends UpdateCompanion<DiseaseExplanationTableData> {
+  final Value<String> id;
+  final Value<String> diseaseId;
+  final Value<String?> plantDescriptionEn;
+  final Value<String?> plantDescriptionSi;
+  final Value<String?> plantDescriptionTa;
+  final Value<String?> resultMeaningEn;
+  final Value<String?> resultMeaningSi;
+  final Value<String?> resultMeaningTa;
+  final Value<String?> explanationVersion;
+  final Value<String?> updatedAt;
+  final Value<int> rowid;
+  const DiseaseExplanationTableCompanion({
+    this.id = const Value.absent(),
+    this.diseaseId = const Value.absent(),
+    this.plantDescriptionEn = const Value.absent(),
+    this.plantDescriptionSi = const Value.absent(),
+    this.plantDescriptionTa = const Value.absent(),
+    this.resultMeaningEn = const Value.absent(),
+    this.resultMeaningSi = const Value.absent(),
+    this.resultMeaningTa = const Value.absent(),
+    this.explanationVersion = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DiseaseExplanationTableCompanion.insert({
+    required String id,
+    required String diseaseId,
+    this.plantDescriptionEn = const Value.absent(),
+    this.plantDescriptionSi = const Value.absent(),
+    this.plantDescriptionTa = const Value.absent(),
+    this.resultMeaningEn = const Value.absent(),
+    this.resultMeaningSi = const Value.absent(),
+    this.resultMeaningTa = const Value.absent(),
+    this.explanationVersion = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       diseaseId = Value(diseaseId);
+  static Insertable<DiseaseExplanationTableData> custom({
+    Expression<String>? id,
+    Expression<String>? diseaseId,
+    Expression<String>? plantDescriptionEn,
+    Expression<String>? plantDescriptionSi,
+    Expression<String>? plantDescriptionTa,
+    Expression<String>? resultMeaningEn,
+    Expression<String>? resultMeaningSi,
+    Expression<String>? resultMeaningTa,
+    Expression<String>? explanationVersion,
+    Expression<String>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (diseaseId != null) 'disease_id': diseaseId,
+      if (plantDescriptionEn != null)
+        'plant_description_en': plantDescriptionEn,
+      if (plantDescriptionSi != null)
+        'plant_description_si': plantDescriptionSi,
+      if (plantDescriptionTa != null)
+        'plant_description_ta': plantDescriptionTa,
+      if (resultMeaningEn != null) 'result_meaning_en': resultMeaningEn,
+      if (resultMeaningSi != null) 'result_meaning_si': resultMeaningSi,
+      if (resultMeaningTa != null) 'result_meaning_ta': resultMeaningTa,
+      if (explanationVersion != null) 'explanation_version': explanationVersion,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DiseaseExplanationTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? diseaseId,
+    Value<String?>? plantDescriptionEn,
+    Value<String?>? plantDescriptionSi,
+    Value<String?>? plantDescriptionTa,
+    Value<String?>? resultMeaningEn,
+    Value<String?>? resultMeaningSi,
+    Value<String?>? resultMeaningTa,
+    Value<String?>? explanationVersion,
+    Value<String?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DiseaseExplanationTableCompanion(
+      id: id ?? this.id,
+      diseaseId: diseaseId ?? this.diseaseId,
+      plantDescriptionEn: plantDescriptionEn ?? this.plantDescriptionEn,
+      plantDescriptionSi: plantDescriptionSi ?? this.plantDescriptionSi,
+      plantDescriptionTa: plantDescriptionTa ?? this.plantDescriptionTa,
+      resultMeaningEn: resultMeaningEn ?? this.resultMeaningEn,
+      resultMeaningSi: resultMeaningSi ?? this.resultMeaningSi,
+      resultMeaningTa: resultMeaningTa ?? this.resultMeaningTa,
+      explanationVersion: explanationVersion ?? this.explanationVersion,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (diseaseId.present) {
+      map['disease_id'] = Variable<String>(diseaseId.value);
+    }
+    if (plantDescriptionEn.present) {
+      map['plant_description_en'] = Variable<String>(plantDescriptionEn.value);
+    }
+    if (plantDescriptionSi.present) {
+      map['plant_description_si'] = Variable<String>(plantDescriptionSi.value);
+    }
+    if (plantDescriptionTa.present) {
+      map['plant_description_ta'] = Variable<String>(plantDescriptionTa.value);
+    }
+    if (resultMeaningEn.present) {
+      map['result_meaning_en'] = Variable<String>(resultMeaningEn.value);
+    }
+    if (resultMeaningSi.present) {
+      map['result_meaning_si'] = Variable<String>(resultMeaningSi.value);
+    }
+    if (resultMeaningTa.present) {
+      map['result_meaning_ta'] = Variable<String>(resultMeaningTa.value);
+    }
+    if (explanationVersion.present) {
+      map['explanation_version'] = Variable<String>(explanationVersion.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<String>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiseaseExplanationTableCompanion(')
+          ..write('id: $id, ')
+          ..write('diseaseId: $diseaseId, ')
+          ..write('plantDescriptionEn: $plantDescriptionEn, ')
+          ..write('plantDescriptionSi: $plantDescriptionSi, ')
+          ..write('plantDescriptionTa: $plantDescriptionTa, ')
+          ..write('resultMeaningEn: $resultMeaningEn, ')
+          ..write('resultMeaningSi: $resultMeaningSi, ')
+          ..write('resultMeaningTa: $resultMeaningTa, ')
+          ..write('explanationVersion: $explanationVersion, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DiseaseConfusionTableTable extends DiseaseConfusionTable
+    with TableInfo<$DiseaseConfusionTableTable, DiseaseConfusionTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DiseaseConfusionTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _diseaseIdMeta = const VerificationMeta(
+    'diseaseId',
+  );
+  @override
+  late final GeneratedColumn<String> diseaseId = GeneratedColumn<String>(
+    'disease_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES disease (id)',
+    ),
+  );
+  static const VerificationMeta _confusedWithDiseaseIdMeta =
+      const VerificationMeta('confusedWithDiseaseId');
+  @override
+  late final GeneratedColumn<String> confusedWithDiseaseId =
+      GeneratedColumn<String>(
+        'confused_with_disease_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES disease (id)',
+        ),
+      );
+  static const VerificationMeta _confusedWithLabelEnMeta =
+      const VerificationMeta('confusedWithLabelEn');
+  @override
+  late final GeneratedColumn<String> confusedWithLabelEn =
+      GeneratedColumn<String>(
+        'confused_with_label_en',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _confusedWithLabelSiMeta =
+      const VerificationMeta('confusedWithLabelSi');
+  @override
+  late final GeneratedColumn<String> confusedWithLabelSi =
+      GeneratedColumn<String>(
+        'confused_with_label_si',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _confusedWithLabelTaMeta =
+      const VerificationMeta('confusedWithLabelTa');
+  @override
+  late final GeneratedColumn<String> confusedWithLabelTa =
+      GeneratedColumn<String>(
+        'confused_with_label_ta',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _distinguishingSymptomsEnMeta =
+      const VerificationMeta('distinguishingSymptomsEn');
+  @override
+  late final GeneratedColumn<String> distinguishingSymptomsEn =
+      GeneratedColumn<String>(
+        'distinguishing_symptoms_en',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _distinguishingSymptomsSiMeta =
+      const VerificationMeta('distinguishingSymptomsSi');
+  @override
+  late final GeneratedColumn<String> distinguishingSymptomsSi =
+      GeneratedColumn<String>(
+        'distinguishing_symptoms_si',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _distinguishingSymptomsTaMeta =
+      const VerificationMeta('distinguishingSymptomsTa');
+  @override
+  late final GeneratedColumn<String> distinguishingSymptomsTa =
+      GeneratedColumn<String>(
+        'distinguishing_symptoms_ta',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    diseaseId,
+    confusedWithDiseaseId,
+    confusedWithLabelEn,
+    confusedWithLabelSi,
+    confusedWithLabelTa,
+    distinguishingSymptomsEn,
+    distinguishingSymptomsSi,
+    distinguishingSymptomsTa,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'disease_confusion';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DiseaseConfusionTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('disease_id')) {
+      context.handle(
+        _diseaseIdMeta,
+        diseaseId.isAcceptableOrUnknown(data['disease_id']!, _diseaseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_diseaseIdMeta);
+    }
+    if (data.containsKey('confused_with_disease_id')) {
+      context.handle(
+        _confusedWithDiseaseIdMeta,
+        confusedWithDiseaseId.isAcceptableOrUnknown(
+          data['confused_with_disease_id']!,
+          _confusedWithDiseaseIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confused_with_label_en')) {
+      context.handle(
+        _confusedWithLabelEnMeta,
+        confusedWithLabelEn.isAcceptableOrUnknown(
+          data['confused_with_label_en']!,
+          _confusedWithLabelEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confused_with_label_si')) {
+      context.handle(
+        _confusedWithLabelSiMeta,
+        confusedWithLabelSi.isAcceptableOrUnknown(
+          data['confused_with_label_si']!,
+          _confusedWithLabelSiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confused_with_label_ta')) {
+      context.handle(
+        _confusedWithLabelTaMeta,
+        confusedWithLabelTa.isAcceptableOrUnknown(
+          data['confused_with_label_ta']!,
+          _confusedWithLabelTaMeta,
+        ),
+      );
+    }
+    if (data.containsKey('distinguishing_symptoms_en')) {
+      context.handle(
+        _distinguishingSymptomsEnMeta,
+        distinguishingSymptomsEn.isAcceptableOrUnknown(
+          data['distinguishing_symptoms_en']!,
+          _distinguishingSymptomsEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('distinguishing_symptoms_si')) {
+      context.handle(
+        _distinguishingSymptomsSiMeta,
+        distinguishingSymptomsSi.isAcceptableOrUnknown(
+          data['distinguishing_symptoms_si']!,
+          _distinguishingSymptomsSiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('distinguishing_symptoms_ta')) {
+      context.handle(
+        _distinguishingSymptomsTaMeta,
+        distinguishingSymptomsTa.isAcceptableOrUnknown(
+          data['distinguishing_symptoms_ta']!,
+          _distinguishingSymptomsTaMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DiseaseConfusionTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DiseaseConfusionTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      diseaseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}disease_id'],
+      )!,
+      confusedWithDiseaseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}confused_with_disease_id'],
+      ),
+      confusedWithLabelEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}confused_with_label_en'],
+      ),
+      confusedWithLabelSi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}confused_with_label_si'],
+      ),
+      confusedWithLabelTa: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}confused_with_label_ta'],
+      ),
+      distinguishingSymptomsEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}distinguishing_symptoms_en'],
+      ),
+      distinguishingSymptomsSi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}distinguishing_symptoms_si'],
+      ),
+      distinguishingSymptomsTa: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}distinguishing_symptoms_ta'],
+      ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $DiseaseConfusionTableTable createAlias(String alias) {
+    return $DiseaseConfusionTableTable(attachedDatabase, alias);
+  }
+}
+
+class DiseaseConfusionTableData extends DataClass
+    implements Insertable<DiseaseConfusionTableData> {
+  final String id;
+
+  /// The diagnosed disease this look-alike is listed under.
+  final String diseaseId;
+
+  /// The look-alike, when it is itself a known disease.
+  final String? confusedWithDiseaseId;
+
+  /// The look-alike's name, when it is not a row in `disease`.
+  final String? confusedWithLabelEn;
+  final String? confusedWithLabelSi;
+  final String? confusedWithLabelTa;
+
+  /// How to tell the two apart in the field.
+  final String? distinguishingSymptomsEn;
+  final String? distinguishingSymptomsSi;
+  final String? distinguishingSymptomsTa;
+
+  /// Display order; lower first.
+  final int sortOrder;
+  const DiseaseConfusionTableData({
+    required this.id,
+    required this.diseaseId,
+    this.confusedWithDiseaseId,
+    this.confusedWithLabelEn,
+    this.confusedWithLabelSi,
+    this.confusedWithLabelTa,
+    this.distinguishingSymptomsEn,
+    this.distinguishingSymptomsSi,
+    this.distinguishingSymptomsTa,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['disease_id'] = Variable<String>(diseaseId);
+    if (!nullToAbsent || confusedWithDiseaseId != null) {
+      map['confused_with_disease_id'] = Variable<String>(confusedWithDiseaseId);
+    }
+    if (!nullToAbsent || confusedWithLabelEn != null) {
+      map['confused_with_label_en'] = Variable<String>(confusedWithLabelEn);
+    }
+    if (!nullToAbsent || confusedWithLabelSi != null) {
+      map['confused_with_label_si'] = Variable<String>(confusedWithLabelSi);
+    }
+    if (!nullToAbsent || confusedWithLabelTa != null) {
+      map['confused_with_label_ta'] = Variable<String>(confusedWithLabelTa);
+    }
+    if (!nullToAbsent || distinguishingSymptomsEn != null) {
+      map['distinguishing_symptoms_en'] = Variable<String>(
+        distinguishingSymptomsEn,
+      );
+    }
+    if (!nullToAbsent || distinguishingSymptomsSi != null) {
+      map['distinguishing_symptoms_si'] = Variable<String>(
+        distinguishingSymptomsSi,
+      );
+    }
+    if (!nullToAbsent || distinguishingSymptomsTa != null) {
+      map['distinguishing_symptoms_ta'] = Variable<String>(
+        distinguishingSymptomsTa,
+      );
+    }
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  DiseaseConfusionTableCompanion toCompanion(bool nullToAbsent) {
+    return DiseaseConfusionTableCompanion(
+      id: Value(id),
+      diseaseId: Value(diseaseId),
+      confusedWithDiseaseId: confusedWithDiseaseId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(confusedWithDiseaseId),
+      confusedWithLabelEn: confusedWithLabelEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(confusedWithLabelEn),
+      confusedWithLabelSi: confusedWithLabelSi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(confusedWithLabelSi),
+      confusedWithLabelTa: confusedWithLabelTa == null && nullToAbsent
+          ? const Value.absent()
+          : Value(confusedWithLabelTa),
+      distinguishingSymptomsEn: distinguishingSymptomsEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distinguishingSymptomsEn),
+      distinguishingSymptomsSi: distinguishingSymptomsSi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distinguishingSymptomsSi),
+      distinguishingSymptomsTa: distinguishingSymptomsTa == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distinguishingSymptomsTa),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory DiseaseConfusionTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DiseaseConfusionTableData(
+      id: serializer.fromJson<String>(json['id']),
+      diseaseId: serializer.fromJson<String>(json['diseaseId']),
+      confusedWithDiseaseId: serializer.fromJson<String?>(
+        json['confusedWithDiseaseId'],
+      ),
+      confusedWithLabelEn: serializer.fromJson<String?>(
+        json['confusedWithLabelEn'],
+      ),
+      confusedWithLabelSi: serializer.fromJson<String?>(
+        json['confusedWithLabelSi'],
+      ),
+      confusedWithLabelTa: serializer.fromJson<String?>(
+        json['confusedWithLabelTa'],
+      ),
+      distinguishingSymptomsEn: serializer.fromJson<String?>(
+        json['distinguishingSymptomsEn'],
+      ),
+      distinguishingSymptomsSi: serializer.fromJson<String?>(
+        json['distinguishingSymptomsSi'],
+      ),
+      distinguishingSymptomsTa: serializer.fromJson<String?>(
+        json['distinguishingSymptomsTa'],
+      ),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'diseaseId': serializer.toJson<String>(diseaseId),
+      'confusedWithDiseaseId': serializer.toJson<String?>(
+        confusedWithDiseaseId,
+      ),
+      'confusedWithLabelEn': serializer.toJson<String?>(confusedWithLabelEn),
+      'confusedWithLabelSi': serializer.toJson<String?>(confusedWithLabelSi),
+      'confusedWithLabelTa': serializer.toJson<String?>(confusedWithLabelTa),
+      'distinguishingSymptomsEn': serializer.toJson<String?>(
+        distinguishingSymptomsEn,
+      ),
+      'distinguishingSymptomsSi': serializer.toJson<String?>(
+        distinguishingSymptomsSi,
+      ),
+      'distinguishingSymptomsTa': serializer.toJson<String?>(
+        distinguishingSymptomsTa,
+      ),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  DiseaseConfusionTableData copyWith({
+    String? id,
+    String? diseaseId,
+    Value<String?> confusedWithDiseaseId = const Value.absent(),
+    Value<String?> confusedWithLabelEn = const Value.absent(),
+    Value<String?> confusedWithLabelSi = const Value.absent(),
+    Value<String?> confusedWithLabelTa = const Value.absent(),
+    Value<String?> distinguishingSymptomsEn = const Value.absent(),
+    Value<String?> distinguishingSymptomsSi = const Value.absent(),
+    Value<String?> distinguishingSymptomsTa = const Value.absent(),
+    int? sortOrder,
+  }) => DiseaseConfusionTableData(
+    id: id ?? this.id,
+    diseaseId: diseaseId ?? this.diseaseId,
+    confusedWithDiseaseId: confusedWithDiseaseId.present
+        ? confusedWithDiseaseId.value
+        : this.confusedWithDiseaseId,
+    confusedWithLabelEn: confusedWithLabelEn.present
+        ? confusedWithLabelEn.value
+        : this.confusedWithLabelEn,
+    confusedWithLabelSi: confusedWithLabelSi.present
+        ? confusedWithLabelSi.value
+        : this.confusedWithLabelSi,
+    confusedWithLabelTa: confusedWithLabelTa.present
+        ? confusedWithLabelTa.value
+        : this.confusedWithLabelTa,
+    distinguishingSymptomsEn: distinguishingSymptomsEn.present
+        ? distinguishingSymptomsEn.value
+        : this.distinguishingSymptomsEn,
+    distinguishingSymptomsSi: distinguishingSymptomsSi.present
+        ? distinguishingSymptomsSi.value
+        : this.distinguishingSymptomsSi,
+    distinguishingSymptomsTa: distinguishingSymptomsTa.present
+        ? distinguishingSymptomsTa.value
+        : this.distinguishingSymptomsTa,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  DiseaseConfusionTableData copyWithCompanion(
+    DiseaseConfusionTableCompanion data,
+  ) {
+    return DiseaseConfusionTableData(
+      id: data.id.present ? data.id.value : this.id,
+      diseaseId: data.diseaseId.present ? data.diseaseId.value : this.diseaseId,
+      confusedWithDiseaseId: data.confusedWithDiseaseId.present
+          ? data.confusedWithDiseaseId.value
+          : this.confusedWithDiseaseId,
+      confusedWithLabelEn: data.confusedWithLabelEn.present
+          ? data.confusedWithLabelEn.value
+          : this.confusedWithLabelEn,
+      confusedWithLabelSi: data.confusedWithLabelSi.present
+          ? data.confusedWithLabelSi.value
+          : this.confusedWithLabelSi,
+      confusedWithLabelTa: data.confusedWithLabelTa.present
+          ? data.confusedWithLabelTa.value
+          : this.confusedWithLabelTa,
+      distinguishingSymptomsEn: data.distinguishingSymptomsEn.present
+          ? data.distinguishingSymptomsEn.value
+          : this.distinguishingSymptomsEn,
+      distinguishingSymptomsSi: data.distinguishingSymptomsSi.present
+          ? data.distinguishingSymptomsSi.value
+          : this.distinguishingSymptomsSi,
+      distinguishingSymptomsTa: data.distinguishingSymptomsTa.present
+          ? data.distinguishingSymptomsTa.value
+          : this.distinguishingSymptomsTa,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiseaseConfusionTableData(')
+          ..write('id: $id, ')
+          ..write('diseaseId: $diseaseId, ')
+          ..write('confusedWithDiseaseId: $confusedWithDiseaseId, ')
+          ..write('confusedWithLabelEn: $confusedWithLabelEn, ')
+          ..write('confusedWithLabelSi: $confusedWithLabelSi, ')
+          ..write('confusedWithLabelTa: $confusedWithLabelTa, ')
+          ..write('distinguishingSymptomsEn: $distinguishingSymptomsEn, ')
+          ..write('distinguishingSymptomsSi: $distinguishingSymptomsSi, ')
+          ..write('distinguishingSymptomsTa: $distinguishingSymptomsTa, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    diseaseId,
+    confusedWithDiseaseId,
+    confusedWithLabelEn,
+    confusedWithLabelSi,
+    confusedWithLabelTa,
+    distinguishingSymptomsEn,
+    distinguishingSymptomsSi,
+    distinguishingSymptomsTa,
+    sortOrder,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DiseaseConfusionTableData &&
+          other.id == this.id &&
+          other.diseaseId == this.diseaseId &&
+          other.confusedWithDiseaseId == this.confusedWithDiseaseId &&
+          other.confusedWithLabelEn == this.confusedWithLabelEn &&
+          other.confusedWithLabelSi == this.confusedWithLabelSi &&
+          other.confusedWithLabelTa == this.confusedWithLabelTa &&
+          other.distinguishingSymptomsEn == this.distinguishingSymptomsEn &&
+          other.distinguishingSymptomsSi == this.distinguishingSymptomsSi &&
+          other.distinguishingSymptomsTa == this.distinguishingSymptomsTa &&
+          other.sortOrder == this.sortOrder);
+}
+
+class DiseaseConfusionTableCompanion
+    extends UpdateCompanion<DiseaseConfusionTableData> {
+  final Value<String> id;
+  final Value<String> diseaseId;
+  final Value<String?> confusedWithDiseaseId;
+  final Value<String?> confusedWithLabelEn;
+  final Value<String?> confusedWithLabelSi;
+  final Value<String?> confusedWithLabelTa;
+  final Value<String?> distinguishingSymptomsEn;
+  final Value<String?> distinguishingSymptomsSi;
+  final Value<String?> distinguishingSymptomsTa;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const DiseaseConfusionTableCompanion({
+    this.id = const Value.absent(),
+    this.diseaseId = const Value.absent(),
+    this.confusedWithDiseaseId = const Value.absent(),
+    this.confusedWithLabelEn = const Value.absent(),
+    this.confusedWithLabelSi = const Value.absent(),
+    this.confusedWithLabelTa = const Value.absent(),
+    this.distinguishingSymptomsEn = const Value.absent(),
+    this.distinguishingSymptomsSi = const Value.absent(),
+    this.distinguishingSymptomsTa = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DiseaseConfusionTableCompanion.insert({
+    required String id,
+    required String diseaseId,
+    this.confusedWithDiseaseId = const Value.absent(),
+    this.confusedWithLabelEn = const Value.absent(),
+    this.confusedWithLabelSi = const Value.absent(),
+    this.confusedWithLabelTa = const Value.absent(),
+    this.distinguishingSymptomsEn = const Value.absent(),
+    this.distinguishingSymptomsSi = const Value.absent(),
+    this.distinguishingSymptomsTa = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       diseaseId = Value(diseaseId);
+  static Insertable<DiseaseConfusionTableData> custom({
+    Expression<String>? id,
+    Expression<String>? diseaseId,
+    Expression<String>? confusedWithDiseaseId,
+    Expression<String>? confusedWithLabelEn,
+    Expression<String>? confusedWithLabelSi,
+    Expression<String>? confusedWithLabelTa,
+    Expression<String>? distinguishingSymptomsEn,
+    Expression<String>? distinguishingSymptomsSi,
+    Expression<String>? distinguishingSymptomsTa,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (diseaseId != null) 'disease_id': diseaseId,
+      if (confusedWithDiseaseId != null)
+        'confused_with_disease_id': confusedWithDiseaseId,
+      if (confusedWithLabelEn != null)
+        'confused_with_label_en': confusedWithLabelEn,
+      if (confusedWithLabelSi != null)
+        'confused_with_label_si': confusedWithLabelSi,
+      if (confusedWithLabelTa != null)
+        'confused_with_label_ta': confusedWithLabelTa,
+      if (distinguishingSymptomsEn != null)
+        'distinguishing_symptoms_en': distinguishingSymptomsEn,
+      if (distinguishingSymptomsSi != null)
+        'distinguishing_symptoms_si': distinguishingSymptomsSi,
+      if (distinguishingSymptomsTa != null)
+        'distinguishing_symptoms_ta': distinguishingSymptomsTa,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DiseaseConfusionTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? diseaseId,
+    Value<String?>? confusedWithDiseaseId,
+    Value<String?>? confusedWithLabelEn,
+    Value<String?>? confusedWithLabelSi,
+    Value<String?>? confusedWithLabelTa,
+    Value<String?>? distinguishingSymptomsEn,
+    Value<String?>? distinguishingSymptomsSi,
+    Value<String?>? distinguishingSymptomsTa,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return DiseaseConfusionTableCompanion(
+      id: id ?? this.id,
+      diseaseId: diseaseId ?? this.diseaseId,
+      confusedWithDiseaseId:
+          confusedWithDiseaseId ?? this.confusedWithDiseaseId,
+      confusedWithLabelEn: confusedWithLabelEn ?? this.confusedWithLabelEn,
+      confusedWithLabelSi: confusedWithLabelSi ?? this.confusedWithLabelSi,
+      confusedWithLabelTa: confusedWithLabelTa ?? this.confusedWithLabelTa,
+      distinguishingSymptomsEn:
+          distinguishingSymptomsEn ?? this.distinguishingSymptomsEn,
+      distinguishingSymptomsSi:
+          distinguishingSymptomsSi ?? this.distinguishingSymptomsSi,
+      distinguishingSymptomsTa:
+          distinguishingSymptomsTa ?? this.distinguishingSymptomsTa,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (diseaseId.present) {
+      map['disease_id'] = Variable<String>(diseaseId.value);
+    }
+    if (confusedWithDiseaseId.present) {
+      map['confused_with_disease_id'] = Variable<String>(
+        confusedWithDiseaseId.value,
+      );
+    }
+    if (confusedWithLabelEn.present) {
+      map['confused_with_label_en'] = Variable<String>(
+        confusedWithLabelEn.value,
+      );
+    }
+    if (confusedWithLabelSi.present) {
+      map['confused_with_label_si'] = Variable<String>(
+        confusedWithLabelSi.value,
+      );
+    }
+    if (confusedWithLabelTa.present) {
+      map['confused_with_label_ta'] = Variable<String>(
+        confusedWithLabelTa.value,
+      );
+    }
+    if (distinguishingSymptomsEn.present) {
+      map['distinguishing_symptoms_en'] = Variable<String>(
+        distinguishingSymptomsEn.value,
+      );
+    }
+    if (distinguishingSymptomsSi.present) {
+      map['distinguishing_symptoms_si'] = Variable<String>(
+        distinguishingSymptomsSi.value,
+      );
+    }
+    if (distinguishingSymptomsTa.present) {
+      map['distinguishing_symptoms_ta'] = Variable<String>(
+        distinguishingSymptomsTa.value,
+      );
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DiseaseConfusionTableCompanion(')
+          ..write('id: $id, ')
+          ..write('diseaseId: $diseaseId, ')
+          ..write('confusedWithDiseaseId: $confusedWithDiseaseId, ')
+          ..write('confusedWithLabelEn: $confusedWithLabelEn, ')
+          ..write('confusedWithLabelSi: $confusedWithLabelSi, ')
+          ..write('confusedWithLabelTa: $confusedWithLabelTa, ')
+          ..write('distinguishingSymptomsEn: $distinguishingSymptomsEn, ')
+          ..write('distinguishingSymptomsSi: $distinguishingSymptomsSi, ')
+          ..write('distinguishingSymptomsTa: $distinguishingSymptomsTa, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5936,6 +7503,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $SyncOperationTableTable syncOperationTable =
       $SyncOperationTableTable(this);
+  late final $DiseaseExplanationTableTable diseaseExplanationTable =
+      $DiseaseExplanationTableTable(this);
+  late final $DiseaseConfusionTableTable diseaseConfusionTable =
+      $DiseaseConfusionTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5952,6 +7523,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     diagnosisTable,
     escalationTable,
     syncOperationTable,
+    diseaseExplanationTable,
+    diseaseConfusionTable,
   ];
 }
 
@@ -5962,6 +7535,7 @@ typedef $$AppStateTableTableCreateCompanionBuilder =
       Value<String> languageCode,
       Value<String?> firstLaunchAt,
       Value<String?> lastSyncAt,
+      Value<String?> syncLockedAt,
     });
 typedef $$AppStateTableTableUpdateCompanionBuilder =
     AppStateTableCompanion Function({
@@ -5970,6 +7544,7 @@ typedef $$AppStateTableTableUpdateCompanionBuilder =
       Value<String> languageCode,
       Value<String?> firstLaunchAt,
       Value<String?> lastSyncAt,
+      Value<String?> syncLockedAt,
     });
 
 class $$AppStateTableTableFilterComposer
@@ -6003,6 +7578,11 @@ class $$AppStateTableTableFilterComposer
 
   ColumnFilters<String> get lastSyncAt => $composableBuilder(
     column: $table.lastSyncAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncLockedAt => $composableBuilder(
+    column: $table.syncLockedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6040,6 +7620,11 @@ class $$AppStateTableTableOrderingComposer
     column: $table.lastSyncAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get syncLockedAt => $composableBuilder(
+    column: $table.syncLockedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AppStateTableTableAnnotationComposer
@@ -6071,6 +7656,11 @@ class $$AppStateTableTableAnnotationComposer
 
   GeneratedColumn<String> get lastSyncAt => $composableBuilder(
     column: $table.lastSyncAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get syncLockedAt => $composableBuilder(
+    column: $table.syncLockedAt,
     builder: (column) => column,
   );
 }
@@ -6115,12 +7705,14 @@ class $$AppStateTableTableTableManager
                 Value<String> languageCode = const Value.absent(),
                 Value<String?> firstLaunchAt = const Value.absent(),
                 Value<String?> lastSyncAt = const Value.absent(),
+                Value<String?> syncLockedAt = const Value.absent(),
               }) => AppStateTableCompanion(
                 id: id,
                 onboardingCompleted: onboardingCompleted,
                 languageCode: languageCode,
                 firstLaunchAt: firstLaunchAt,
                 lastSyncAt: lastSyncAt,
+                syncLockedAt: syncLockedAt,
               ),
           createCompanionCallback:
               ({
@@ -6129,12 +7721,14 @@ class $$AppStateTableTableTableManager
                 Value<String> languageCode = const Value.absent(),
                 Value<String?> firstLaunchAt = const Value.absent(),
                 Value<String?> lastSyncAt = const Value.absent(),
+                Value<String?> syncLockedAt = const Value.absent(),
               }) => AppStateTableCompanion.insert(
                 id: id,
                 onboardingCompleted: onboardingCompleted,
                 languageCode: languageCode,
                 firstLaunchAt: firstLaunchAt,
                 lastSyncAt: lastSyncAt,
+                syncLockedAt: syncLockedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -7080,6 +8674,83 @@ final class $$DiseaseTableTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $DiseaseExplanationTableTable,
+    List<DiseaseExplanationTableData>
+  >
+  _diseaseExplanationTableRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.diseaseExplanationTable,
+        aliasName: 'disease__id__disease_explanation__disease_id',
+      );
+
+  $$DiseaseExplanationTableTableProcessedTableManager
+  get diseaseExplanationTableRefs {
+    final manager = $$DiseaseExplanationTableTableTableManager(
+      $_db,
+      $_db.diseaseExplanationTable,
+    ).filter((f) => f.diseaseId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _diseaseExplanationTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DiseaseConfusionTableTable,
+    List<DiseaseConfusionTableData>
+  >
+  _confusionsForDiseaseTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.diseaseConfusionTable,
+    aliasName: 'disease__id__disease_confusion__disease_id',
+  );
+
+  $$DiseaseConfusionTableTableProcessedTableManager get confusionsForDisease {
+    final manager = $$DiseaseConfusionTableTableTableManager(
+      $_db,
+      $_db.diseaseConfusionTable,
+    ).filter((f) => f.diseaseId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _confusionsForDiseaseTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DiseaseConfusionTableTable,
+    List<DiseaseConfusionTableData>
+  >
+  _confusionsNamingDiseaseTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.diseaseConfusionTable,
+        aliasName: 'disease__id__disease_confusion__confused_with_disease_id',
+      );
+
+  $$DiseaseConfusionTableTableProcessedTableManager
+  get confusionsNamingDisease {
+    final manager =
+        $$DiseaseConfusionTableTableTableManager(
+          $_db,
+          $_db.diseaseConfusionTable,
+        ).filter(
+          (f) =>
+              f.confusedWithDiseaseId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _confusionsNamingDiseaseTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$DiseaseTableTableFilterComposer
@@ -7187,6 +8858,84 @@ class $$DiseaseTableTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> diseaseExplanationTableRefs(
+    Expression<bool> Function($$DiseaseExplanationTableTableFilterComposer f) f,
+  ) {
+    final $$DiseaseExplanationTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseExplanationTable,
+          getReferencedColumn: (t) => t.diseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseExplanationTableTableFilterComposer(
+                $db: $db,
+                $table: $db.diseaseExplanationTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> confusionsForDisease(
+    Expression<bool> Function($$DiseaseConfusionTableTableFilterComposer f) f,
+  ) {
+    final $$DiseaseConfusionTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseConfusionTable,
+          getReferencedColumn: (t) => t.diseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseConfusionTableTableFilterComposer(
+                $db: $db,
+                $table: $db.diseaseConfusionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> confusionsNamingDisease(
+    Expression<bool> Function($$DiseaseConfusionTableTableFilterComposer f) f,
+  ) {
+    final $$DiseaseConfusionTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseConfusionTable,
+          getReferencedColumn: (t) => t.confusedWithDiseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseConfusionTableTableFilterComposer(
+                $db: $db,
+                $table: $db.diseaseConfusionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -7349,6 +9098,85 @@ class $$DiseaseTableTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> diseaseExplanationTableRefs<T extends Object>(
+    Expression<T> Function($$DiseaseExplanationTableTableAnnotationComposer a)
+    f,
+  ) {
+    final $$DiseaseExplanationTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseExplanationTable,
+          getReferencedColumn: (t) => t.diseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseExplanationTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.diseaseExplanationTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> confusionsForDisease<T extends Object>(
+    Expression<T> Function($$DiseaseConfusionTableTableAnnotationComposer a) f,
+  ) {
+    final $$DiseaseConfusionTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseConfusionTable,
+          getReferencedColumn: (t) => t.diseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseConfusionTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.diseaseConfusionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> confusionsNamingDisease<T extends Object>(
+    Expression<T> Function($$DiseaseConfusionTableTableAnnotationComposer a) f,
+  ) {
+    final $$DiseaseConfusionTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.diseaseConfusionTable,
+          getReferencedColumn: (t) => t.confusedWithDiseaseId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DiseaseConfusionTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.diseaseConfusionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$DiseaseTableTableTableManager
@@ -7368,6 +9196,9 @@ class $$DiseaseTableTableTableManager
             bool cropId,
             bool treatmentGuidelineTableRefs,
             bool diagnosisTableRefs,
+            bool diseaseExplanationTableRefs,
+            bool confusionsForDisease,
+            bool confusionsNamingDisease,
           })
         > {
   $$DiseaseTableTableTableManager(_$AppDatabase db, $DiseaseTableTable table)
@@ -7430,12 +9261,18 @@ class $$DiseaseTableTableTableManager
                 cropId = false,
                 treatmentGuidelineTableRefs = false,
                 diagnosisTableRefs = false,
+                diseaseExplanationTableRefs = false,
+                confusionsForDisease = false,
+                confusionsNamingDisease = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (treatmentGuidelineTableRefs) db.treatmentGuidelineTable,
                     if (diagnosisTableRefs) db.diagnosisTable,
+                    if (diseaseExplanationTableRefs) db.diseaseExplanationTable,
+                    if (confusionsForDisease) db.diseaseConfusionTable,
+                    if (confusionsNamingDisease) db.diseaseConfusionTable,
                   ],
                   addJoins:
                       <
@@ -7515,6 +9352,69 @@ class $$DiseaseTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (diseaseExplanationTableRefs)
+                        await $_getPrefetchedData<
+                          DiseaseTableData,
+                          $DiseaseTableTable,
+                          DiseaseExplanationTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DiseaseTableTableReferences
+                              ._diseaseExplanationTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DiseaseTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).diseaseExplanationTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.diseaseId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (confusionsForDisease)
+                        await $_getPrefetchedData<
+                          DiseaseTableData,
+                          $DiseaseTableTable,
+                          DiseaseConfusionTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DiseaseTableTableReferences
+                              ._confusionsForDiseaseTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DiseaseTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).confusionsForDisease,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.diseaseId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (confusionsNamingDisease)
+                        await $_getPrefetchedData<
+                          DiseaseTableData,
+                          $DiseaseTableTable,
+                          DiseaseConfusionTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DiseaseTableTableReferences
+                              ._confusionsNamingDiseaseTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DiseaseTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).confusionsNamingDisease,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.confusedWithDiseaseId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7539,6 +9439,9 @@ typedef $$DiseaseTableTableProcessedTableManager =
         bool cropId,
         bool treatmentGuidelineTableRefs,
         bool diagnosisTableRefs,
+        bool diseaseExplanationTableRefs,
+        bool confusionsForDisease,
+        bool confusionsNamingDisease,
       })
     >;
 typedef $$TreatmentGuidelineTableTableCreateCompanionBuilder =
@@ -10923,6 +12826,7 @@ typedef $$SyncOperationTableTableCreateCompanionBuilder =
       required String payloadJson,
       Value<String> status,
       Value<int> retryCount,
+      Value<String?> uploadedImageUrl,
       Value<String?> lastError,
       required String createdAt,
       required String updatedAt,
@@ -10937,6 +12841,7 @@ typedef $$SyncOperationTableTableUpdateCompanionBuilder =
       Value<String> payloadJson,
       Value<String> status,
       Value<int> retryCount,
+      Value<String?> uploadedImageUrl,
       Value<String?> lastError,
       Value<String> createdAt,
       Value<String> updatedAt,
@@ -10984,6 +12889,11 @@ class $$SyncOperationTableTableFilterComposer
 
   ColumnFilters<int> get retryCount => $composableBuilder(
     column: $table.retryCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadedImageUrl => $composableBuilder(
+    column: $table.uploadedImageUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11047,6 +12957,11 @@ class $$SyncOperationTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uploadedImageUrl => $composableBuilder(
+    column: $table.uploadedImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastError => $composableBuilder(
     column: $table.lastError,
     builder: (column) => ColumnOrderings(column),
@@ -11098,6 +13013,11 @@ class $$SyncOperationTableTableAnnotationComposer
 
   GeneratedColumn<int> get retryCount => $composableBuilder(
     column: $table.retryCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uploadedImageUrl => $composableBuilder(
+    column: $table.uploadedImageUrl,
     builder: (column) => column,
   );
 
@@ -11158,6 +13078,7 @@ class $$SyncOperationTableTableTableManager
                 Value<String> payloadJson = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
+                Value<String?> uploadedImageUrl = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
@@ -11170,6 +13091,7 @@ class $$SyncOperationTableTableTableManager
                 payloadJson: payloadJson,
                 status: status,
                 retryCount: retryCount,
+                uploadedImageUrl: uploadedImageUrl,
                 lastError: lastError,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -11184,6 +13106,7 @@ class $$SyncOperationTableTableTableManager
                 required String payloadJson,
                 Value<String> status = const Value.absent(),
                 Value<int> retryCount = const Value.absent(),
+                Value<String?> uploadedImageUrl = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 required String createdAt,
                 required String updatedAt,
@@ -11196,6 +13119,7 @@ class $$SyncOperationTableTableTableManager
                 payloadJson: payloadJson,
                 status: status,
                 retryCount: retryCount,
+                uploadedImageUrl: uploadedImageUrl,
                 lastError: lastError,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -11230,6 +13154,995 @@ typedef $$SyncOperationTableTableProcessedTableManager =
       SyncOperationTableData,
       PrefetchHooks Function()
     >;
+typedef $$DiseaseExplanationTableTableCreateCompanionBuilder =
+    DiseaseExplanationTableCompanion Function({
+      required String id,
+      required String diseaseId,
+      Value<String?> plantDescriptionEn,
+      Value<String?> plantDescriptionSi,
+      Value<String?> plantDescriptionTa,
+      Value<String?> resultMeaningEn,
+      Value<String?> resultMeaningSi,
+      Value<String?> resultMeaningTa,
+      Value<String?> explanationVersion,
+      Value<String?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DiseaseExplanationTableTableUpdateCompanionBuilder =
+    DiseaseExplanationTableCompanion Function({
+      Value<String> id,
+      Value<String> diseaseId,
+      Value<String?> plantDescriptionEn,
+      Value<String?> plantDescriptionSi,
+      Value<String?> plantDescriptionTa,
+      Value<String?> resultMeaningEn,
+      Value<String?> resultMeaningSi,
+      Value<String?> resultMeaningTa,
+      Value<String?> explanationVersion,
+      Value<String?> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$DiseaseExplanationTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DiseaseExplanationTableTable,
+          DiseaseExplanationTableData
+        > {
+  $$DiseaseExplanationTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DiseaseTableTable _diseaseIdTable(_$AppDatabase db) => db.diseaseTable
+      .createAlias('disease_explanation__disease_id__disease__id');
+
+  $$DiseaseTableTableProcessedTableManager get diseaseId {
+    final $_column = $_itemColumn<String>('disease_id')!;
+
+    final manager = $$DiseaseTableTableTableManager(
+      $_db,
+      $_db.diseaseTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_diseaseIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DiseaseExplanationTableTableFilterComposer
+    extends Composer<_$AppDatabase, $DiseaseExplanationTableTable> {
+  $$DiseaseExplanationTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plantDescriptionEn => $composableBuilder(
+    column: $table.plantDescriptionEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plantDescriptionSi => $composableBuilder(
+    column: $table.plantDescriptionSi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plantDescriptionTa => $composableBuilder(
+    column: $table.plantDescriptionTa,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultMeaningEn => $composableBuilder(
+    column: $table.resultMeaningEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultMeaningSi => $composableBuilder(
+    column: $table.resultMeaningSi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultMeaningTa => $composableBuilder(
+    column: $table.resultMeaningTa,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get explanationVersion => $composableBuilder(
+    column: $table.explanationVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DiseaseTableTableFilterComposer get diseaseId {
+    final $$DiseaseTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableFilterComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseExplanationTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $DiseaseExplanationTableTable> {
+  $$DiseaseExplanationTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get plantDescriptionEn => $composableBuilder(
+    column: $table.plantDescriptionEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get plantDescriptionSi => $composableBuilder(
+    column: $table.plantDescriptionSi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get plantDescriptionTa => $composableBuilder(
+    column: $table.plantDescriptionTa,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultMeaningEn => $composableBuilder(
+    column: $table.resultMeaningEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultMeaningSi => $composableBuilder(
+    column: $table.resultMeaningSi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultMeaningTa => $composableBuilder(
+    column: $table.resultMeaningTa,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get explanationVersion => $composableBuilder(
+    column: $table.explanationVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DiseaseTableTableOrderingComposer get diseaseId {
+    final $$DiseaseTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseExplanationTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DiseaseExplanationTableTable> {
+  $$DiseaseExplanationTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get plantDescriptionEn => $composableBuilder(
+    column: $table.plantDescriptionEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get plantDescriptionSi => $composableBuilder(
+    column: $table.plantDescriptionSi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get plantDescriptionTa => $composableBuilder(
+    column: $table.plantDescriptionTa,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultMeaningEn => $composableBuilder(
+    column: $table.resultMeaningEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultMeaningSi => $composableBuilder(
+    column: $table.resultMeaningSi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultMeaningTa => $composableBuilder(
+    column: $table.resultMeaningTa,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get explanationVersion => $composableBuilder(
+    column: $table.explanationVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$DiseaseTableTableAnnotationComposer get diseaseId {
+    final $$DiseaseTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseExplanationTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DiseaseExplanationTableTable,
+          DiseaseExplanationTableData,
+          $$DiseaseExplanationTableTableFilterComposer,
+          $$DiseaseExplanationTableTableOrderingComposer,
+          $$DiseaseExplanationTableTableAnnotationComposer,
+          $$DiseaseExplanationTableTableCreateCompanionBuilder,
+          $$DiseaseExplanationTableTableUpdateCompanionBuilder,
+          (
+            DiseaseExplanationTableData,
+            $$DiseaseExplanationTableTableReferences,
+          ),
+          DiseaseExplanationTableData,
+          PrefetchHooks Function({bool diseaseId})
+        > {
+  $$DiseaseExplanationTableTableTableManager(
+    _$AppDatabase db,
+    $DiseaseExplanationTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DiseaseExplanationTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DiseaseExplanationTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DiseaseExplanationTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> diseaseId = const Value.absent(),
+                Value<String?> plantDescriptionEn = const Value.absent(),
+                Value<String?> plantDescriptionSi = const Value.absent(),
+                Value<String?> plantDescriptionTa = const Value.absent(),
+                Value<String?> resultMeaningEn = const Value.absent(),
+                Value<String?> resultMeaningSi = const Value.absent(),
+                Value<String?> resultMeaningTa = const Value.absent(),
+                Value<String?> explanationVersion = const Value.absent(),
+                Value<String?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DiseaseExplanationTableCompanion(
+                id: id,
+                diseaseId: diseaseId,
+                plantDescriptionEn: plantDescriptionEn,
+                plantDescriptionSi: plantDescriptionSi,
+                plantDescriptionTa: plantDescriptionTa,
+                resultMeaningEn: resultMeaningEn,
+                resultMeaningSi: resultMeaningSi,
+                resultMeaningTa: resultMeaningTa,
+                explanationVersion: explanationVersion,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String diseaseId,
+                Value<String?> plantDescriptionEn = const Value.absent(),
+                Value<String?> plantDescriptionSi = const Value.absent(),
+                Value<String?> plantDescriptionTa = const Value.absent(),
+                Value<String?> resultMeaningEn = const Value.absent(),
+                Value<String?> resultMeaningSi = const Value.absent(),
+                Value<String?> resultMeaningTa = const Value.absent(),
+                Value<String?> explanationVersion = const Value.absent(),
+                Value<String?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DiseaseExplanationTableCompanion.insert(
+                id: id,
+                diseaseId: diseaseId,
+                plantDescriptionEn: plantDescriptionEn,
+                plantDescriptionSi: plantDescriptionSi,
+                plantDescriptionTa: plantDescriptionTa,
+                resultMeaningEn: resultMeaningEn,
+                resultMeaningSi: resultMeaningSi,
+                resultMeaningTa: resultMeaningTa,
+                explanationVersion: explanationVersion,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DiseaseExplanationTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({diseaseId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (diseaseId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.diseaseId,
+                                referencedTable:
+                                    $$DiseaseExplanationTableTableReferences
+                                        ._diseaseIdTable(db),
+                                referencedColumn:
+                                    $$DiseaseExplanationTableTableReferences
+                                        ._diseaseIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$DiseaseExplanationTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DiseaseExplanationTableTable,
+      DiseaseExplanationTableData,
+      $$DiseaseExplanationTableTableFilterComposer,
+      $$DiseaseExplanationTableTableOrderingComposer,
+      $$DiseaseExplanationTableTableAnnotationComposer,
+      $$DiseaseExplanationTableTableCreateCompanionBuilder,
+      $$DiseaseExplanationTableTableUpdateCompanionBuilder,
+      (DiseaseExplanationTableData, $$DiseaseExplanationTableTableReferences),
+      DiseaseExplanationTableData,
+      PrefetchHooks Function({bool diseaseId})
+    >;
+typedef $$DiseaseConfusionTableTableCreateCompanionBuilder =
+    DiseaseConfusionTableCompanion Function({
+      required String id,
+      required String diseaseId,
+      Value<String?> confusedWithDiseaseId,
+      Value<String?> confusedWithLabelEn,
+      Value<String?> confusedWithLabelSi,
+      Value<String?> confusedWithLabelTa,
+      Value<String?> distinguishingSymptomsEn,
+      Value<String?> distinguishingSymptomsSi,
+      Value<String?> distinguishingSymptomsTa,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$DiseaseConfusionTableTableUpdateCompanionBuilder =
+    DiseaseConfusionTableCompanion Function({
+      Value<String> id,
+      Value<String> diseaseId,
+      Value<String?> confusedWithDiseaseId,
+      Value<String?> confusedWithLabelEn,
+      Value<String?> confusedWithLabelSi,
+      Value<String?> confusedWithLabelTa,
+      Value<String?> distinguishingSymptomsEn,
+      Value<String?> distinguishingSymptomsSi,
+      Value<String?> distinguishingSymptomsTa,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+final class $$DiseaseConfusionTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DiseaseConfusionTableTable,
+          DiseaseConfusionTableData
+        > {
+  $$DiseaseConfusionTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DiseaseTableTable _diseaseIdTable(_$AppDatabase db) =>
+      db.diseaseTable.createAlias('disease_confusion__disease_id__disease__id');
+
+  $$DiseaseTableTableProcessedTableManager get diseaseId {
+    final $_column = $_itemColumn<String>('disease_id')!;
+
+    final manager = $$DiseaseTableTableTableManager(
+      $_db,
+      $_db.diseaseTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_diseaseIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DiseaseTableTable _confusedWithDiseaseIdTable(_$AppDatabase db) => db
+      .diseaseTable
+      .createAlias('disease_confusion__confused_with_disease_id__disease__id');
+
+  $$DiseaseTableTableProcessedTableManager? get confusedWithDiseaseId {
+    final $_column = $_itemColumn<String>('confused_with_disease_id');
+    if ($_column == null) return null;
+    final manager = $$DiseaseTableTableTableManager(
+      $_db,
+      $_db.diseaseTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(
+      _confusedWithDiseaseIdTable($_db),
+    );
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DiseaseConfusionTableTableFilterComposer
+    extends Composer<_$AppDatabase, $DiseaseConfusionTableTable> {
+  $$DiseaseConfusionTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get confusedWithLabelEn => $composableBuilder(
+    column: $table.confusedWithLabelEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get confusedWithLabelSi => $composableBuilder(
+    column: $table.confusedWithLabelSi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get confusedWithLabelTa => $composableBuilder(
+    column: $table.confusedWithLabelTa,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get distinguishingSymptomsEn => $composableBuilder(
+    column: $table.distinguishingSymptomsEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get distinguishingSymptomsSi => $composableBuilder(
+    column: $table.distinguishingSymptomsSi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get distinguishingSymptomsTa => $composableBuilder(
+    column: $table.distinguishingSymptomsTa,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DiseaseTableTableFilterComposer get diseaseId {
+    final $$DiseaseTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableFilterComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiseaseTableTableFilterComposer get confusedWithDiseaseId {
+    final $$DiseaseTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.confusedWithDiseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableFilterComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseConfusionTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $DiseaseConfusionTableTable> {
+  $$DiseaseConfusionTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get confusedWithLabelEn => $composableBuilder(
+    column: $table.confusedWithLabelEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get confusedWithLabelSi => $composableBuilder(
+    column: $table.confusedWithLabelSi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get confusedWithLabelTa => $composableBuilder(
+    column: $table.confusedWithLabelTa,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get distinguishingSymptomsEn => $composableBuilder(
+    column: $table.distinguishingSymptomsEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get distinguishingSymptomsSi => $composableBuilder(
+    column: $table.distinguishingSymptomsSi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get distinguishingSymptomsTa => $composableBuilder(
+    column: $table.distinguishingSymptomsTa,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DiseaseTableTableOrderingComposer get diseaseId {
+    final $$DiseaseTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiseaseTableTableOrderingComposer get confusedWithDiseaseId {
+    final $$DiseaseTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.confusedWithDiseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseConfusionTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DiseaseConfusionTableTable> {
+  $$DiseaseConfusionTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get confusedWithLabelEn => $composableBuilder(
+    column: $table.confusedWithLabelEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get confusedWithLabelSi => $composableBuilder(
+    column: $table.confusedWithLabelSi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get confusedWithLabelTa => $composableBuilder(
+    column: $table.confusedWithLabelTa,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get distinguishingSymptomsEn => $composableBuilder(
+    column: $table.distinguishingSymptomsEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get distinguishingSymptomsSi => $composableBuilder(
+    column: $table.distinguishingSymptomsSi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get distinguishingSymptomsTa => $composableBuilder(
+    column: $table.distinguishingSymptomsTa,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$DiseaseTableTableAnnotationComposer get diseaseId {
+    final $$DiseaseTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DiseaseTableTableAnnotationComposer get confusedWithDiseaseId {
+    final $$DiseaseTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.confusedWithDiseaseId,
+      referencedTable: $db.diseaseTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiseaseTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.diseaseTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DiseaseConfusionTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DiseaseConfusionTableTable,
+          DiseaseConfusionTableData,
+          $$DiseaseConfusionTableTableFilterComposer,
+          $$DiseaseConfusionTableTableOrderingComposer,
+          $$DiseaseConfusionTableTableAnnotationComposer,
+          $$DiseaseConfusionTableTableCreateCompanionBuilder,
+          $$DiseaseConfusionTableTableUpdateCompanionBuilder,
+          (DiseaseConfusionTableData, $$DiseaseConfusionTableTableReferences),
+          DiseaseConfusionTableData,
+          PrefetchHooks Function({bool diseaseId, bool confusedWithDiseaseId})
+        > {
+  $$DiseaseConfusionTableTableTableManager(
+    _$AppDatabase db,
+    $DiseaseConfusionTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DiseaseConfusionTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DiseaseConfusionTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DiseaseConfusionTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> diseaseId = const Value.absent(),
+                Value<String?> confusedWithDiseaseId = const Value.absent(),
+                Value<String?> confusedWithLabelEn = const Value.absent(),
+                Value<String?> confusedWithLabelSi = const Value.absent(),
+                Value<String?> confusedWithLabelTa = const Value.absent(),
+                Value<String?> distinguishingSymptomsEn = const Value.absent(),
+                Value<String?> distinguishingSymptomsSi = const Value.absent(),
+                Value<String?> distinguishingSymptomsTa = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DiseaseConfusionTableCompanion(
+                id: id,
+                diseaseId: diseaseId,
+                confusedWithDiseaseId: confusedWithDiseaseId,
+                confusedWithLabelEn: confusedWithLabelEn,
+                confusedWithLabelSi: confusedWithLabelSi,
+                confusedWithLabelTa: confusedWithLabelTa,
+                distinguishingSymptomsEn: distinguishingSymptomsEn,
+                distinguishingSymptomsSi: distinguishingSymptomsSi,
+                distinguishingSymptomsTa: distinguishingSymptomsTa,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String diseaseId,
+                Value<String?> confusedWithDiseaseId = const Value.absent(),
+                Value<String?> confusedWithLabelEn = const Value.absent(),
+                Value<String?> confusedWithLabelSi = const Value.absent(),
+                Value<String?> confusedWithLabelTa = const Value.absent(),
+                Value<String?> distinguishingSymptomsEn = const Value.absent(),
+                Value<String?> distinguishingSymptomsSi = const Value.absent(),
+                Value<String?> distinguishingSymptomsTa = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DiseaseConfusionTableCompanion.insert(
+                id: id,
+                diseaseId: diseaseId,
+                confusedWithDiseaseId: confusedWithDiseaseId,
+                confusedWithLabelEn: confusedWithLabelEn,
+                confusedWithLabelSi: confusedWithLabelSi,
+                confusedWithLabelTa: confusedWithLabelTa,
+                distinguishingSymptomsEn: distinguishingSymptomsEn,
+                distinguishingSymptomsSi: distinguishingSymptomsSi,
+                distinguishingSymptomsTa: distinguishingSymptomsTa,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DiseaseConfusionTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({diseaseId = false, confusedWithDiseaseId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (diseaseId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.diseaseId,
+                                    referencedTable:
+                                        $$DiseaseConfusionTableTableReferences
+                                            ._diseaseIdTable(db),
+                                    referencedColumn:
+                                        $$DiseaseConfusionTableTableReferences
+                                            ._diseaseIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (confusedWithDiseaseId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.confusedWithDiseaseId,
+                                    referencedTable:
+                                        $$DiseaseConfusionTableTableReferences
+                                            ._confusedWithDiseaseIdTable(db),
+                                    referencedColumn:
+                                        $$DiseaseConfusionTableTableReferences
+                                            ._confusedWithDiseaseIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DiseaseConfusionTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DiseaseConfusionTableTable,
+      DiseaseConfusionTableData,
+      $$DiseaseConfusionTableTableFilterComposer,
+      $$DiseaseConfusionTableTableOrderingComposer,
+      $$DiseaseConfusionTableTableAnnotationComposer,
+      $$DiseaseConfusionTableTableCreateCompanionBuilder,
+      $$DiseaseConfusionTableTableUpdateCompanionBuilder,
+      (DiseaseConfusionTableData, $$DiseaseConfusionTableTableReferences),
+      DiseaseConfusionTableData,
+      PrefetchHooks Function({bool diseaseId, bool confusedWithDiseaseId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -11259,4 +14172,11 @@ class $AppDatabaseManager {
       $$EscalationTableTableTableManager(_db, _db.escalationTable);
   $$SyncOperationTableTableTableManager get syncOperationTable =>
       $$SyncOperationTableTableTableManager(_db, _db.syncOperationTable);
+  $$DiseaseExplanationTableTableTableManager get diseaseExplanationTable =>
+      $$DiseaseExplanationTableTableTableManager(
+        _db,
+        _db.diseaseExplanationTable,
+      );
+  $$DiseaseConfusionTableTableTableManager get diseaseConfusionTable =>
+      $$DiseaseConfusionTableTableTableManager(_db, _db.diseaseConfusionTable);
 }

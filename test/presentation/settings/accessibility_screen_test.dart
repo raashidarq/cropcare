@@ -46,6 +46,7 @@ class _FakeAccessibilityRepository implements AccessibilityRepository {
 }
 
 class _FakeTtsService implements TtsService {
+  double? lastSpeechRate;
   String? spokenText;
   String? spokenLanguage;
 
@@ -53,7 +54,12 @@ class _FakeTtsService implements TtsService {
   ValueListenable<bool> get isPlaying => ValueNotifier<bool>(false);
 
   @override
-  Future<void> speak({required String text, required String languageCode}) async {
+  Future<void> speak({
+    required String text,
+    required String languageCode,
+    double speechRate = 0.5,
+  }) async {
+    lastSpeechRate = speechRate;
     spokenText = text;
     spokenLanguage = languageCode;
   }

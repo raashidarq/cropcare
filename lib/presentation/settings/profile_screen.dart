@@ -3,7 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/theme/app_colors.dart';
+
 import '../../application/auth/auth_cubit.dart';
+import '../../application/sync/sync_cubit.dart';
 import '../../application/auth/auth_state.dart';
 import '../../domain/entities/local_user.dart';
 import '../auth/auth_screen.dart';
@@ -34,8 +37,8 @@ class ProfileScreen extends StatelessWidget {
           ElevatedButton(
             key: const Key('delete_account_confirm_button'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.onError,
             ),
             onPressed: () {
               Navigator.of(dialogCtx).pop();
@@ -132,7 +135,7 @@ class ProfileScreen extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: Colors.green.shade700,
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -190,13 +193,13 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: isGuest
-                                ? Colors.orange.withValues(alpha: 0.15)
-                                : Colors.green.withValues(alpha: 0.15),
+                                ? AppColors.warningContainer
+                                : AppColors.successContainer,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: isGuest
-                                  ? Colors.orange.shade400
-                                  : Colors.green.shade400,
+                                  ? AppColors.warning
+                                  : AppColors.success,
                               width: 1,
                             ),
                           ),
@@ -208,8 +211,8 @@ class ProfileScreen extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: isGuest
-                                  ? Colors.orange.shade800
-                                  : Colors.green.shade800,
+                                  ? AppColors.onWarningContainer
+                                  : AppColors.onSuccessContainer,
                             ),
                           ),
                         ),
@@ -290,8 +293,8 @@ class ProfileScreen extends StatelessWidget {
                     ElevatedButton.icon(
                       key: const Key('profile_link_account_button'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -331,7 +334,15 @@ class ProfileScreen extends StatelessWidget {
                         context.tr('sign_out'),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      onPressed: () => context.read<AuthCubit>().signOut(),
+                      onPressed: () {
+                        // Auto-sync is meaningless without a session, and a
+                        // stored "on" must not carry into the next guest
+                        // session — clear it alongside the sign-out.
+                        try {
+                          context.read<SyncCubit>().disableAutoSyncOnSignOut();
+                        } catch (_) {}
+                        context.read<AuthCubit>().signOut();
+                      },
                     ),
 
                   const SizedBox(height: 32),
@@ -404,7 +415,7 @@ class ProfileScreen extends StatelessWidget {
               ),
               if (isLoading)
                 Container(
-                  color: Colors.black26,
+                  color: Colors.black.withValues(alpha: 0.38),
                   child: const Center(
                     child: CircularProgressIndicator(),
                   ),

@@ -7,9 +7,11 @@ import 'application/onboarding/app_state_state.dart';
 import 'application/settings/accessibility_cubit.dart';
 import 'application/settings/accessibility_state.dart';
 import 'application/sync/sync_cubit.dart';
+import 'core/theme/app_theme.dart';
 import 'data/repositories/accessibility_repository_impl.dart';
 import 'domain/entities/local_user.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
+import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import 'domain/usecases/diagnosis/validate_image_use_case.dart';
@@ -33,6 +35,7 @@ class CropCareApp extends StatelessWidget {
   final ValidateImageUseCase validateImageUseCase;
   final RunDiagnosisUseCase runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
@@ -49,6 +52,7 @@ class CropCareApp extends StatelessWidget {
     required this.validateImageUseCase,
     required this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
+    this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
     this.exportScanHistoryUseCase,
@@ -78,19 +82,11 @@ class CropCareApp extends StatelessWidget {
               final isHighContrast = accState.isHighContrast;
               final textScale = accState.textScaleFactor;
 
-              final baseTheme = ThemeData(
-                colorScheme: isHighContrast
-                    ? ColorScheme.fromSeed(
-                        seedColor: Colors.green.shade900,
-                        contrastLevel: 1.0,
-                        brightness: Brightness.light,
-                      )
-                    : ColorScheme.fromSeed(
-                        seedColor: Colors.green,
-                        brightness: Brightness.light,
-                      ),
-                useMaterial3: true,
-              );
+              // Theme is rebuilt per language so the correct script face is
+              // primary (see AppTextStyles), and per contrast setting.
+              final baseTheme = isHighContrast
+                  ? AppTheme.highContrast(state.languageCode)
+                  : AppTheme.light(state.languageCode);
 
               return LocalizationProvider(
                 languageCode: state.languageCode,
@@ -120,6 +116,7 @@ class CropCareApp extends StatelessWidget {
                               validateImageUseCase: validateImageUseCase,
                               runDiagnosisUseCase: runDiagnosisUseCase,
                               resolveTreatmentUseCase: resolveTreatmentUseCase,
+                              getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
                               createEscalationUseCase: createEscalationUseCase,
                               getScanHistoryUseCase: getScanHistoryUseCase,
                               exportScanHistoryUseCase: exportScanHistoryUseCase,

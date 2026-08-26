@@ -148,13 +148,19 @@ class ScanCubit extends Cubit<ScanState> {
         }
       }
 
-      final scan = await captureScanUseCase(
-        cropId: cropId,
-        imageLocalPath: finalPath,
-        userId: userId,
-      );
-
-      // ── ML inference chain ───────────────────────────────────────────────
+      // ── Validate BEFORE creating anything ────────────────────────────────
+      //
+      // Validation runs first, on the file alone, so a rejected photo leaves
+      // NOTHING behind: no scan row, no queued upload, no history entry, no
+      // file on disk. Previously the scan was created first and then cleaned
+      // up on rejection, which still put a row in the database — and since
+      // the crop is only derived from a successful inference, every rejected
+      // attempt showed up in history as an "Unknown" crop with no result.
+      //
+      // The `image_validation` audit row is not written for this path. That
+      // table has no reader anywhere in the app (it is only ever written and
+      // bulk-deleted), so keeping a scan alive purely to hang an unread audit
+      // row off it is not a trade worth making.
       final validate = validateImageUseCase;
       final diagnose = runDiagnosisUseCase;
 
@@ -167,9 +173,22 @@ class ScanCubit extends Cubit<ScanState> {
           final reason = validation.rejectionReason != null
               ? ValidateImageUseCase.rejectionReasonToString(validation.rejectionReason!)
               : 'UNKNOWN';
+
+          // Discard the copy we just made; the user is about to retake.
+          try {
+            final rejected = File(finalPath);
+            if (await rejected.exists()) await rejected.delete();
+          } catch (_) {}
+
           emit(ScanImageInvalid(reason: reason));
           return;
         }
+
+        final scan = await captureScanUseCase(
+          cropId: cropId,
+          imageLocalPath: finalPath,
+          userId: userId,
+        );
 
         final diagnosis = await diagnose(
           scanId: scan.id,
@@ -184,7 +203,13 @@ class ScanCubit extends Cubit<ScanState> {
 
         emit(ScanDiagnosed(scan: updatedScan, diagnosis: diagnosis));
       } else {
-        // Fallback: no ML wired — emit ScanCreated as before.
+        // No ML wired (tests, or a build without the model): nothing to
+        // validate against, so create the scan and stop there.
+        final scan = await captureScanUseCase(
+          cropId: cropId,
+          imageLocalPath: finalPath,
+          userId: userId,
+        );
         emit(ScanCreated(scan));
       }
     } catch (e) {

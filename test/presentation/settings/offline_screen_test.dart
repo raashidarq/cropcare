@@ -23,7 +23,23 @@ class _FakeSyncRepository implements SyncRepository {
   }) async {}
 
   @override
-  Future<List<SyncOperation>> getPendingOperations({int maxRetries = 3}) async => [];
+  Future<List<SyncOperation>> getPendingOperations({
+    int maxRetries = 3,
+    int? limit,
+  }) async =>
+      [];
+
+  @override
+  Future<int> recoverStalledOperations() async => 0;
+
+  @override
+  Future<List<SyncOperation>> getFailedOperations() async => [];
+
+  @override
+  Future<void> retryOperation(String operationId) async {}
+
+  @override
+  Future<void> clearAuthHold() async {}
 
   @override
   Future<int> getPendingCount() async => pendingCount;
@@ -123,17 +139,23 @@ void main() {
     expect(find.byKey(const Key('offline_delete_scans_row')), findsOneWidget);
   });
 
-  testWidgets('Toggling auto sync switch updates SyncCubit state', (tester) async {
-    await tester.pumpWidget(buildTestScreen());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'auto sync starts off and its switch is disabled without an account',
+    (tester) async {
+      await tester.pumpWidget(buildTestScreen());
+      await tester.pumpAndSettle();
 
-    expect(syncCubit.autoSyncEnabled, isTrue);
+      // Off by default — it uploads photos over a metered connection.
+      expect(syncCubit.autoSyncEnabled, isFalse);
 
-    await tester.tap(find.byKey(const Key('offline_auto_sync_switch')));
-    await tester.pumpAndSettle();
-
-    expect(syncCubit.autoSyncEnabled, isFalse);
-  });
+      // No user is supplied to the screen, so this is the guest case: the
+      // switch is inert rather than accepting a setting that cannot apply.
+      final switchWidget = tester.widget<SwitchListTile>(
+        find.byKey(const Key('offline_auto_sync_switch')),
+      );
+      expect(switchWidget.onChanged, isNull);
+    },
+  );
 
   testWidgets('Tapping delete when pendingCount == 0 opens confirm_delete_dialog', (tester) async {
     fakeSyncRepo.pendingCount = 0;

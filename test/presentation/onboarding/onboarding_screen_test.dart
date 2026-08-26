@@ -8,7 +8,6 @@ import 'package:cropcare/domain/repositories/app_state_repository.dart';
 import 'package:cropcare/domain/usecases/onboarding/complete_onboarding_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/get_app_state_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/set_language_use_case.dart';
-import 'package:cropcare/presentation/onboarding/language_selection_screen.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
 import 'package:cropcare/presentation/onboarding/onboarding_screen.dart';
 
@@ -34,7 +33,7 @@ class FakeAppStateRepository implements AppStateRepository {
 
 void main() {
   testWidgets(
-    'tapping Skip from onboarding screen navigates to Language Selection',
+    'Skip jumps to the closing account step rather than leaving the flow',
     (WidgetTester tester) async {
       final repository = FakeAppStateRepository();
       final cubit = AppStateCubit(
@@ -57,12 +56,22 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('skip_button')), findsOneWidget);
+      // Language is now chosen BEFORE onboarding, so skipping no longer
+      // routes to language selection. It jumps to the final step, where the
+      // account-or-guest choice still has to be made.
+      expect(find.byKey(const Key('onboarding_skip_button')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('skip_button')));
+      await tester.tap(find.byKey(const Key('onboarding_skip_button')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(LanguageSelectionScreen), findsOneWidget);
+      expect(
+        find.byKey(const Key('onboarding_create_account_button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('onboarding_continue_guest_button')),
+        findsOneWidget,
+      );
     },
   );
 }

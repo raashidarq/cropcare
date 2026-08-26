@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -167,49 +168,171 @@ class ScanRepositoryImpl implements ScanRepository {
   }
 
   @override
+  Future<int> purgeFailedScans() async {
+    final failed = await (db.select(db.scanTable)
+          ..where((t) => t.status.isIn(_failedScanStatuses)))
+        .get();
+
+    // Also catch scans whose inference failed: those carry an
+    // ANALYSIS_FAILED diagnosis but may still sit at their original status.
+    final failedDiagnoses = await (db.select(db.diagnosisTable)
+          ..where((t) => t.resultState.equals('ANALYSIS_FAILED')))
+        .get();
+
+    final ids = <String>{
+      ...failed.map((r) => r.id),
+      ...failedDiagnoses.map((d) => d.scanId),
+    };
+    if (ids.isEmpty) return 0;
+
+    final paths = <String>[
+      ...failed.map((r) => r.imageLocalPath),
+      for (final row in await (db.select(db.scanTable)
+            ..where((t) => t.id.isIn(ids.toList())))
+          .get())
+        row.imageLocalPath,
+    ];
+
+    await db.transaction(() async {
+      final idList = ids.toList();
+      await (db.delete(db.escalationTable)
+            ..where((t) => t.scanId.isIn(idList)))
+          .go();
+      await (db.delete(db.diagnosisTable)..where((t) => t.scanId.isIn(idList)))
+          .go();
+      await (db.delete(db.imageValidationTable)
+            ..where((t) => t.scanId.isIn(idList)))
+          .go();
+      await (db.delete(db.syncOperationTable)
+            ..where((t) => t.entityId.isIn(idList)))
+          .go();
+      await (db.delete(db.scanTable)..where((t) => t.id.isIn(idList))).go();
+    });
+
+    for (final path in paths.toSet()) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+    }
+
+    return ids.length;
+  }
+
+  @override
+  Future<void> rejectInvalidScan({
+    required String scanId,
+    required String rejectionReason,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+    final scanRow = await getScanById(scanId);
+
+    await db.transaction(() async {
+      // Record WHY the image was rejected — this is exactly what the
+      // image_validation table exists for, and previously no row was ever
+      // written on the rejection path (the caller returned early before
+      // RunDiagnosisUseCase, the only writer, was reached).
+      await db.into(db.imageValidationTable).insertOnConflictUpdate(
+            ImageValidationTableCompanion.insert(
+              id: _generateUuid(),
+              scanId: scanId,
+              isUsable: 0,
+              rejectionReason: Value(rejectionReason),
+              checkedAt: nowIso,
+            ),
+          );
+
+      await (db.update(db.scanTable)..where((t) => t.id.equals(scanId))).write(
+        ScanTableCompanion(
+          status: Value(ScanStatus.invalidImage.value),
+          updatedAt: Value(nowIso),
+        ),
+      );
+
+      // Cancel the queued upload. createScan() already enqueued a SCAN
+      // outbox op; without this a rejected photo (a desk, a blurry frame)
+      // would still be uploaded to cloud storage — wasted bandwidth on a
+      // metered rural connection and wasted remote storage.
+      await (db.delete(db.syncOperationTable)
+            ..where((t) =>
+                t.entityId.equals(scanId) &
+                t.entityType.equals('SCAN') &
+                t.status.isIn(const ['PENDING', 'FAILED'])))
+          .go();
+    });
+
+    // Best-effort local file cleanup — the DB is already consistent if this
+    // fails, and an orphaned file is better than a failed rejection.
+    final path = scanRow?.imageLocalPath;
+    if (path != null) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Scan statuses that represent an attempt that produced no usable result.
+  /// History is a record of what the farmer has checked, not a log of every
+  /// button press, so these are excluded.
+  static const List<String> _failedScanStatuses = [
+    'INVALID_IMAGE',
+    'ANALYSIS_FAILED',
+    'USER_CANCELLED',
+  ];
+
+  @override
   Future<List<ScanHistoryItem>> getScanHistory() async {
     final scanRows = await (db.select(db.scanTable)
+          ..where((t) => t.status.isNotIn(_failedScanStatuses))
           ..orderBy([(t) => OrderingTerm.desc(t.capturedAt)]))
         .get();
 
-    final historyItems = <ScanHistoryItem>[];
+    if (scanRows.isEmpty) return const [];
 
-    for (final scanRow in scanRows) {
-      final scanEntity = _mapToEntity(scanRow);
+    // Three queries total, regardless of history size.
+    //
+    // This previously issued 1 query for the scans and then TWO MORE PER ROW
+    // (diagnosis + crop) — 2N+1 round trips. On a device with a few hundred
+    // scans that is several hundred sequential SQLite calls just to draw the
+    // home screen, on hardware where that is slow enough to see.
+    final scanIds = scanRows.map((r) => r.id).toList();
+    final cropIds = scanRows.map((r) => r.cropId).toSet().toList();
 
-      final diagRow = await (db.select(db.diagnosisTable)
-            ..where((t) => t.scanId.equals(scanRow.id)))
-          .getSingleOrNull();
+    final diagRows = await (db.select(db.diagnosisTable)
+          ..where((t) => t.scanId.isIn(scanIds)))
+        .get();
+    final cropRows = await (db.select(db.cropTable)
+          ..where((t) => t.id.isIn(cropIds)))
+        .get();
 
-      final cropRow = await (db.select(db.cropTable)
-            ..where((t) => t.id.equals(scanRow.cropId)))
-          .getSingleOrNull();
+    final diagByScanId = <String, DiagnosisTableData>{
+      for (final d in diagRows) d.scanId: d,
+    };
+    final cropById = <String, Crop>{
+      for (final c in cropRows)
+        c.id: Crop(
+          id: c.id,
+          nameEn: c.nameEn,
+          nameSi: c.nameSi,
+          nameTa: c.nameTa,
+          isSupported: c.isSupported == 1,
+          iconAsset: c.iconAsset,
+        ),
+    };
 
-      Diagnosis? diagnosisEntity;
-      if (diagRow != null) {
-        diagnosisEntity = _mapDiagnosisToEntity(diagRow);
-      }
-
-      Crop? cropEntity;
-      if (cropRow != null) {
-        cropEntity = Crop(
-          id: cropRow.id,
-          nameEn: cropRow.nameEn,
-          nameSi: cropRow.nameSi,
-          nameTa: cropRow.nameTa,
-          isSupported: cropRow.isSupported == 1,
-          iconAsset: cropRow.iconAsset,
-        );
-      }
-
-      historyItems.add(ScanHistoryItem(
-        scan: scanEntity,
-        diagnosis: diagnosisEntity,
-        crop: cropEntity,
-      ));
-    }
-
-    return historyItems;
+    return [
+      for (final scanRow in scanRows)
+        ScanHistoryItem(
+          scan: _mapToEntity(scanRow),
+          diagnosis: diagByScanId[scanRow.id] == null
+              ? null
+              : _mapDiagnosisToEntity(diagByScanId[scanRow.id]!),
+          crop: cropById[scanRow.cropId],
+        ),
+    ];
   }
 
   Scan _mapToEntity(ScanTableData row) {
@@ -273,6 +396,13 @@ class ScanRepositoryImpl implements ScanRepository {
 
   @override
   Future<void> deleteAllLocalScans() async {
+    // Collect the image paths BEFORE the rows are gone, otherwise the files
+    // become unreachable orphans. This is the app's "free up storage"
+    // feature, and it previously deleted only database rows — every captured
+    // photo stayed on disk forever, so the one control a farmer had for
+    // reclaiming space on a nearly-full budget phone reclaimed almost none.
+    final paths = await _allScanImagePaths();
+
     await db.transaction(() async {
       await db.delete(db.diagnosisTable).go();
       await db.delete(db.imageValidationTable).go();
@@ -280,6 +410,34 @@ class ScanRepositoryImpl implements ScanRepository {
       await db.delete(db.scanTable).go();
       await db.delete(db.syncOperationTable).go();
     });
+
+    await _deleteImageFiles(paths);
+  }
+
+  Future<List<String>> _allScanImagePaths() async {
+    final query = db.selectOnly(db.scanTable)
+      ..addColumns([db.scanTable.imageLocalPath]);
+    final rows = await query.get();
+    return rows
+        .map((r) => r.read(db.scanTable.imageLocalPath))
+        .whereType<String>()
+        .toList();
+  }
+
+  /// Best-effort file deletion. Each file is handled independently so one
+  /// already-missing or locked file cannot abort the rest of the cleanup.
+  Future<void> _deleteImageFiles(Iterable<String> paths) async {
+    for (final path in paths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // Ignore: the DB rows are already gone, and an undeletable file is
+        // not worth failing the user's cleanup action over.
+      }
+    }
   }
 }
 

@@ -1,24 +1,47 @@
 // lib/presentation/auth/auth_screen.dart
 //
-// Screen allowing guest users to sign in or create an account to upgrade their guest profile.
+// Sign in / create account, and the guest→registered upgrade.
+//
+// Structure notes (why this looks the way it does):
+//
+//  * ONE intent visible at a time. The previous version stacked a TabBar
+//    (Sign In / Create Account) on top of a segmented toggle (Email / Phone),
+//    so before typing anything the user had to place themselves in a 2×2
+//    matrix. Intent is now a single footer link — the pattern used by most
+//    modern sign-in screens — leaving one primary action on screen.
+//  * NO fixed-height form area. The old `SizedBox(height: 440)` around the
+//    TabBarView clipped its contents at larger accessibility text scales and
+//    in Sinhala/Tamil, whose strings run longer than English. The form now
+//    sizes to its content inside a scroll view.
+//  * Autofill is wired. Every field declares `autofillHints` inside an
+//    `AutofillGroup`, so password managers and platform autofill work and a
+//    saved credential is offered rather than retyped — which matters most on
+//    exactly the low-end devices this app targets.
+//  * Focus chains. Each field declares `textInputAction` and moves focus on
+//    submit, so the keyboard never has to be dismissed mid-form.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/auth/auth_cubit.dart';
 import '../../application/auth/auth_state.dart';
 import '../../application/sync/sync_cubit.dart';
 import '../../config/feature_flags.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../domain/entities/local_user.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../settings/terms_privacy_screen.dart';
+import '../shared/widgets/app_components.dart';
 import 'forgot_password_screen.dart';
 import 'otp_entry_screen.dart';
+import 'widgets/auth_form_fields.dart';
 
-enum AuthMethod {
-  email,
-  phone,
-}
+enum AuthMethod { email, phone }
+
+enum AuthIntent { signIn, createAccount }
 
 class AuthScreen extends StatefulWidget {
   final LocalUser currentUser;
@@ -34,332 +57,158 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _AuthScreenState extends State<AuthScreen> {
+  AuthMethod _method = AuthMethod.email;
+  AuthIntent _intent = AuthIntent.signIn;
 
-  AuthMethod _selectedMethod = AuthMethod.email;
+  final _formKey = GlobalKey<FormState>();
 
-  final _signInFormKey = GlobalKey<FormState>();
-  final _signUpFormKey = GlobalKey<FormState>();
-  final _signInPhoneFormKey = GlobalKey<FormState>();
-  final _signUpPhoneFormKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
 
-  final _signInEmailController = TextEditingController();
-  final _signInPasswordController = TextEditingController();
+  final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
 
-  final _signUpEmailController = TextEditingController();
-  final _signUpPasswordController = TextEditingController();
-  final _signUpConfirmPasswordController = TextEditingController();
-
-  final _signInPhoneController = TextEditingController();
-  final _signUpPhoneController = TextEditingController();
-
-  bool _obscureSignInPassword = true;
-  bool _obscureSignUpPassword = true;
-  bool _obscureSignUpConfirmPassword = true;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   bool get _isPhoneEnabled => widget.phoneAuthEnabled ?? kPhoneAuthEnabled;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+  bool get _isSignUp => _intent == AuthIntent.createAccount;
+  bool get _isPhone => _method == AuthMethod.phone && _isPhoneEnabled;
 
   @override
   void dispose() {
-    _tabController.dispose();
-    _signInEmailController.dispose();
-    _signInPasswordController.dispose();
-    _signUpEmailController.dispose();
-    _signUpPasswordController.dispose();
-    _signUpConfirmPasswordController.dispose();
-    _signInPhoneController.dispose();
-    _signUpPhoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _phoneController.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
     super.dispose();
   }
 
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email.trim());
+  void _switchIntent() {
+    setState(() {
+      _intent = _isSignUp ? AuthIntent.signIn : AuthIntent.createAccount;
+      // Passwords do not carry across a mode switch: a sign-in password
+      // typed into a "confirm new password" field is a silent trap.
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+    });
   }
 
-  bool _isValidPhoneNumber(String phone) {
-    return RegExp(r'^\+[1-9]\d{6,14}$').hasMatch(phone.trim());
-  }
+  void _submit(BuildContext context) {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-  void _handleSignIn(BuildContext context) {
-    if (_signInFormKey.currentState?.validate() ?? false) {
-      context.read<AuthCubit>().signInAndUpgrade(
-            email: _signInEmailController.text.trim(),
-            password: _signInPasswordController.text,
-          );
-    }
-  }
+    // Tells the platform the credential was used successfully, which is what
+    // prompts "save this password?".
+    TextInput.finishAutofillContext();
 
-  void _handleSignUp(BuildContext context) {
-    if (_signUpFormKey.currentState?.validate() ?? false) {
-      context.read<AuthCubit>().registerAndUpgrade(
-            email: _signUpEmailController.text.trim(),
-            password: _signUpPasswordController.text,
-          );
-    }
-  }
-
-  void _handlePhoneSubmit(BuildContext context, {required bool isSignUp}) {
-    final formKey = isSignUp ? _signUpPhoneFormKey : _signInPhoneFormKey;
-    final controller = isSignUp ? _signUpPhoneController : _signInPhoneController;
-
-    if (formKey.currentState?.validate() ?? false) {
-      context.read<AuthCubit>().requestPhoneOtp(controller.text.trim());
+    final cubit = context.read<AuthCubit>();
+    if (_isPhone) {
+      cubit.requestPhoneOtp(_phoneController.text.trim());
+    } else if (_isSignUp) {
+      cubit.registerAndUpgrade(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    } else {
+      cubit.signInAndUpgrade(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.tr('auth_title')),
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: context.tr('sign_in')),
-            Tab(text: context.tr('create_account')),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: Text(context.tr('auth_title'))),
       body: BlocConsumer<AuthCubit, AuthState>(
-        listener: (context, state) {
-          if (state is AuthSuccess) {
-            // Auto-sync offline guest data to newly authenticated cloud account
-            final token = state.user.sessionToken;
-            if (token != null && token.isNotEmpty) {
-              try {
-                context.read<SyncCubit?>()?.syncNow(token: token);
-              } catch (_) {}
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.green,
-              ),
-            );
-            Navigator.of(context).pop(state.user);
-          } else if (state is AuthOtpRequested) {
-            final navigator = Navigator.of(context);
-            final cubit = context.read<AuthCubit>();
-            final syncCubit = context.read<SyncCubit?>();
-            navigator.push<LocalUser>(
-              MaterialPageRoute(
-                builder: (_) => MultiBlocProvider(
-                  providers: [
-                    BlocProvider.value(value: cubit),
-                    if (syncCubit != null) BlocProvider.value(value: syncCubit),
-                  ],
-                  child: OtpEntryScreen(
-                    identifier: state.phoneNumber,
-                    identifierType: OtpIdentifierType.phone,
-                  ),
-                ),
-              ),
-            ).then((user) {
-              if (user != null && mounted) {
-                navigator.pop(user);
-              }
-            });
-          } else if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: theme.colorScheme.error,
-              ),
-            );
-          }
-        },
+        listener: _onStateChanged,
         builder: (context, state) {
           final isLoading = state is AuthLoading;
 
           return SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Guest Upgrade Info Card ───────────────────────────────
-                  if (widget.currentUser.isGuest) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.sync_outlined,
-                              color: theme.colorScheme.primary, size: 26),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              context.tr('link_guest_account'),
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.xl,
+              ),
+              child: AutofillGroup(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Header(isSignUp: _isSignUp),
+                      const SizedBox(height: AppSpacing.lg),
 
-                  // ── Rate Limit Alert Banner ──────────────────────────────
-                  if (state is AuthRateLimited) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.timer_outlined,
-                              color: Colors.orange.shade900, size: 24),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              state.message,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.orange.shade900,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // ── Method Selector Toggle (Gated behind _isPhoneEnabled) ──
-                  if (_isPhoneEnabled) ...[
-                    Container(
-                      key: const Key('auth_method_selector'),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              key: const Key('auth_method_email'),
-                              onTap: () => setState(() => _selectedMethod = AuthMethod.email),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: _selectedMethod == AuthMethod.email
-                                      ? theme.colorScheme.surface
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: _selectedMethod == AuthMethod.email
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    context.tr('auth_method_email'),
-                                    style: TextStyle(
-                                      fontWeight: _selectedMethod == AuthMethod.email
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: _selectedMethod == AuthMethod.email
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              key: const Key('auth_method_phone'),
-                              onTap: () => setState(() => _selectedMethod = AuthMethod.phone),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: _selectedMethod == AuthMethod.phone
-                                      ? theme.colorScheme.surface
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: _selectedMethod == AuthMethod.phone
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    context.tr('auth_method_phone'),
-                                    style: TextStyle(
-                                      fontWeight: _selectedMethod == AuthMethod.phone
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: _selectedMethod == AuthMethod.phone
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // ── Tab Views ────────────────────────────────────────────
-                  SizedBox(
-                    height: 440,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        // Tab 1: Sign In
-                        _selectedMethod == AuthMethod.phone && _isPhoneEnabled
-                            ? _buildPhoneForm(context, isLoading, isSignUp: false)
-                            : _buildSignInForm(context, isLoading),
-                        // Tab 2: Create Account / Upgrade
-                        _selectedMethod == AuthMethod.phone && _isPhoneEnabled
-                            ? _buildPhoneForm(context, isLoading, isSignUp: true)
-                            : _buildSignUpForm(context, isLoading),
+                      if (widget.currentUser.isGuest) ...[
+                        _GuestUpgradeNotice(),
+                        const SizedBox(height: AppSpacing.md),
                       ],
-                    ),
+
+                      if (state is AuthRateLimited) ...[
+                        AppBanner(
+                          icon: Icons.timer_outlined,
+                          message: state.message,
+                          foreground: AppColors.onWarningContainer,
+                          background: AppColors.warningContainer,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
+
+                      if (_isPhoneEnabled) ...[
+                        AppSegmentedToggle<AuthMethod>(
+                          key: const Key('auth_method_selector'),
+                          selected: _method,
+                          onChanged: (m) => setState(() => _method = m),
+                          segments: [
+                            AppSegment(
+                              key: const Key('auth_method_email'),
+                              value: AuthMethod.email,
+                              label: context.tr('auth_method_email'),
+                              icon: Icons.email_outlined,
+                            ),
+                            AppSegment(
+                              key: const Key('auth_method_phone'),
+                              value: AuthMethod.phone,
+                              label: context.tr('auth_method_phone'),
+                              icon: Icons.phone_outlined,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+
+                      ..._buildFields(context, isLoading),
+
+                      const SizedBox(height: AppSpacing.lg),
+                      _SubmitButton(
+                        isLoading: isLoading,
+                        isPhone: _isPhone,
+                        isSignUp: _isSignUp,
+                        onPressed: () => _submit(context),
+                      ),
+
+                      if (_isSignUp) ...[
+                        const SizedBox(height: AppSpacing.smPlus),
+                        const _ConsentDisclaimer(),
+                      ],
+
+                      const SizedBox(height: AppSpacing.lg),
+                      _IntentSwitch(
+                        isSignUp: _isSignUp,
+                        onSwitch: _switchIntent,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -368,338 +217,330 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _buildPhoneForm(BuildContext context, bool isLoading, {required bool isSignUp}) {
-    final formKey = isSignUp ? _signUpPhoneFormKey : _signInPhoneFormKey;
-    final controller = isSignUp ? _signUpPhoneController : _signInPhoneController;
-    final fieldKey = isSignUp ? const Key('signup_phone_field') : const Key('signin_phone_field');
-    final submitKey = isSignUp ? const Key('signup_phone_submit_button') : const Key('signin_phone_submit_button');
-
-    return Form(
-      key: formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 12),
-          TextFormField(
-            key: fieldKey,
-            controller: controller,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: context.tr('phone_number'),
-              hintText: '+94771234567',
-              prefixIcon: const Icon(Icons.phone_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val == null || !_isValidPhoneNumber(val)) {
-                return context.tr('phone_invalid');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              key: submitKey,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: isLoading ? null : () => _handlePhoneSubmit(context, isSignUp: isSignUp),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Text(
-                      context.tr(isSignUp ? 'create_account' : 'sign_in'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-            ),
-          ),
-          if (isSignUp) _buildConsentDisclaimer(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSignInForm(BuildContext context, bool isLoading) {
-    return Form(
-      key: _signInFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 12),
-          TextFormField(
-            key: const Key('signin_email_field'),
-            controller: _signInEmailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: context.tr('email'),
-              prefixIcon: const Icon(Icons.email_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val == null || !_isValidEmail(val)) {
-                return context.tr('email_invalid');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            key: const Key('signin_password_field'),
-            controller: _signInPasswordController,
-            obscureText: _obscureSignInPassword,
-            decoration: InputDecoration(
-              labelText: context.tr('password'),
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(_obscureSignInPassword
-                    ? Icons.visibility_off
-                    : Icons.visibility),
-                onPressed: () => setState(
-                    () => _obscureSignInPassword = !_obscureSignInPassword),
-              ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val == null || val.length < 6) {
-                return context.tr('password_short');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              key: const Key('signin_forgot_password_button'),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: () {
-                final authCubit = context.read<AuthCubit>();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => BlocProvider.value(
-                      value: authCubit,
-                      child: const ForgotPasswordScreen(),
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                context.tr('forgot_password'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              key: const Key('signin_submit_button'),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: isLoading ? null : () => _handleSignIn(context),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Text(
-                      context.tr('sign_in'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSignUpForm(BuildContext context, bool isLoading) {
-    return Form(
-      key: _signUpFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 12),
-          TextFormField(
-            key: const Key('signup_email_field'),
-            controller: _signUpEmailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: context.tr('email'),
-              prefixIcon: const Icon(Icons.email_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val == null || !_isValidEmail(val)) {
-                return context.tr('email_invalid');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            key: const Key('signup_password_field'),
-            controller: _signUpPasswordController,
-            obscureText: _obscureSignUpPassword,
-            decoration: InputDecoration(
-              labelText: context.tr('password'),
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(_obscureSignUpPassword
-                    ? Icons.visibility_off
-                    : Icons.visibility),
-                onPressed: () => setState(
-                    () => _obscureSignUpPassword = !_obscureSignUpPassword),
-              ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val == null || val.length < 6) {
-                return context.tr('password_short');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            key: const Key('signup_confirm_password_field'),
-            controller: _signUpConfirmPasswordController,
-            obscureText: _obscureSignUpConfirmPassword,
-            decoration: InputDecoration(
-              labelText: 'Confirm Password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(_obscureSignUpConfirmPassword
-                    ? Icons.visibility_off
-                    : Icons.visibility),
-                onPressed: () => setState(() =>
-                    _obscureSignUpConfirmPassword =
-                        !_obscureSignUpConfirmPassword),
-              ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (val) {
-              if (val != _signUpPasswordController.text) {
-                return 'Passwords do not match';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              key: const Key('signup_submit_button'),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: isLoading ? null : () => _handleSignUp(context),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Text(
-                      context.tr('create_account'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-            ),
-          ),
-          _buildConsentDisclaimer(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConsentDisclaimer(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12.0),
-      child: Center(
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              '${context.tr('consent_agreement_prefix')} ',
-              style: TextStyle(
-                fontSize: 11.5,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            GestureDetector(
-              key: const Key('consent_terms_link'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TermsPrivacyScreen(initialTabIndex: 0),
-                  ),
-                );
-              },
-              child: Text(
-                context.tr('terms_of_service'),
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
-            Text(
-              ' ${context.tr('and_connector')} ',
-              style: TextStyle(
-                fontSize: 11.5,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            GestureDetector(
-              key: const Key('consent_privacy_link'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TermsPrivacyScreen(initialTabIndex: 1),
-                  ),
-                );
-              },
-              child: Text(
-                context.tr('privacy_policy'),
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
-          ],
+  List<Widget> _buildFields(BuildContext context, bool isLoading) {
+    if (_isPhone) {
+      return [
+        AuthPhoneField(
+          key: const Key('signin_phone_field'),
+          controller: _phoneController,
+          onSubmitted: () => _submit(context),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          context.tr('phone_otp_explainer'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ];
+    }
+
+    return [
+      AuthEmailField(
+        key: const Key('signin_email_field'),
+        controller: _emailController,
+        onSubmitted: () => _passwordFocus.requestFocus(),
       ),
+      const SizedBox(height: AppSpacing.md),
+      AuthPasswordField(
+        key: const Key('signin_password_field'),
+        controller: _passwordController,
+        focusNode: _passwordFocus,
+        obscured: _obscurePassword,
+        onToggleObscured: () =>
+            setState(() => _obscurePassword = !_obscurePassword),
+        isNewPassword: _isSignUp,
+        textInputAction:
+            _isSignUp ? TextInputAction.next : TextInputAction.done,
+        onSubmitted: () => _isSignUp
+            ? _confirmPasswordFocus.requestFocus()
+            : _submit(context),
+      ),
+      if (_isSignUp) ...[
+        const SizedBox(height: AppSpacing.sm),
+        // Live feedback beats a validator message after the fact: the user
+        // can see the rule being satisfied as they type.
+        PasswordStrengthMeter(controller: _passwordController),
+        const SizedBox(height: AppSpacing.md),
+        AuthPasswordField(
+          key: const Key('signup_confirm_password_field'),
+          controller: _confirmPasswordController,
+          focusNode: _confirmPasswordFocus,
+          obscured: _obscureConfirmPassword,
+          onToggleObscured: () => setState(
+              () => _obscureConfirmPassword = !_obscureConfirmPassword),
+          labelKey: 'confirm_password',
+          isNewPassword: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: () => _submit(context),
+          extraValidator: (value) => value != _passwordController.text
+              ? context.tr('passwords_do_not_match')
+              : null,
+        ),
+      ],
+      if (!_isSignUp) ...[
+        const SizedBox(height: AppSpacing.sm),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton(
+            key: const Key('signin_forgot_password_button'),
+            onPressed: isLoading
+                ? null
+                : () {
+                    final cubit = context.read<AuthCubit>();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BlocProvider.value(
+                          value: cubit,
+                          child: const ForgotPasswordScreen(),
+                        ),
+                      ),
+                    );
+                  },
+            child: Text(context.tr('forgot_password')),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  void _onStateChanged(BuildContext context, AuthState state) {
+    if (state is AuthSuccess) {
+      // Newly authenticated: push whatever the guest accumulated offline.
+      final token = state.user.sessionToken;
+      if (token != null && token.isNotEmpty) {
+        try {
+          context.read<SyncCubit?>()?.syncNow(token: token);
+        } catch (_) {}
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.message),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.of(context).pop(state.user);
+    } else if (state is AuthOtpRequested) {
+      final navigator = Navigator.of(context);
+      final cubit = context.read<AuthCubit>();
+      final syncCubit = context.read<SyncCubit?>();
+      navigator.push<LocalUser>(
+        MaterialPageRoute(
+          builder: (_) => MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: cubit),
+              if (syncCubit != null) BlocProvider.value(value: syncCubit),
+            ],
+            child: OtpEntryScreen(
+              identifier: state.phoneNumber,
+              identifierType: OtpIdentifierType.phone,
+            ),
+          ),
+        ),
+      ).then((user) {
+        if (user != null && mounted) navigator.pop(user);
+      });
+    } else if (state is AuthError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.message),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+}
+
+// =============================================================================
+// Pieces
+// =============================================================================
+
+class _Header extends StatelessWidget {
+  final bool isSignUp;
+
+  const _Header({required this.isSignUp});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryContainer,
+            borderRadius: AppRadius.md,
+          ),
+          child: const Icon(
+            Icons.eco_rounded,
+            color: AppColors.primary,
+            size: 30,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          // Matches the submit button's label, so the screen states one
+          // intent in one voice.
+          isSignUp ? context.tr('create_account') : context.tr('sign_in'),
+          style: theme.textTheme.headlineSmall,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          isSignUp
+              ? context.tr('create_account_subtitle')
+              : context.tr('sign_in_subtitle'),
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+/// Explains what linking an account actually buys the farmer. The old copy
+/// was a single generic line; the point that matters is that nothing already
+/// on the phone is lost, which is the thing a cautious user worries about.
+class _GuestUpgradeNotice extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return AppBanner(
+      icon: Icons.cloud_sync_outlined,
+      title: context.tr('link_account_benefit_title'),
+      message: context.tr('link_guest_account'),
+      foreground: AppColors.onPrimaryContainer,
+      background: AppColors.primaryContainer,
+    );
+  }
+}
+
+class _SubmitButton extends StatelessWidget {
+  final bool isLoading;
+  final bool isPhone;
+  final bool isSignUp;
+  final VoidCallback onPressed;
+
+  const _SubmitButton({
+    required this.isLoading,
+    required this.isPhone,
+    required this.isSignUp,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isPhone
+        ? context.tr('send_otp')
+        : (isSignUp ? context.tr('create_account') : context.tr('sign_in'));
+
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton(
+        key: Key(
+          isPhone ? 'signin_phone_submit_button' : 'signin_submit_button',
+        ),
+        onPressed: isLoading ? null : onPressed,
+        child: isLoading
+            // Spinner replaces the label in place, so the button does not
+            // resize and the tap target stays put.
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppColors.onPrimary,
+                ),
+              )
+            : Text(label),
+      ),
+    );
+  }
+}
+
+class _IntentSwitch extends StatelessWidget {
+  final bool isSignUp;
+  final VoidCallback onSwitch;
+
+  const _IntentSwitch({required this.isSignUp, required this.onSwitch});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            isSignUp
+                ? context.tr('already_have_account')
+                : context.tr('new_to_cropcare'),
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.end,
+          ),
+        ),
+        TextButton(
+          key: const Key('auth_switch_intent_button'),
+          onPressed: onSwitch,
+          child: Text(
+            isSignUp ? context.tr('sign_in') : context.tr('create_account'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConsentDisclaimer extends StatelessWidget {
+  const _ConsentDisclaimer();
+
+  void _open(BuildContext context, int tabIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TermsPrivacyScreen(initialTabIndex: tabIndex),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final linkStyle = theme.textTheme.bodySmall?.copyWith(
+      color: AppColors.primary,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+    );
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          '${context.tr('consent_agreement_prefix')} ',
+          style: theme.textTheme.bodySmall,
+        ),
+        // Kept as tappable text rather than buttons so the sentence still
+        // reads as a sentence; each still clears the 48dp target via padding.
+        InkWell(
+          key: const Key('consent_terms_link'),
+          onTap: () => _open(context, 0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.smPlus),
+            child: Text(context.tr('terms_of_service'), style: linkStyle),
+          ),
+        ),
+        Text(
+          ' ${context.tr('and_connector')} ',
+          style: theme.textTheme.bodySmall,
+        ),
+        InkWell(
+          key: const Key('consent_privacy_link'),
+          onTap: () => _open(context, 1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.smPlus),
+            child: Text(context.tr('privacy_policy'), style: linkStyle),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -232,8 +232,12 @@ void main() {
     // Forgot password button is present on Sign In
     expect(find.byKey(const Key('signin_forgot_password_button')), findsOneWidget);
 
-    // Switch to Create Account tab
-    await tester.tap(find.text('Create Account'));
+    // Switch to Create Account. This is now a footer link rather than a tab,
+    // so it can sit below the fold in the test viewport — scroll to it first.
+    final switchLink = find.byKey(const Key('auth_switch_intent_button'));
+    await tester.ensureVisible(switchLink);
+    await tester.pumpAndSettle();
+    await tester.tap(switchLink);
     await tester.pumpAndSettle();
 
     // Consent disclaimer links are visible

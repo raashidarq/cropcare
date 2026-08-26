@@ -1,7 +1,7 @@
 # CropCare — DECISIONS.md
 
 > **Purpose:** Track technical decisions, trade-offs, and personal notes during development.
-> **Last updated:** 2026-08-24
+> **Last updated:** 2026-08-26
 
 ---
 
@@ -98,7 +98,7 @@
 1. **Manual Escalation with Photo:** Escalation routes manually to WhatsApp via `share_plus` (`Share.shareXFiles([XFile(imagePath)], text: formattedText)`). The leaf photo captured by the farmer is directly attached to the share payload alongside the crop name, predicted disease, confidence level, severity, scan ID, and optional farmer observations.
 2. **Low-Confidence Advisory:** When model confidence is < 80% or result state is `DiagnosisResultState.lowConfidence`, an amber advisory banner is presented on both the diagnosis screen and the escalation screen explicitly advising the user to consult an agronomist.
 3. **Embedded Scan History:** The past scan history is embedded directly on `HomeScreen` below the primary "Scan Crop" button (rather than as a separate navigation button). Includes total scan counter, dynamic filter chips (All, Low Confidence, Shared, Healthy), and tap-to-review navigation.
-4. **Action Buttons Renaming:** On the diagnosis screen, actions are standardized to *"Get AI Recommendation"* and *"WhatsApp Share with Expert"*. The redundant "Change Language" button beneath "Scan Crop" on HomeScreen was removed in favor of the AppBar language switcher.
+4. **Action Buttons Renaming:** On the diagnosis screen, actions are standardized to _"Get AI Recommendation"_ and _"WhatsApp Share with Expert"_. The redundant "Change Language" button beneath "Scan Crop" on HomeScreen was removed in favor of the AppBar language switcher.
 
 ---
 
@@ -111,6 +111,202 @@
 2. **Token Security:** Auth JWTs and refresh tokens are stored encrypted using `flutter_secure_storage`.
 3. **Rate-Limiting UI:** `AuthApiClient` maps HTTP 429 to a distinct `RateLimitException`, which `AuthCubit` presents to the user via a clear cooldown banner.
 4. **Trilingual UI & Entry Points:** An Account section in `SettingsScreen` and a hero card link on `HomeScreen` allow guest farmers to link/upgrade their account at any time.
+
+---
+
+---
+
+### TD-012 · Design System in `lib/core/theme/`, Not Ad Hoc Colours
+
+**Date:** 2026-08-26
+**Decision:** All colour, type, spacing and radius values come from
+`lib/core/theme/` (`AppColors`, `AppTextStyles`, `AppSpacing`, `AppRadius`,
+assembled by `AppTheme.light(languageCode)` / `AppTheme.highContrast(...)` and
+wired once in `lib/app.dart`). Screens must not use `Colors.*` swatches or raw
+`Color(0x...)` literals for anything carrying meaning.
+
+**Rationale:** The app previously had ~145 raw colour literals across 15
+screens and no theme file at all — `lib/core/theme/` existed but was empty. The
+same concept rendered differently per screen: severity had two contradictory
+colour scales (`diagnosis_result_screen.dart` used high/moderate/low;
+`home_screen.dart` used an unrelated binary green/orange), so one scan could be
+two different colours on two screens. The WhatsApp brand green was hardcoded in
+three places. There were also two competing "brand greens": the theme seeded
+from `Colors.green` (#4CAF50) while the launcher icon used #2E7D32.
+
+**Palette rationale:** primary is #1B5E20 — darker and more saturated than
+either previous green (≈8.9:1 on white). Chosen for direct sunlight, where
+mid-tones wash out. Warning is deep orange #E65100, not amber: amber on white
+is ≈1.9:1 and fails AA for text, so amber is used only as a container fill.
+
+**Rule:** alpha-blended colours are acceptable for decorative backgrounds and
+scrims, never behind text — a translucent surface has an unpredictable
+effective contrast ratio, which is exactly what fails outdoors.
+
+**Remaining literals are deliberate:** `Colors.white`/`Colors.black` on the
+camera viewfinder, photo scrims and modal barriers, and the black/yellow pair
+in high-contrast mode.
+
+---
+
+### TD-013 · Bundled Noto Fonts, Not the `google_fonts` Package
+
+**Date:** 2026-08-26
+**Decision:** Noto Sans, Noto Sans Sinhala and Noto Sans Tamil ship as variable
+`.ttf` assets in `assets/fonts/`, declared in `pubspec.yaml`. The
+`google_fonts` package is **not** a dependency.
+
+**Rationale:** `google_fonts` fetches at runtime and caches. CropCare is
+offline-first and its users are frequently offline on first launch, so a
+runtime fetch is the wrong mechanism. With the files bundled, the package would
+be pure dead weight — the same mistake as TD-008.
+
+`AppTextStyles.textThemeFor(languageCode)` selects the primary face from the
+active language and lists the other two as `fontFamilyFallback`, because a
+Sinhala UI still renders Latin crop names, numbers and units — without the
+fallback chain those runs render as tofu.
+
+**Trade-off:** ~3.5 MB added to the APK. Explicitly accepted for guaranteed,
+consistent trilingual rendering; the alternative (OS fallback) is
+device-dependent and was never verified. Subsetting was offered and declined.
+
+---
+
+### TD-014 · Out-of-Distribution Rejection Happens Before Inference
+
+**Date:** 2026-08-26
+**Decision:** `ValidateImageUseCase` gained a content gate — exposure, a
+cheap Laplacian-variance blur estimate, and a vegetation-hue/saturation
+heuristic — run before the TFLite model. Failures map to the rejection
+vocabulary the schema already reserved (`TOO_DARK`, `TOO_BRIGHT`, `BLURRY`,
+`NO_PLANT_DETECTED`), which no code had ever produced.
+
+**Rationale:** This fixes the reported bug (a photo of a desk diagnosed as
+"Tomato Healthy", 98%, CONFIDENT). Root cause: the model is a closed-set
+38-class softmax with no rejection option. Softmax normalises over exactly 38
+classes for *any* input, so it always produces a confident-looking answer; it
+cannot represent "none of the above". Confidence thresholds cannot fix this —
+the bug scored 98%, above any usable threshold.
+
+**A second gate exists but is weak, deliberately documented as such:**
+`RunDiagnosisUseCase` also requires low normalised softmax entropy for
+`CONFIDENT`. Entropy is tightly coupled to max-softmax, so at p_max ≥ ~0.67
+even a maximally flat tail stays under the threshold. It only bites in a narrow
+band just above `confidenceThreshold`. It is cheap defence-in-depth, **not**
+the fix — the content gate is.
+
+**Not a substitute for a trained detector.** The proper fix is a binary
+leaf-vs-not-leaf classifier or an embedding-distance OOD score. Thresholds are
+named constants so they can be recalibrated from field data. They have been
+tuned only against synthetic fixtures; **they need validation on real
+photographs before release**, in both directions — a threshold that rejects
+genuine diseased leaves (often brown or yellow, not green) is its own bug.
+
+---
+
+### TD-015 · Camera-First Capture; `AddPhotoScreen` Off the Critical Path
+
+**Date:** 2026-08-26
+**Decision:** The scan action opens a live viewfinder
+(`CameraPreviewView`, using the already-bundled `camera` package) with gallery
+as a control inside it. The `AddPhotoScreen` camera/gallery chooser is no
+longer in the path.
+
+**Rationale:** The previous "camera view" was a static black placeholder with
+an icon; capture actually handed off to the OS camera app, so the farmer left
+CropCare, framed in a different UI with no leaf guidance, and came back. And
+the chooser screen was a full stop in the middle of the app's primary task.
+Camera-first is the convention in comparable scanning apps (Google Lens,
+PlantNet, Plantix) because "I am standing in front of a sick plant" should be
+zero taps from a shutter.
+
+A framing guide overlay nudges capture toward what the model can actually
+read: PlantVillage is close-up, single-leaf, centre-framed imagery, and a whole
+plant shot from two metres is already out of distribution.
+
+`AddPhotoScreen` still exists and is still reachable; it is simply no longer
+the default route.
+
+---
+
+### TD-016 · Bottom Navigation Shell
+
+**Date:** 2026-08-26
+**Decision:** `HomeScreen` is a shell over three destinations — Home, History,
+Account — each supplying its own `Scaffold` and `AppBar`.
+
+**Rationale:** The old home screen carried the scan action *and* the entire
+scan history with filters, and reached Settings and Profile only through small
+unlabelled AppBar icons. Icon-only affordances in a top corner are the least
+discoverable control on a phone, which is a poor fit for an audience that may
+not read fluently. Labelled bottom destinations are permanently visible and
+thumb-reachable.
+
+**Tabs are built lazily.** `IndexedStack` builds every child eagerly, which
+constructed the whole Settings tree during the first frame. Tabs are now built
+on first visit and kept alive after.
+
+---
+
+### TD-017 · Treatment Guidance Is Requested, Not Automatic
+
+**Date:** 2026-08-26
+**Decision:** `DiagnosisResultScreen` no longer fetches treatment guidance on
+open. A "Get Treatment Guidance" button triggers it.
+
+**Rationale:** The fetch attempts the network first and only falls back to
+on-device guidelines if that fails (`TreatmentRepositoryImpl`). On a metered
+rural connection a farmer who only wanted to know what the plant has should not
+pay for advice they did not ask for.
+
+**Related bug fixed:** `DiagnosisCubit` hardcoded `source:
+TreatmentSource.llm`, so every offline-fallback answer was labelled as
+AI-generated. It now derives from `interpretationId`, which is what the UI was
+already (correctly) keying off.
+
+---
+
+### TD-018 · Offline Explanation Content Is Schema-Only
+
+**Date:** 2026-08-26
+**Decision:** `disease_explanation` and `disease_confusion` tables (schema v6)
+plus the full read path exist, and ship **empty**. No code seeds them; content
+is authored and delivered separately.
+
+**Rationale:** Kept out of `treatment_guideline` because it answers a different
+question ("what is this, and how sure should I be" vs "what do I do") and is
+reviewed and shipped on a different cadence.
+
+`disease_confusion.confused_with_disease_id` is nullable on purpose: the most
+dangerous look-alikes are often not diseases at all — nutrient deficiency,
+water stress, spray burn — and have no `disease` row to point at. Those use the
+label columns.
+
+Language resolution is per-field, not per-row, so a partially translated entry
+shows translated text where it exists rather than dropping wholesale to
+English. The UI renders field by field and states plainly when nothing is
+present, so the gap reads as undelivered content rather than a broken screen.
+
+---
+
+### TD-019 · Sync Failures Are Surfaced, Never Silently Dropped
+
+**Date:** 2026-08-26
+**Decision:** Operations that stop retrying are visible in `OfflineScreen`
+with a reason and an action. `AUTH_REQUIRED` (session expired) is separated
+from `PERMANENTLY_FAILED` and offers sign-in, which releases the whole held
+batch via `clearAuthHold()`.
+
+**Rationale:** Previously an operation that exhausted its retry budget was
+excluded from every subsequent query and vanished with no user-visible signal —
+a farmer's scans simply never reached the cloud and nothing said so. A 401 was
+treated identically to a network timeout, so an expired session burned the
+retry budget and lost the backlog silently.
+
+Retrying a permanently-failed item is deliberately manual: these stopped
+retrying because retrying was not working, so re-queueing is a decision, not a
+default. `last_error` is a raw untranslated exception string and stays behind a
+"Show details" expander.
 
 ---
 
@@ -143,3 +339,20 @@
 - Changed app display name to `CropCare` in `android/app/src/main/AndroidManifest.xml` (`android:label="CropCare"`).
 - Configured `flutter_launcher_icons` with `assets/icon/app_icon.png` and `#2E7D32` background.
 - Generated Android mipmap densities and adaptive icons (`mipmap-anydpi-v26/ic_launcher.xml` and `mipmap-*/ic_launcher.png`) via `dart run flutter_launcher_icons`.
+
+---
+
+### 2026-08-26 — Redesign pass
+
+- Bundled fonts add ~3.5 MB. Worth re-checking APK size before release.
+- The OOD thresholds are the single most important thing to validate on a real
+  device with real leaves. Synthetic fixtures prove the wiring, not the tuning.
+- **All Sinhala and Tamil strings added during this pass were written without
+  a native speaker and need review before release.** They are grounded in
+  vocabulary already present in `app_localizations.dart`, but that is not the
+  same as being correct or natural.
+- Two features have placeholder entry points and written briefs, not
+  implementations: "Ask about this result" (chat) and speak-your-observations
+  (voice). See `docs/future/`.
+- `add_photo_screen.dart` is now off the default path but still compiled and
+  tested. Decide whether to keep it as the gallery entry point or remove it.
