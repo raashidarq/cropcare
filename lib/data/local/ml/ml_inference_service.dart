@@ -67,100 +67,120 @@ class InferenceResult {
 
 class MlInferenceService {
   static const String _modelAsset =
-      'assets/models/plant_disease_mobilenetv2.tflite';
+      'assets/models/cropcare_field_mobilenetv3_fp16.tflite';
 
   static const int _inputSize = 224;
 
   // Confidence threshold: results below this → LOW_CONFIDENCE result state.
-  static const double confidenceThreshold = 0.60;
+  // PROVISIONAL - see ml/README.md "Calibrating the thresholds".
+  //
+  // Raised from 0.60 with the field model, for two reasons that both point the
+  // same way:
+  //
+  //  * The new model trains with label smoothing (0.05), so its softmax is
+  //    deliberately less peaked. A given number means a STRONGER prediction
+  //    than the same number did on the old unsmoothed model - keeping 0.60
+  //    would quietly have made the app less cautious, not equally cautious.
+  //  * Measured field accuracy is ~61% top-1 (86% top-3). At that rate the app
+  //    should be reaching for "not sure, here are the other possibilities"
+  //    far more often than a 0.60 gate allows.
+  //
+  // This number is reasoned, not calibrated. The notebook's calibration cell
+  // computes the value that actually separates right from wrong answers on
+  // held-out field images; use that once you have run it.
+  static const double confidenceThreshold = 0.70;
 
   // Normalized-entropy ceiling: results ABOVE this (i.e. distribution too
   // "spread out" to trust even if top-1 confidence cleared the threshold
   // above) are downgraded to LOW_CONFIDENCE. See [InferenceResult.entropy].
+  // Left at 0.50, and that is a decision rather than an oversight: entropy is
+  // normalised by log(numClasses), so dropping 38 -> 34 classes barely moves
+  // it. Label smoothing raises entropy across the board, which makes this
+  // gate fire slightly more often - the safe direction.
   static const double entropyThreshold = 0.50;
 
   // ── Class index → disease_id mapping ──────────────────────────────────────
   // Maps all 38 PlantVillage output classes to their SQLite disease IDs.
+  /// Classes that are insect damage rather than infection.
+  ///
+  /// A farmer treats a caterpillar differently from a fungus, and the old
+  /// model had exactly one arthropod class so the distinction never came up.
+  static const Set<int> pestClassIndices = {7, 8, 18};
+
+  static bool isPest(int index) => pestClassIndices.contains(index);
+
   static const Map<int, String> _classIndexToDiseaseId = {
-    0: 'apple_scab',
-    1: 'apple_black_rot',
-    2: 'apple_cedar_rust',
-    3: 'apple_healthy',
-    4: 'blueberry_healthy',
-    5: 'cherry_powdery_mildew',
-    6: 'cherry_healthy',
-    7: 'corn_gray_leaf_spot',
-    8: 'corn_common_rust',
-    9: 'corn_northern_leaf_blight',
-    10: 'corn_healthy',
-    11: 'grape_black_rot',
-    12: 'grape_black_measles',
-    13: 'grape_leaf_blight',
-    14: 'grape_healthy',
-    15: 'orange_citrus_greening',
-    16: 'peach_bacterial_spot',
-    17: 'peach_healthy',
-    18: 'chili_bacterial_spot',
-    19: 'chili_healthy',
-    20: 'potato_early_blight',
-    21: 'potato_late_blight',
-    22: 'potato_healthy',
-    23: 'raspberry_healthy',
-    24: 'soybean_healthy',
-    25: 'squash_powdery_mildew',
-    26: 'strawberry_leaf_scorch',
-    27: 'strawberry_healthy',
-    28: 'tomato_bacterial_spot',
-    29: 'tomato_early_blight',
-    30: 'tomato_late_blight',
-    31: 'tomato_leaf_mold',
-    32: 'tomato_septoria_leaf_spot',
-    33: 'tomato_spider_mites',
-    34: 'tomato_target_spot',
-    35: 'tomato_yellow_leaf_curl_virus',
-    36: 'tomato_mosaic_virus',
-    37: 'tomato_healthy',
+    0: 'paddy_bacterial_leaf_blight',
+    1: 'paddy_bacterial_leaf_streak',
+    2: 'paddy_bacterial_panicle_blight',
+    3: 'paddy_blast',
+    4: 'paddy_brown_spot',
+    5: 'paddy_downy_mildew',
+    6: 'paddy_tungro',
+    7: 'paddy_dead_heart',
+    8: 'paddy_hispa',
+    9: 'paddy_healthy',
+    10: 'tomato_bacterial_spot',
+    11: 'tomato_early_blight',
+    12: 'tomato_late_blight',
+    13: 'tomato_leaf_mold',
+    14: 'tomato_septoria_leaf_spot',
+    15: 'tomato_target_spot',
+    16: 'tomato_yellow_leaf_curl_virus',
+    17: 'tomato_mosaic_virus',
+    18: 'tomato_spider_mites',
+    19: 'tomato_healthy',
+    20: 'chili_bacterial_spot',
+    21: 'chili_healthy',
+    22: 'potato_early_blight',
+    23: 'potato_late_blight',
+    24: 'potato_healthy',
+    25: 'cassava_bacterial_blight',
+    26: 'cassava_brown_streak',
+    27: 'cassava_green_mottle',
+    28: 'cassava_mosaic',
+    29: 'cassava_healthy',
+    30: 'corn_gray_leaf_spot',
+    31: 'corn_common_rust',
+    32: 'corn_northern_leaf_blight',
+    33: 'corn_healthy',
   };
 
   static const List<String> _classNames = [
-    'Apple___Apple_scab',                                        // 0
-    'Apple___Black_rot',                                         // 1
-    'Apple___Cedar_apple_rust',                                  // 2
-    'Apple___healthy',                                           // 3
-    'Blueberry___healthy',                                       // 4
-    'Cherry_(including_sour)___Powdery_mildew',                  // 5
-    'Cherry_(including_sour)___healthy',                         // 6
-    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot',        // 7
-    'Corn_(maize)___Common_rust_',                               // 8
-    'Corn_(maize)___Northern_Leaf_Blight',                       // 9
-    'Corn_(maize)___healthy',                                    // 10
-    'Grape___Black_rot',                                         // 11
-    'Grape___Esca_(Black_Measles)',                              // 12
-    'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)',                // 13
-    'Grape___healthy',                                           // 14
-    'Orange___Haunglongbing_(Citrus_greening)',                   // 15
-    'Peach___Bacterial_spot',                                    // 16
-    'Peach___healthy',                                           // 17
-    'Pepper,_bell___Bacterial_spot',                             // 18 → chili
-    'Pepper,_bell___healthy',                                    // 19 → chili
-    'Potato___Early_blight',                                     // 20
-    'Potato___Late_blight',                                      // 21
-    'Potato___healthy',                                          // 22
-    'Raspberry___healthy',                                       // 23
-    'Soybean___healthy',                                         // 24
-    'Squash___Powdery_mildew',                                   // 25
-    'Strawberry___Leaf_scorch',                                  // 26
-    'Strawberry___healthy',                                      // 27
-    'Tomato___Bacterial_spot',                                   // 28
-    'Tomato___Early_blight',                                     // 29
-    'Tomato___Late_blight',                                      // 30
-    'Tomato___Leaf_Mold',                                        // 31
-    'Tomato___Septoria_leaf_spot',                               // 32
-    'Tomato___Spider_mites Two-spotted_spider_mite',             // 33
-    'Tomato___Target_Spot',                                      // 34
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus',                    // 35
-    'Tomato___Tomato_mosaic_virus',                              // 36
-    'Tomato___healthy',                                          // 37
+    'paddy_bacterial_leaf_blight',                 // 0
+    'paddy_bacterial_leaf_streak',                 // 1
+    'paddy_bacterial_panicle_blight',              // 2
+    'paddy_blast',                                 // 3
+    'paddy_brown_spot',                            // 4
+    'paddy_downy_mildew',                          // 5
+    'paddy_tungro',                                // 6
+    'paddy_dead_heart',                            // 7
+    'paddy_hispa',                                 // 8
+    'paddy_healthy',                               // 9
+    'tomato_bacterial_spot',                       // 10
+    'tomato_early_blight',                         // 11
+    'tomato_late_blight',                          // 12
+    'tomato_leaf_mold',                            // 13
+    'tomato_septoria_leaf_spot',                   // 14
+    'tomato_target_spot',                          // 15
+    'tomato_yellow_leaf_curl_virus',               // 16
+    'tomato_mosaic_virus',                         // 17
+    'tomato_spider_mites',                         // 18
+    'tomato_healthy',                              // 19
+    'chili_bacterial_spot',                        // 20
+    'chili_healthy',                               // 21
+    'potato_early_blight',                         // 22
+    'potato_late_blight',                          // 23
+    'potato_healthy',                              // 24
+    'cassava_bacterial_blight',                    // 25
+    'cassava_brown_streak',                        // 26
+    'cassava_green_mottle',                        // 27
+    'cassava_mosaic',                              // 28
+    'cassava_healthy',                             // 29
+    'corn_gray_leaf_spot',                         // 30
+    'corn_common_rust',                            // 31
+    'corn_northern_leaf_blight',                   // 32
+    'corn_healthy',                                // 33
   ];
 
   Interpreter? _interpreter;

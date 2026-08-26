@@ -81,7 +81,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/models/plant_disease_mobilenetv2.tflite
+    - assets/models/cropcare_field_mobilenetv3_fp16.tflite
     - assets/fonts/OFL.txt
 
   # Bundled (not runtime-fetched) so trilingual text renders identically on

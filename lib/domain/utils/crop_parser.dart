@@ -42,17 +42,12 @@ class CropParser {
     if (token.contains('tomato')) return 'tomato';
     if (token.contains('potato')) return 'potato';
     if (token.contains('corn') || token.contains('maize')) return 'corn';
-    if (token.contains('apple')) return 'apple';
-    if (token.contains('grape')) return 'grape';
-    if (token.contains('cherry')) return 'cherry';
-    if (token.contains('orange') || token.contains('citrus')) return 'orange';
-    if (token.contains('peach')) return 'peach';
-    if (token.contains('strawberry')) return 'strawberry';
-    if (token.contains('blueberry')) return 'blueberry';
-    if (token.contains('raspberry')) return 'raspberry';
-    if (token.contains('soybean')) return 'soybean';
-    if (token.contains('squash')) return 'squash';
     if (token.contains('paddy') || token.contains('rice')) return 'paddy';
+    // Added with the field model. Without this every cassava scan
+    // derived a crop of 'unknown'.
+    if (token.contains('cassava') || token.contains('manioc')) {
+      return 'cassava';
+    }
 
     return null;
   }

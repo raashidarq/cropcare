@@ -128,11 +128,15 @@ void main() {
       () async {
         // NOTE on the numbers: entropy is tightly coupled to max-softmax, so
         // the two fields cannot be set independently. This pair is physically
-        // realizable: p_max = 0.62 with the remaining 0.38 spread ~uniformly
-        // over the other 37 classes gives normalized entropy ~0.56.
+        // realizable: p_max = 0.72 with the remainder spread ~uniformly over
+        // the other 33 classes gives normalized entropy in this region.
         //
-        // This also bounds what the entropy gate can do: at p_max >= ~0.67
-        // even a maximally-flat tail stays under the 0.50 threshold, so this
+        // Updated with the field model: the class count went 38 -> 34, so
+        // index 37 no longer exists, and confidenceThreshold went 0.60 ->
+        // 0.70, so the old 0.62 no longer clears it.
+        //
+        // This also bounds what the entropy gate can do: at a high enough
+        // p_max even a maximally-flat tail stays under the threshold, so this
         // check only bites in a narrow band just above confidenceThreshold.
         // It is cheap defense-in-depth, NOT the fix for the reported
         // desk-photo bug (that was 98% confident, i.e. normalized entropy
@@ -140,11 +144,11 @@ void main() {
         // OOD defense is ValidateImageUseCase's content gate.
         final useCase = useCaseWith(_FakeMlInferenceService(
           resultToReturn: const InferenceResult(
-            topClassIndex: 37,
-            confidence: 0.62, // clears confidenceThreshold (0.60)
+            topClassIndex: 19,
+            confidence: 0.72, // clears confidenceThreshold (0.70)
             diseaseId: 'tomato_healthy',
             isSupported: true,
-            topFive: [(37, 0.62), (0, 0.0103)],
+            topFive: [(19, 0.72), (0, 0.0085)],
             entropy: 0.56, // exceeds entropyThreshold (0.50)
           ),
         ));

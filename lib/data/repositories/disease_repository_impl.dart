@@ -32,52 +32,10 @@ class DiseaseRepositoryImpl {
     // Severity: 'low' | 'moderate' | 'high' | null (healthy rows).
     final diseases = <DiseaseTableCompanion>[
       // ── APPLE (class indices 0–3) ─────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'apple_scab',
-        cropId: 'apple',
-        nameEn: 'Apple Scab',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'apple_black_rot',
-        cropId: 'apple',
-        nameEn: 'Black Rot',
-        severityDefault: const Value('high'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'apple_cedar_rust',
-        cropId: 'apple',
-        nameEn: 'Cedar Apple Rust',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'apple_healthy',
-        cropId: 'apple',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── BLUEBERRY (class index 4) ─────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'blueberry_healthy',
-        cropId: 'blueberry',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── CHERRY (class indices 5–6) ────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'cherry_powdery_mildew',
-        cropId: 'cherry',
-        nameEn: 'Powdery Mildew',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'cherry_healthy',
-        cropId: 'cherry',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── CORN / MAIZE (class indices 7–10) ─────────────────────────
       DiseaseTableCompanion.insert(
@@ -106,52 +64,10 @@ class DiseaseRepositoryImpl {
       ),
 
       // ── GRAPE (class indices 11–14) ───────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'grape_black_rot',
-        cropId: 'grape',
-        nameEn: 'Black Rot',
-        severityDefault: const Value('high'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'grape_black_measles',
-        cropId: 'grape',
-        nameEn: 'Esca (Black Measles)',
-        severityDefault: const Value('high'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'grape_leaf_blight',
-        cropId: 'grape',
-        nameEn: 'Leaf Blight (Isariopsis)',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'grape_healthy',
-        cropId: 'grape',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── ORANGE (class index 15) ───────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'orange_citrus_greening',
-        cropId: 'orange',
-        nameEn: 'Huanglongbing (Citrus Greening)',
-        severityDefault: const Value('high'),
-      ),
 
       // ── PEACH (class indices 16–17) ───────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'peach_bacterial_spot',
-        cropId: 'peach',
-        nameEn: 'Bacterial Spot',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'peach_healthy',
-        cropId: 'peach',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── CHILI / PEPPER BELL (class indices 18–19) ─────────────────
       DiseaseTableCompanion.insert(
@@ -188,42 +104,12 @@ class DiseaseRepositoryImpl {
       ),
 
       // ── RASPBERRY (class index 23) ────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'raspberry_healthy',
-        cropId: 'raspberry',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── SOYBEAN (class index 24) ──────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'soybean_healthy',
-        cropId: 'soybean',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── SQUASH (class index 25) ───────────────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'squash_powdery_mildew',
-        cropId: 'squash',
-        nameEn: 'Powdery Mildew',
-        severityDefault: const Value('moderate'),
-      ),
 
       // ── STRAWBERRY (class indices 26–27) ──────────────────────────
-      DiseaseTableCompanion.insert(
-        id: 'strawberry_leaf_scorch',
-        cropId: 'strawberry',
-        nameEn: 'Leaf Scorch',
-        severityDefault: const Value('moderate'),
-      ),
-      DiseaseTableCompanion.insert(
-        id: 'strawberry_healthy',
-        cropId: 'strawberry',
-        nameEn: 'Healthy',
-        severityDefault: const Value(null),
-      ),
 
       // ── TOMATO (class indices 28–37) ──────────────────────────────
       DiseaseTableCompanion.insert(
@@ -399,6 +285,14 @@ class DiseaseRepositoryImpl {
 
       // ── CASSAVA / MANIOC ────────────────────────
       DiseaseTableCompanion.insert(
+        id: 'cassava_healthy',
+        cropId: 'cassava',
+        nameEn: 'Healthy',
+        nameSi: const Value('නීරෝගී'),
+        nameTa: const Value('ஆரோக்கியமானது'),
+        severityDefault: const Value(null),
+      ),
+      DiseaseTableCompanion.insert(
         id: 'cassava_mosaic',
         cropId: 'cassava',
         nameEn: 'Cassava Mosaic Disease',
@@ -418,72 +312,8 @@ class DiseaseRepositoryImpl {
   Future<void> _seedTreatmentGuidelines() async {
     final guidelines = <TreatmentGuidelineTableCompanion>[
       // ── APPLE ──────────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_apple_scab',
-        diseaseId: 'apple_scab',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Dark velvety olive-green spots on leaves and fruit that turn scabby.'),
-        summarySi: const Value('පත්‍ර සහ ගෙඩි මත තද කොළ හෝ කළු පැහැති ලප ඇති වේ.'),
-        summaryTa: const Value('இலைகள் மற்றும் பழங்களில் கருமையான பச்சை அல்லது கறுப்பு புள்ளிகள் தோன்றும்.'),
-        whatToDoEn: const Value('Spray Captan or copper fungicide. Collect and burn all fallen infected leaves.'),
-        whatToDoSi: const Value('කැප්ටාන් හෝ කොපර් දිලීර නාශකයක් ඉසින්න. බිම වැටුණු ආසාදිත කොළ එකතු කර පුළුස්සා දමන්න.'),
-        whatToDoTa: const Value('கேப்டன் அல்லது காப்பர் பூஞ்சைக் கொல்லியைத் தெளிக்கவும். உதிர்ந்த இலைகளைச் சேகரித்து எரிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not water leaves from above. Keep leaves as dry as possible.'),
-        whatToAvoidSi: const Value('උඩින් කොළවලට වතුර ඉසීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('இலைகள் மீது மேலிருந்து தண்ணீர் தெளிப்பதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_apple_black_rot',
-        diseaseId: 'apple_black_rot',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Brown round leaf spots with dark edges and dark decaying fruit.'),
-        summarySi: const Value('කොළ මත දුඹුරු ලප සහ ගෙඩි කළු වී කුණු වීම සිදු වේ.'),
-        summaryTa: const Value('இலைகளில் பழுப்பு நிற புள்ளிகளும், பழங்கள் கறுத்து அழுகுவதும் ஏற்படும்.'),
-        whatToDoEn: const Value('Cut off dead branches and rotting fruit. Spray Captan or Mancozeb fungicide.'),
-        whatToDoSi: const Value('මියගිය අතු සහ කුණු වූ ගෙඩි කපා ඉවත් කරන්න. කැප්ටාන් හෝ මැන්කොසෙබ් ඉසින්න.'),
-        whatToDoTa: const Value('காய்ந்த கிளைகளையும் அழுகிய பழங்களையும் வெட்டி அகற்றவும். மேன்கோசெப் தெளிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not leave rotten or dried fruits on trees or on the ground.'),
-        whatToAvoidSi: const Value('කුණු වූ හෝ වියළුණු ගෙඩි ගසේ හෝ බිම දමා නොයන්න.'),
-        whatToAvoidTa: const Value('அழுகிய பழங்களை மரத்திலோ தரையிலோ விட்டுவைக்காதீர்கள்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_apple_cedar_rust',
-        diseaseId: 'apple_cedar_rust',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Bright yellow-orange spots on the upper side of leaves.'),
-        summarySi: const Value('පත්‍රවල උඩ පැත්තේ දීප්තිමත් තැඹිලි-කහ පැහැති ලප ඇති වේ.'),
-        summaryTa: const Value('இலைகளின் மேற்பகுதியில் பிரகாசமான மஞ்சள்-ஆரஞ்சு புள்ளிகள் தோன்றும்.'),
-        whatToDoEn: const Value('Spray Myclobutanil or copper fungicide when young leaves first emerge.'),
-        whatToDoSi: const Value('නව දළු එන විටම නිර්දේශිත කොපර් දිලීර නාශකයක් ඉසින්න.'),
-        whatToDoTa: const Value('இளம் தளிர்கள் வரும்போதே காப்பர் பூஞ்சைக் கொல்லியைத் தெளிக்கவும்.'),
-        whatToAvoidEn: const Value('Avoid planting apple trees close to wild juniper or cedar trees.'),
-        whatToAvoidSi: const Value('වල් සීඩර් ගස් ආසන්නයේ ඇපල් පැළ සිටුවීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('ஜூனிபர் மரங்களுக்கு அருகில் நடவு செய்வதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(10),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── CHERRY ─────────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_cherry_powdery_mildew',
-        diseaseId: 'cherry_powdery_mildew',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('White powdery fungal coating on leaves causing young shoots to curl.'),
-        summarySi: const Value('කොළ මත සුදු පිටි වැනි තට්ටුවක් බැඳී දළු හැකිලී යයි.'),
-        summaryTa: const Value('இலைகளில் வெள்ளை மாவு போன்ற படலம் தோன்றி தளிர்கள் சுருங்கும்.'),
-        whatToDoEn: const Value('Spray wettable sulfur or neem oil. Prune crowded branches so sunlight enters.'),
-        whatToDoSi: const Value('සල්ෆර් හෝ කොහොඹ තෙල් ඉසින්න. හිරු එළිය සහ සුළං ලැබෙන සේ අතු කප්පාදු කරන්න.'),
-        whatToDoTa: const Value('சல்பர் அல்லது வேப்ப எண்ணெய் தெளிக்கவும். சூரிய ஒளி படுமாறு கிளைகளைக் கத்தரிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not apply too much urea/nitrogen fertilizer.'),
-        whatToAvoidSi: const Value('අධික ලෙස යූරියා (නයිට්‍රජන්) පොහොර යෙදීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('அதிகப்படியான யூரியா உரமிடுவதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── CORN / MAIZE ───────────────────────────────────────────────
       TreatmentGuidelineTableCompanion.insert(
@@ -536,90 +366,10 @@ class DiseaseRepositoryImpl {
       ),
 
       // ── GRAPE ──────────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_grape_black_rot',
-        diseaseId: 'grape_black_rot',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Brown leaf spots and small shriveled, blackened, dried-up grapes.'),
-        summarySi: const Value('කොළ මත දුඹුරු ලප සහ මිදි ගෙඩි කළු වී වියළී හැකිලී යයි.'),
-        summaryTa: const Value('இலைகளில் பழுப்பு புள்ளிகளும், திராட்சைப் பழங்கள் கறுத்து உலர்ந்து சுருங்குவதும் ஏற்படும்.'),
-        whatToDoEn: const Value('Spray Mancozeb or Captan from early bud growth. Pick and burn dried shriveled berries.'),
-        whatToDoSi: const Value('දළු එන අවධියේ සිට මැන්කොසෙබ් හෝ කැප්ටාන් ඉසින්න. වියළී ගිය ආසාදිත ගෙඩි කඩා විනාශ කරන්න.'),
-        whatToDoTa: const Value('தளிர்கள் வரும்போதே மேன்கோசெப் தெளிக்கவும். காய்ந்த அழுகிய பழங்களை அகற்றி அழிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not leave shriveled berries hanging on vines.'),
-        whatToAvoidSi: const Value('වියළුණු මිදි ගෙඩි වැල්වල ඉතිරි නොකරන්න.'),
-        whatToAvoidTa: const Value('காய்ந்த திராட்சைப் பழங்களை கொடியில் விட்டுவைக்காதீர்கள்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_grape_black_measles',
-        diseaseId: 'grape_black_measles',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Tiger-stripe yellow and brown patterns on leaves and spotted fruit.'),
-        summarySi: const Value('පත්‍ර මත කොටියාගේ ඉරි වැනි රටා සහ ගෙඩි මත තද ලප හටගනී.'),
-        summaryTa: const Value('இலைகளில் புலி வரி வடிவ மாற்றமும் பழங்களில் கரும்புள்ளிகளும் தோன்றும்.'),
-        whatToDoEn: const Value('Paint pruning cuts with wound paste. Remove and burn dead diseased vines.'),
-        whatToDoSi: const Value('අතු කපන ස්ථානවල ආරක්ෂිත ආලේපනයක් ගාන්න. මියගිය වැල් කපා පුළුස්සා දමන්න.'),
-        whatToDoTa: const Value('கிளைகளை வெட்டிய இடங்களில் பூஞ்சைக் கொல்லி பசை தடவவும். காய்ந்த கொடிகளை அகற்றி எரிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not prune grapevines on wet rainy days.'),
-        whatToAvoidSi: const Value('වැසි දිනවල අතු කප්පාදු නොකරන්න.'),
-        whatToAvoidTa: const Value('மழை நாட்களில் கொடிகளை வெட்டுவதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(14),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_grape_leaf_blight',
-        diseaseId: 'grape_leaf_blight',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Dark brown spots on leaves causing premature yellowing and leaf fall.'),
-        summarySi: const Value('තද දුඹුරු ලප හටගෙන කොළ කහ වී ඉක්මනින් හැලී යයි.'),
-        summaryTa: const Value('கரும் பழுப்பு புள்ளிகள் தோன்றி இலைகள் மஞ்சள் நிறமாகி உதிரும்.'),
-        whatToDoEn: const Value('Spray copper fungicide. Thin out dense leaves so air and sunlight circulate.'),
-        whatToDoSi: const Value('කොපර් දිලීර නාශකයක් ඉසින්න. හොඳින් හිරු එළිය සහ සුළං ලැබෙන සේ අතු තුනී කරන්න.'),
-        whatToDoTa: const Value('காப்பர் பூஞ்சைக் கொல்லியைத் தெளிக்கவும். காற்று மற்றும் சூரிய ஒளி படுமாறு இலைகளைத் தணிக்கவும்.'),
-        whatToAvoidEn: const Value('Do not allow dense, tangled, unpruned vine canopies.'),
-        whatToAvoidSi: const Value('වැල් අධික ලෙස ළඟින් ළඟ පැටලී වැවීමට ඉඩ නොදෙන්න.'),
-        whatToAvoidTa: const Value('அடர்த்தியாக கொடிகள் படர விடாதீர்கள்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── ORANGE / CITRUS ────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_orange_citrus_greening',
-        diseaseId: 'orange_citrus_greening',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Uneven blotchy yellow patches on leaves and small lopsided bitter fruit.'),
-        summarySi: const Value('පත්‍ර මත අසමාන කහ ලප ඇති වී ගෙඩි ඇද වී තිත්ත වේ.'),
-        summaryTa: const Value('இலைகளில் ஒழுங்கற்ற மஞ்சள் புள்ளிகள் தோன்றி பழங்கள் சிறியதாக கசக்கும்.'),
-        whatToDoEn: const Value('Control jumping plant lice (psyllids) with recommended spray. Buy only certified healthy plants.'),
-        whatToDoSi: const Value('රෝගය පතුරුවන කෘමීන් (පැඟිරි මැක්කන්) මර්දනය කරන්න. සහතික කළ නිරෝගී පැළ පමණක් සිටුවන්න.'),
-        whatToDoTa: const Value('நோயைப் பரப்பும் பூச்சிகளைக் கட்டுப்படுத்தவும். சான்றிதழ் பெற்ற ஆரோக்கியமான கன்றுகளை மட்டுமே நடவும்.'),
-        whatToAvoidEn: const Value('Do not take grafts or cuttings from sick infected citrus trees.'),
-        whatToAvoidSi: const Value('රෝගී ගස්වලින් අතු හෝ බද්ධ රිකිලි ලබා නොගන්න.'),
-        whatToAvoidTa: const Value('பாதிக்கப்பட்ட மரங்களிலிருந்து ஒட்டுக் கட்டுகளை எடுக்காதீர்கள்.'),
-        recheckAfterDays: const Value(14),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── PEACH ──────────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_peach_bacterial_spot',
-        diseaseId: 'peach_bacterial_spot',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Small dark spots on leaves that drop out, leaving tiny holes like shot-holes.'),
-        summarySi: const Value('පත්‍ර මත කුඩා ලප හටගෙන ඒවා හැලී ගොස් සිදුරු ඇති වේ.'),
-        summaryTa: const Value('இலைகளில் சிறிய புள்ளிகள் தோன்றி உதிர்ந்து துளைகளை உண்டாக்கும்.'),
-        whatToDoEn: const Value('Spray copper spray before flowering. Keep trees healthy with balanced compost and water.'),
-        whatToDoSi: const Value('මල් පිපීමට පෙර කොපර් දියර ඉසින්න. ගසට නිසි ජලය සහ පොහොර ලබා දෙන්න.'),
-        whatToDoTa: const Value('பூக்கும் முன் காப்பர் தெளிக்கவும். தகுந்த உரம் மற்றும் தண்ணீர் வழங்கவும்.'),
-        whatToAvoidEn: const Value('Avoid harsh summer pruning that causes weak succulent flushes.'),
-        whatToAvoidSi: const Value('වියළි කාලවලදී අධික ලෙස අතු කප්පාදු කිරීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('கோடையில் அதிகப்படியான கிளைகளை வெட்டுவதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── CHILI / BELL PEPPER ────────────────────────────────────────
       TreatmentGuidelineTableCompanion.insert(
@@ -674,40 +424,8 @@ class DiseaseRepositoryImpl {
       ),
 
       // ── SQUASH ─────────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_squash_powdery_mildew',
-        diseaseId: 'squash_powdery_mildew',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('White flour-like powdery coating on squash leaves and stems.'),
-        summarySi: const Value('වට්ටක්කා කොළ සහ නැටි මත සුදු පිටි වැනි තට්ටුවක් ඇති වේ.'),
-        summaryTa: const Value('சுரைக்காய் இலைகள் மற்றும் தண்டுகளில் வெள்ளை மாவு போன்ற படலம் தோன்றும்.'),
-        whatToDoEn: const Value('Spray neem oil, baking soda solution, or sulfur. Give plants wide spacing.'),
-        whatToDoSi: const Value('කොහොඹ තෙල්, බේකින් සෝඩා දියරය හෝ සල්ෆර් ඉසින්න. පැළ අතර ප්‍රමාණවත් පරතරයක් තබන්න.'),
-        whatToDoTa: const Value('வேப்ப எண்ணெய், சமையல் சோடா கரைசல் அல்லது சல்பர் தெளிக்கவும். செடிகளுக்கு இடையே போதிய இடைவெளி விடவும்.'),
-        whatToAvoidEn: const Value('Avoid crowded planting and shaded humid areas.'),
-        whatToAvoidSi: const Value('ළඟින් ළඟ පැළ සිටුවීමෙන් සහ හිරු එළිය නොවැටෙන තැන්වල වගා කිරීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('நிழலான மற்றும் காற்று வசதி இல்லாத இடங்களில் நெருக்கமாக நடாதீர்கள்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── STRAWBERRY ─────────────────────────────────────────────────
-      TreatmentGuidelineTableCompanion.insert(
-        id: 'tg_strawberry_leaf_scorch',
-        diseaseId: 'strawberry_leaf_scorch',
-        guidelineVersion: 'tg-2026.01',
-        summaryEn: const Value('Small purplish-brown spots on strawberry leaves that dry up and turn brown.'),
-        summarySi: const Value('ස්ට්‍රෝබෙරි කොළ මත දම්-දුඹුරු පැහැති කුඩා ලප හටගෙන කොළ පිලිස්සී යයි.'),
-        summaryTa: const Value('இலைகளில் சிறிய ஊதா-பழுப்பு புள்ளிகள் தோன்றி இலைகள் கருகும்.'),
-        whatToDoEn: const Value('Cut and remove old spotted leaves after picking berries. Spray copper fungicide.'),
-        whatToDoSi: const Value('අස්වැන්න නෙලූ පසු රෝගී පැරණි කොළ කපා ඉවත් කරන්න. කොපර් දිලීර නාශක ඉසින්න.'),
-        whatToDoTa: const Value('அறுவடைக்குப் பின் பழைய பாதிக்கப்பட்ட இலைகளை வெட்டவும். காப்பர் பூஞ்சைக் கொல்லி தெளிக்கவும்.'),
-        whatToAvoidEn: const Value('Avoid poorly drained waterlogged soil.'),
-        whatToAvoidSi: const Value('ජලය බැස නොයන මඩ සහිත පසෙහි සිටුවීමෙන් වළකින්න.'),
-        whatToAvoidTa: const Value('தண்ணீர் தேங்கும் நிலத்தில் நடவு செய்வதைத் தவிர்க்கவும்.'),
-        recheckAfterDays: const Value(7),
-        publishedAt: const Value('2026-01-01T00:00:00Z'),
-      ),
 
       // ── TOMATO ─────────────────────────────────────────────────────
       TreatmentGuidelineTableCompanion.insert(

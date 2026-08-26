@@ -80,7 +80,12 @@ class ValidateImageUseCase {
   // may include leaf plus background — this only needs to catch the
   // "there is essentially no plant material in frame at all" case (a desk,
   // a blank wall, a piece of paper, a hand).
-  static const double _minVegetationFraction = 0.12;
+  // Loosened from 0.12 when rice entered the model. Two things about a paddy
+  // photo work against this gate: rice leaves are narrow, so less of the frame
+  // is leaf, and the rest of the frame is often water, mud or sky rather than
+  // more foliage. A desk or a wall still scores near zero, so the "no plant
+  // material at all" case this exists to catch is unaffected.
+  static const double _minVegetationFraction = 0.08;
 
   Future<ImageValidationResult> call(String imageLocalPath) async {
     final file = File(imageLocalPath);
@@ -239,9 +244,13 @@ class ValidateImageUseCase {
         final hue = hsv.$1;
         final saturation = hsv.$2;
         final value = hsv.$3;
+        // Saturation floor lowered from 0.15 for rice, which is a duller,
+        // greyer green than the broadleaf crops this was tuned on -
+        // especially as it matures. Desks, walls and paper sit below 0.10,
+        // so the gap that matters is preserved.
         if (hue >= 60 &&
             hue <= 170 &&
-            saturation >= 0.15 &&
+            saturation >= 0.12 &&
             value >= 0.10) {
           vegetationPixels++;
         }
