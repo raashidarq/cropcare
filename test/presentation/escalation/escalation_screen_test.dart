@@ -102,10 +102,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Escalate to Expert'), findsOneWidget);
-    expect(find.text('Low Confidence Match'), findsOneWidget);
     expect(find.byKey(const Key('whatsapp_share_button')), findsOneWidget);
     expect(find.byKey(const Key('copy_escalation_text_button')), findsOneWidget);
-    expect(find.byKey(const Key('generic_share_button')), findsOneWidget);
+
+    // The third button is gone: "Share via other apps" called exactly the
+    // same method as the primary one, which opens the OS share sheet and
+    // already offers every app on the phone.
+    expect(find.byKey(const Key('generic_share_button')), findsNothing);
+
+    // The result is about to reach someone who never saw the caveats on the
+    // diagnosis screen, so the framing travels with it. This scan is low
+    // confidence, so it gets the stronger wording.
+    expect(
+      find.text('Share the photo, not just the name'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('NOT sure about this result'), findsOneWidget);
 
     // Test Copy Summary button tap
     await tester.tap(find.byKey(const Key('copy_escalation_text_button')));

@@ -46,6 +46,14 @@ class DiagnosisResultScreen extends StatelessWidget {
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
   final SpeechRecognitionService? speechService;
+
+  /// Opens the camera for another scan.
+  ///
+  /// Supplied by whoever pushed this screen, because they hold the capture
+  /// use cases and this screen does not. Without it the button falls back to
+  /// popping home, which is where "Scan again" used to land - one tap short
+  /// of what it said it would do.
+  final void Function(BuildContext context)? onScanAgain;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
   final SendChatMessageUseCase? sendChatMessageUseCase;
   final DeleteChatMessageUseCase? deleteChatMessageUseCase;
@@ -60,6 +68,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     this.createEscalationUseCase,
     this.ttsService,
     this.speechService,
+    this.onScanAgain,
     this.getChatHistoryUseCase,
     this.sendChatMessageUseCase,
     this.deleteChatMessageUseCase,
@@ -80,6 +89,7 @@ class DiagnosisResultScreen extends StatelessWidget {
           createEscalationUseCase: createEscalationUseCase,
           ttsService: ttsService,
           speechService: speechService,
+          onScanAgain: onScanAgain,
           getChatHistoryUseCase: getChatHistoryUseCase,
           sendChatMessageUseCase: sendChatMessageUseCase,
           deleteChatMessageUseCase: deleteChatMessageUseCase,
@@ -94,6 +104,7 @@ class DiagnosisResultScreen extends StatelessWidget {
       createEscalationUseCase: createEscalationUseCase,
       ttsService: ttsService,
       speechService: speechService,
+      onScanAgain: onScanAgain,
       getChatHistoryUseCase: getChatHistoryUseCase,
       sendChatMessageUseCase: sendChatMessageUseCase,
       deleteChatMessageUseCase: deleteChatMessageUseCase,
@@ -108,6 +119,7 @@ class _DiagnosisResultView extends StatefulWidget {
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
   final SpeechRecognitionService? speechService;
+  final void Function(BuildContext context)? onScanAgain;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
   final SendChatMessageUseCase? sendChatMessageUseCase;
   final DeleteChatMessageUseCase? deleteChatMessageUseCase;
@@ -119,6 +131,7 @@ class _DiagnosisResultView extends StatefulWidget {
     this.createEscalationUseCase,
     this.ttsService,
     this.speechService,
+    this.onScanAgain,
     this.getChatHistoryUseCase,
     this.sendChatMessageUseCase,
     this.deleteChatMessageUseCase,
@@ -358,7 +371,18 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
             ),
             _BottomActions(
               onScanAgain: () {
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                final again = widget.onScanAgain;
+                if (again == null) {
+                  // No capture use cases were threaded in (a direct push, or
+                  // a test). Home is the best available destination.
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  return;
+                }
+                // Leave the result behind before opening the camera, so the
+                // back button from the viewfinder does not return to a stale
+                // diagnosis of a different leaf.
+                Navigator.of(context).pop();
+                again(context);
               },
               onConsultExpert: () => _navigateToEscalation(context),
             ),

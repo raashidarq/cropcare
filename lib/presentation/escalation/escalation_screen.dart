@@ -1,20 +1,40 @@
 // lib/presentation/escalation/escalation_screen.dart
 //
-// Screen to review diagnosis details and share leaf photo + notes with an agronomist on WhatsApp.
+// Send this scan to someone who knows more — an agronomist, an extension
+// officer, a neighbour who has grown this crop for thirty years.
+//
+// What changed and why:
+//
+//  * A disclaimer now leads the screen. This is the one place in the app where
+//    an automated guess leaves the app and reaches a *second person*, who did
+//    not see the caveats on the result screen and may reasonably assume the
+//    app is telling them something it verified. The whole design posture of
+//    the app (TD-014) collapses if the message arrives sounding authoritative,
+//    so the framing travels with it.
+//  * The primary button said "WhatsApp" but calls the OS share sheet, which
+//    offers whatever the phone has. And a third button, "Share via other
+//    apps", called the *identical* method. One honest action replaces two.
+//  * It was un-tokenised throughout — raw `Card`, `BorderRadius.circular`,
+//    `colorScheme.*`, `TextStyle(fontSize:)`, and translucent hint text.
+//  * `cropId.toUpperCase()` — uppercase does not exist in Sinhala or Tamil.
 
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/theme/app_colors.dart';
-
 import '../../application/escalation/escalation_cubit.dart';
 import '../../application/escalation/escalation_state.dart';
+import '../../core/constants/crop_visuals.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../domain/entities/diagnosis.dart';
 import '../../domain/entities/scan.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
+import '../shared/widgets/app_components.dart';
 
 class EscalationScreen extends StatelessWidget {
   final Scan scan;
@@ -75,15 +95,6 @@ class _EscalationViewState extends State<_EscalationView> {
     super.dispose();
   }
 
-  String _formatDiseaseName(String? diseaseId) {
-    if (diseaseId == null) return 'Unknown Plant Issue';
-    return diseaseId
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-        .join(' ');
-  }
-
   void _copySummary(BuildContext context) {
     final text = context.read<EscalationCubit>().formatEscalationText(
           scan: widget.scan,
@@ -94,10 +105,17 @@ class _EscalationViewState extends State<_EscalationView> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(context.tr('summary_copied')),
-        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  void _share(BuildContext context) {
+    context.read<EscalationCubit>().shareViaWhatsApp(
+          scan: widget.scan,
+          diagnosis: widget.diagnosis,
+          farmerNotes: _notesController.text.trim(),
+        );
   }
 
   @override
@@ -105,8 +123,6 @@ class _EscalationViewState extends State<_EscalationView> {
     final theme = Theme.of(context);
     final isLowConfidence = widget.diagnosis.confidence < 0.80 ||
         widget.diagnosis.resultState == DiagnosisResultState.lowConfidence;
-    final file = File(widget.scan.imageLocalPath);
-    final hasImage = file.existsSync();
 
     return Scaffold(
       appBar: AppBar(
@@ -117,10 +133,7 @@ class _EscalationViewState extends State<_EscalationView> {
         listener: (context, state) {
           if (state is EscalationSharedSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(context.tr('whatsapp_share_opened')),
-                backgroundColor: AppColors.success,
-              ),
+              SnackBar(content: Text(context.tr('whatsapp_share_opened'))),
             );
           } else if (state is EscalationError) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -134,249 +147,251 @@ class _EscalationViewState extends State<_EscalationView> {
           }
         },
         builder: (context, state) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Subtitle / Intro ─────────────────────────────────────
-                  Text(
-                    context.tr('escalation_subtitle'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+          final sharing = state is EscalationSharing;
 
-                  // ── Image Preview + Quick Metadata ───────────────────────
-                  Card(
-                    elevation: 2,
-                    clipBehavior: Clip.antiAlias,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+          return SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.md,
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (hasImage)
-                          SizedBox(
-                            height: 200,
-                            width: double.infinity,
-                            child: Image.file(
-                              file,
-                              fit: BoxFit.cover,
-                              // Cap decode at screen width; the source is a
-                              // full-resolution camera photo.
-                              cacheWidth: (MediaQuery.sizeOf(context).width *
-                                      MediaQuery.devicePixelRatioOf(context))
-                                  .round(),
+                        // The message is about to leave the app and reach a
+                        // person who never saw the result screen. It has to
+                        // arrive labelled as a guess.
+                        AppBanner.aiDisclaimer(
+                          title: context.tr('escalation_disclaimer_title'),
+                          message: isLowConfidence
+                              ? context.tr('escalation_disclaimer_unsure')
+                              : context.tr('escalation_disclaimer_msg'),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        _SharePreview(
+                          scan: widget.scan,
+                          diagnosis: widget.diagnosis,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        Text(
+                          context.tr('farmer_notes_label'),
+                          style: theme.textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          context.tr('farmer_notes_help'),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: AppSpacing.smPlus),
+                        TextField(
+                          key: const Key('escalation_notes_field'),
+                          controller: _notesController,
+                          maxLines: 4,
+                          minLines: 3,
+                          decoration: InputDecoration(
+                            hintText: context.tr('farmer_notes_hint'),
+                            hintStyle: theme.textTheme.bodySmall,
+                            border: const OutlineInputBorder(
+                              borderRadius: AppRadius.md,
                             ),
-                          )
-                        else
-                          Container(
-                            height: 120,
-                            color: AppColors.surfaceVariant,
-                            child: const Center(
-                              child: Icon(Icons.image_not_supported,
-                                  size: 48, color: AppColors.onSurfaceVariant),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.smPlus,
+                              vertical: AppSpacing.sm,
                             ),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      widget.scan.cropId.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.onPrimaryContainer,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (isLowConfidence)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.warningContainer,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        context.tr('low_confidence_badge'),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.onWarningContainer,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _formatDiseaseName(widget.diagnosis.diseaseId),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${context.tr('confidence')}: ${(widget.diagnosis.confidence * 100).toStringAsFixed(1)}%${widget.diagnosis.severity != null ? ' • Severity: ${widget.diagnosis.severity}' : ''}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                ),
 
-                  // ── Farmer Observations & Notes ──────────────────────────
-                  Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.edit_note,
-                                  color: theme.colorScheme.primary, size: 22),
-                              const SizedBox(width: 8),
-                              Text(
-                                context.tr('farmer_notes_label'),
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _notesController,
-                            maxLines: 3,
-                            decoration: InputDecoration(
-                              hintText: context.tr('farmer_notes_hint'),
-                              hintStyle: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── WhatsApp Share Action Button ─────────────────────────
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      key: const Key('whatsapp_share_button'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.whatsapp,
-                        foregroundColor: AppColors.onWhatsapp,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: state is EscalationSharing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.onWhatsapp,
-                              ),
-                            )
-                          : const Icon(Icons.share, color: AppColors.onWhatsapp),
-                      label: Text(
-                        context.tr('share_whatsapp_btn'),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      onPressed: state is EscalationSharing
-                          ? null
-                          : () {
-                              context.read<EscalationCubit>().shareViaWhatsApp(
-                                    scan: widget.scan,
-                                    diagnosis: widget.diagnosis,
-                                    farmerNotes: _notesController.text.trim(),
-                                  );
-                            },
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ── Fallback 1: Copy Summary Text ────────────────────────
-                  SizedBox(
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      key: const Key('copy_escalation_text_button'),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.copy_all, size: 20),
-                      label: Text(
-                        context.tr('copy_summary_btn'),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () => _copySummary(context),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // ── Fallback 2: Share via Other Apps ─────────────────────
-                  TextButton.icon(
-                    key: const Key('generic_share_button'),
-                    icon: const Icon(Icons.share_outlined, size: 18),
-                    label: Text(context.tr('share_other_apps')),
-                    onPressed: state is EscalationSharing
-                        ? null
-                        : () {
-                            context.read<EscalationCubit>().shareViaWhatsApp(
-                                  scan: widget.scan,
-                                  diagnosis: widget.diagnosis,
-                                  farmerNotes: _notesController.text.trim(),
-                                );
-                          },
-                  ),
-                ],
-              ),
+                _ShareActions(
+                  sharing: sharing,
+                  onShare: () => _share(context),
+                  onCopy: () => _copySummary(context),
+                ),
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// What will be sent
+// =============================================================================
+
+/// Shows the farmer exactly what leaves their phone.
+///
+/// Previously a raised card wrapping a 200px image and a second padded block
+/// of chips. It is a preview, not the subject of the screen, so it is now one
+/// flat row.
+class _SharePreview extends StatelessWidget {
+  final Scan scan;
+  final Diagnosis diagnosis;
+
+  const _SharePreview({required this.scan, required this.diagnosis});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final visual = CropVisuals.forCrop(scan.cropId);
+    final file = File(scan.imageLocalPath);
+    final percent = (diagnosis.confidence * 100).toStringAsFixed(0);
+
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: AppRadius.md,
+            child: SizedBox(
+              width: 84,
+              height: 84,
+              child: file.existsSync()
+                  ? Image.file(
+                      file,
+                      fit: BoxFit.cover,
+                      cacheWidth: 252,
+                      errorBuilder: (_, _, _) => _ImageFallback(visual: visual),
+                    )
+                  : _ImageFallback(visual: visual),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.smPlus),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('escalation_will_send'),
+                  style: theme.textTheme.labelSmall,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  _formatDiseaseName(diagnosis.diseaseId) ??
+                      context.tr('unknown_disease'),
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '${context.tr('confidence_percent').replaceFirst('{percent}', percent)}'
+                  '${diagnosis.severity != null ? ' · ${context.tr('severity_label')}: ${diagnosis.severity}' : ''}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  final CropVisual visual;
+
+  const _ImageFallback({required this.visual});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.surfaceVariant,
+      child: Center(child: Icon(visual.icon, color: visual.color)),
+    );
+  }
+}
+
+String? _formatDiseaseName(String? id) {
+  if (id == null || id.isEmpty) return null;
+  return id
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
+// =============================================================================
+// Actions
+// =============================================================================
+
+/// One share, one copy.
+///
+/// There used to be three buttons: a green "WhatsApp" one, a copy button, and
+/// "Share via other apps" — which called exactly the same method as the first.
+/// The share sheet already offers every app on the phone, so the WhatsApp
+/// branding promised a specific destination the code never guaranteed.
+class _ShareActions extends StatelessWidget {
+  final bool sharing;
+  final VoidCallback onShare;
+  final VoidCallback onCopy;
+
+  const _ShareActions({
+    required this.sharing,
+    required this.onShare,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.smPlus,
+            AppSpacing.md,
+            AppSpacing.smPlus,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: AppSpacing.minTouchTarget,
+                child: ElevatedButton.icon(
+                  key: const Key('whatsapp_share_button'),
+                  icon: sharing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.onPrimary,
+                          ),
+                        )
+                      : const Icon(Icons.share_rounded),
+                  label: Text(context.tr('share_with_expert_btn')),
+                  onPressed: sharing ? null : onShare,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  key: const Key('copy_escalation_text_button'),
+                  icon: const Icon(Icons.copy_all_rounded, size: 18),
+                  label: Text(context.tr('copy_summary_btn')),
+                  onPressed: onCopy,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

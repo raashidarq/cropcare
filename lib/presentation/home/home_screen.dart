@@ -311,6 +311,7 @@ class _AppShellState extends State<_AppShell> {
             : DiagnosisResultScreen(
                 scan: item.scan,
                 diagnosis: diagnosis,
+                onScanAgain: (_) => _startScan(),
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
                 getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
                 getChatHistoryUseCase: widget.getChatHistoryUseCase,

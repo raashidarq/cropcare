@@ -98,6 +98,21 @@ class AppTheme {
         ),
       ),
 
+      // Without this, a TabBar inside an AppBar takes its label colour from
+      // colorScheme.onSurface - which is near-black - and renders dark text
+      // on the dark green AppBar. The tabs were effectively invisible.
+      tabBarTheme: TabBarThemeData(
+        labelColor: AppColors.onPrimary,
+        unselectedLabelColor: AppColors.primaryContainer,
+        indicatorColor: AppColors.onPrimary,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelStyle: baseTextTheme.titleSmall?.copyWith(
+          color: AppColors.onPrimary,
+        ),
+        unselectedLabelStyle: baseTextTheme.titleSmall,
+      ),
+
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,

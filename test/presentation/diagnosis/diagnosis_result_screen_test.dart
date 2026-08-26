@@ -229,7 +229,9 @@ void main() {
     // The footer says "Ask an expert", not "WhatsApp Share with Expert": it
     // opens the escalation screen, which then offers WhatsApp, copy, or any
     // share target. Naming one channel overpromised.
-    expect(find.text('Ask an expert'), findsWidgets);
+    // "Ask your expert" — the app has no expert network; escalation shares
+    // the result with whoever the farmer already knows.
+    expect(find.text('Ask your expert'), findsWidgets);
   });
 
   testWidgets('DiagnosisResultScreen renders Read Aloud button and speaks guidance on tap',

@@ -112,6 +112,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
       picker: _picker,
       cameraService: widget.cameraService ?? const DefaultCameraService(),
       initialTempImagePath: widget.initialTempImagePath,
+      validateImageUseCase: widget.validateImageUseCase,
+      runDiagnosisUseCase: widget.runDiagnosisUseCase,
       resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
       getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
       getChatHistoryUseCase: widget.getChatHistoryUseCase,
@@ -164,6 +166,8 @@ class _CaptureView extends StatefulWidget {
   final ImagePicker picker;
   final CameraService cameraService;
   final String? initialTempImagePath;
+  final ValidateImageUseCase? validateImageUseCase;
+  final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
@@ -176,6 +180,8 @@ class _CaptureView extends StatefulWidget {
     required this.cropId,
     required this.user,
     required this.picker,
+    this.validateImageUseCase,
+    this.runDiagnosisUseCase,
     required this.cameraService,
     this.initialTempImagePath,
     this.resolveTreatmentUseCase,
@@ -287,6 +293,28 @@ class _CaptureViewState extends State<_CaptureView> {
               builder: (_) => DiagnosisResultScreen(
                 scan: state.scan,
                 diagnosis: state.diagnosis,
+                // Rebuilds a fresh viewfinder. This screen replaced itself to
+                // show the result, so it is gone by now - the callback takes
+                // the result screen's own context to navigate with.
+                onScanAgain: (ctx) => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                    builder: (_) => CaptureScreen(
+                      user: widget.user,
+                      validateImageUseCase: widget.validateImageUseCase,
+                      runDiagnosisUseCase: widget.runDiagnosisUseCase,
+                      resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+                      getLocalTreatmentGuidanceUseCase:
+                          widget.getLocalTreatmentGuidanceUseCase,
+                      getChatHistoryUseCase: widget.getChatHistoryUseCase,
+                      sendChatMessageUseCase: widget.sendChatMessageUseCase,
+                      deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
+                      getDiseaseExplanationUseCase:
+                          widget.getDiseaseExplanationUseCase,
+                      createEscalationUseCase: widget.createEscalationUseCase,
+                    ),
+                  ),
+                ),
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
                 getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
                 getChatHistoryUseCase: widget.getChatHistoryUseCase,
