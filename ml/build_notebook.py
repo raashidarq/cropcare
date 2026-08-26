@@ -510,9 +510,34 @@ def build_model():
 
 model, base = build_model()
 
-loss = tf.keras.losses.SparseCategoricalCrossentropy(
-    from_logits=True, label_smoothing=0.0
-)
+def make_loss(num_classes, smoothing):
+    """Cross-entropy with label smoothing, over sparse integer labels.
+
+    `SparseCategoricalCrossentropy` has no `label_smoothing` argument - only
+    the one-hot `CategoricalCrossentropy` does - so the labels are one-hotted
+    inside the loss and the dataset keeps its cheap integer labels and its
+    sparse metrics.
+
+    Smoothing earns its place twice over here: the source labels are not
+    perfectly clean, and an app whose entire posture is "do not overstate what
+    the model knows" should not be training a maximally confident classifier.
+    A softmax that never outputs 0.99 also makes the downstream confidence and
+    entropy thresholds easier to set honestly.
+    """
+    cce = tf.keras.losses.CategoricalCrossentropy(
+        from_logits=True, label_smoothing=smoothing
+    )
+
+    def loss_fn(y_true, y_pred):
+        y_true = tf.one_hot(
+            tf.cast(tf.reshape(y_true, [-1]), tf.int32), num_classes
+        )
+        return cce(y_true, y_pred)
+
+    loss_fn.__name__ = "sparse_cce_label_smoothed"
+    return loss_fn
+
+loss = make_loss(NUM_CLASSES, LABEL_SMOOTH)
 
 def compile_model(lr):
     model.compile(
@@ -533,11 +558,15 @@ print(f"{model.count_params():,} parameters "
 md("## 9 · Train — head first, then fine-tune")
 
 code('''
-ckpt = OUT_DIR / f"{MODEL_NAME}.keras"
+# Weights only, not a full .keras: the model carries a custom loss function,
+# which a serialised model would need custom_objects to reload. This file is
+# only a crash-recovery artifact anyway - EarlyStopping(restore_best_weights)
+# is what actually hands the best weights back at the end.
+ckpt = OUT_DIR / f"{MODEL_NAME}.weights.h5"
 callbacks = [
     tf.keras.callbacks.ModelCheckpoint(
         str(ckpt), monitor="val_acc", mode="max",
-        save_best_only=True, verbose=1),
+        save_best_only=True, save_weights_only=True, verbose=1),
     tf.keras.callbacks.EarlyStopping(
         monitor="val_acc", mode="max", patience=5,
         restore_best_weights=True, verbose=1),
