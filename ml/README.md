@@ -67,18 +67,25 @@ IP102 is not needed for a first useful version.
 1. **Kaggle → Create → Notebook → File → Import Notebook**, upload
    `cropcare_train.ipynb`.
 2. **Settings → Accelerator → GPU T4 x2**, and **Internet: On**.
-3. **Add Input**, and attach:
+3. **Add Input**, and attach the four below.
 
-   | Search Kaggle for | Role |
-   |---|---|
-   | `paddy-disease-classification` | rice, field — closes the paddy gap |
-   | `cassava-leaf-disease-classification` | field survey |
-   | `plantvillage` or `new-plant-diseases-dataset` | lab, supporting only |
-   | `plantdoc` | **held out** field test set |
+   > **Attach data, not notebooks.** The dialog has separate **Competitions**,
+   > **Datasets** and **Notebooks** tabs. Attaching someone's *notebook* called
+   > "PlantDoc" gives you their output, not the images, and nothing will be
+   > found. If the Input panel groups your attachments under a **NOTEBOOKS**
+   > heading, that is what has happened.
 
-   The two competition datasets need their rules accepted on the competition
-   page first, or the files will not mount. Datasets are discovered by
-   directory name, not slug, so any reasonable mirror works.
+   | Attach from | Search for | Role |
+   |---|---|---|
+   | **Competitions** | `paddy-disease-classification` | rice, field — closes the paddy gap |
+   | **Competitions** | `cassava-leaf-disease-classification` | field survey |
+   | **Datasets** | `plantvillage` or `new-plant-diseases-dataset` | lab, supporting only |
+   | **Datasets** | `plantdoc` | **held out** field test set |
+
+   The two competitions need their rules accepted on the competition page
+   first, or they will not mount even after attaching. Everything is
+   discovered by directory name rather than slug, searching three levels deep,
+   so any reasonable mirror works and nested mounts are still found.
 
 4. **Run All.** Expect roughly 1–2 hours on a T4.
 

@@ -59,18 +59,23 @@ in an actual field. The validation number is not.
 
 **Settings → Accelerator → GPU T4 x2** (or P100), and **Internet: On**.
 
-Then **Add Input** and attach these. Exact dataset slugs vary between mirrors —
-the notebook discovers them by directory name, so any reasonable mirror works:
+Then **Add Input** and attach the four below.
 
-| Dataset | Role | Search Kaggle for |
+> **Attach data, not notebooks.** The Add Input dialog has separate
+> **Competitions**, **Datasets** and **Notebooks** tabs. It is easy to land on
+> Notebooks and attach someone's *notebook* named "PlantDoc" — that gives you
+> their output, not the images, and nothing will be found. If the Input panel
+> groups your attachments under a **NOTEBOOKS** heading, that is what happened.
+
+| Attach from | Search for | Role |
 |---|---|---|
-| Paddy Doctor | rice, field — **closes the paddy gap** | `paddy-disease-classification` |
-| Cassava Leaf Disease | field survey | `cassava-leaf-disease-classification` |
-| PlantVillage | lab, supporting only | `plantvillage` or `new-plant-diseases-dataset` |
-| PlantDoc | **held out** field test set | `plantdoc` |
+| **Competitions** tab | `paddy-disease-classification` | rice, field — **closes the paddy gap** |
+| **Competitions** tab | `cassava-leaf-disease-classification` | field survey |
+| **Datasets** tab | `plantvillage` or `new-plant-diseases-dataset` | lab, supporting only |
+| **Datasets** tab | `plantdoc` | **held out** field test set |
 
-For the two competition datasets you must accept the rules on the competition
-page first, or the files will not mount.
+For the two competitions you must open the competition page and accept its
+rules first, or the files will not mount even after attaching.
 
 Missing any of them is fine — the notebook reports what it found and trains on
 what is there. Missing PlantDoc means you lose the field number, which is the
@@ -157,30 +162,68 @@ between mirrors and go stale. Whatever is attached gets used.
 
 code('''
 INPUT_ROOT = Path("/kaggle/input")
+MAX_DEPTH = 3   # datasets, competitions and notebook outputs mount at
+                # different depths; searching only the top level misses most
+                # of them.
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+def _candidate_dirs():
+    """Every directory under /kaggle/input down to MAX_DEPTH."""
+    if not INPUT_ROOT.exists():
+        return []
+    out = []
+    for depth in range(1, MAX_DEPTH + 1):
+        out.extend(sorted(p for p in INPUT_ROOT.glob("/".join(["*"] * depth))
+                          if p.is_dir()))
+    return out
+
+def _has_images(folder, limit=1):
+    """Cheap check that a directory actually contains images somewhere."""
+    n = 0
+    for p in folder.rglob("*"):
+        if p.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+            n += 1
+            if n >= limit:
+                return True
+    return False
 
 def find_source_dirs(source):
-    """All attached directories plausibly belonging to `source`."""
+    """All attached directories plausibly belonging to `source`.
+
+    Matches hints against the path RELATIVE to /kaggle/input, not just the
+    directory name, so a dataset nested under a notebook-output mount is still
+    found. Parents win over children so the same images are not indexed twice.
+    """
     hits = []
-    if not INPUT_ROOT.exists():
-        return hits
-    for entry in sorted(INPUT_ROOT.iterdir()):
-        if not entry.is_dir():
+    for entry in _candidate_dirs():
+        rel = _norm(str(entry.relative_to(INPUT_ROOT)))
+        if not any(_norm(h) in rel for h in source.dir_hints):
             continue
-        name = entry.name.lower().replace("_", "-")
-        for hint in source.dir_hints:
-            if hint.lower().replace("_", "-") in name:
-                hits.append(entry)
-                break
+        # Shallowest match wins. `_candidate_dirs` yields breadth-first, so any
+        # already-accepted hit that contains this one is its ancestor, and
+        # indexing both would count every image twice. `is_relative_to` rather
+        # than string prefixes: separators differ by platform.
+        if any(entry.is_relative_to(h) for h in hits):
+            continue
+        hits.append(entry)
     return hits
 
-print("Attached inputs:")
-for e in sorted(INPUT_ROOT.iterdir()) if INPUT_ROOT.exists() else []:
-    print("   ", e.name)
+# --- show what is actually mounted ---------------------------------------
+print("Mounted under /kaggle/input:")
+if not INPUT_ROOT.exists() or not any(INPUT_ROOT.iterdir()):
+    print("   (nothing)")
+else:
+    for top in sorted(p for p in INPUT_ROOT.iterdir() if p.is_dir()):
+        print(f"   {top.name}/")
+        for child in sorted(p for p in top.iterdir() if p.is_dir())[:12]:
+            print(f"      {child.name}/")
 
 print()
 FOUND = {}
 for src in SOURCES:
-    dirs = find_source_dirs(src)
+    dirs = [d for d in find_source_dirs(src) if _has_images(d)]
     FOUND[src.key] = dirs
     mark = "OK   " if dirs else "MISS "
     held = "  [held out]" if src.key in HELD_OUT_SOURCES else ""
@@ -189,9 +232,19 @@ for src in SOURCES:
         print(f"        {d}")
 
 if not any(FOUND[s.key] for s in SOURCES if s.key not in HELD_OUT_SOURCES):
+    attached = [p.name for p in INPUT_ROOT.iterdir()] if INPUT_ROOT.exists() else []
     raise SystemExit(
-        "No trainable dataset attached. Use 'Add Input' — see the table at the "
-        "top of this notebook."
+        "No trainable dataset found.\\n\\n"
+        f"What is mounted: {attached or 'nothing'}\\n\\n"
+        "If the Input panel lists these under a NOTEBOOKS heading, you have "
+        "attached other people's notebooks instead of the data. Notebook "
+        "outputs do not contain these datasets.\\n\\n"
+        "In 'Add Input', use the COMPETITIONS tab for:\\n"
+        "    paddy-disease-classification\\n"
+        "    cassava-leaf-disease-classification\\n"
+        "  (accept each competition's rules on its page first, or it will not "
+        "mount)\\n"
+        "and the DATASETS tab for PlantVillage and PlantDoc."
     )
 if not FOUND.get("plantdoc"):
     print("\\nWARNING: PlantDoc is not attached, so there will be no field "
