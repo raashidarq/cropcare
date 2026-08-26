@@ -20,6 +20,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/chat/chat_cubit.dart';
 import '../../application/chat/chat_state.dart';
+import '../../core/utils/app_haptics.dart';
+import '../../data/local/speech/speech_recognition_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
@@ -32,19 +34,28 @@ import '../shared/widgets/app_state_views.dart';
 class ChatScreen extends StatelessWidget {
   final ChatCubit cubit;
 
-  const ChatScreen({super.key, required this.cubit});
+  /// Optional: when present, the composer offers a mic. Speaking a question is
+  /// the natural home for voice in this app — it used to sit on the diagnosis
+  /// screen attached to a free-text "observations" box that a farmer was asked
+  /// to fill in before being told anything. Here there is an obvious reason to
+  /// talk, and an obvious thing to say.
+  final SpeechRecognitionService? speechService;
+
+  const ChatScreen({super.key, required this.cubit, this.speechService});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: cubit..loadHistory(),
-      child: const _ChatView(),
+      child: _ChatView(speechService: speechService),
     );
   }
 }
 
 class _ChatView extends StatefulWidget {
-  const _ChatView();
+  final SpeechRecognitionService? speechService;
+
+  const _ChatView({this.speechService});
 
   @override
   State<_ChatView> createState() => _ChatViewState();
@@ -53,6 +64,77 @@ class _ChatView extends StatefulWidget {
 class _ChatViewState extends State<_ChatView> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  /// Null until checked; false means the device cannot transcribe the active
+  /// language, in which case no mic is offered at all.
+  bool? _speechAvailable;
+  String _textBeforeListening = '';
+  String? _speechErrorKey;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_speechAvailable != null) return;
+    _checkSpeech();
+  }
+
+  Future<void> _checkSpeech() async {
+    final service = widget.speechService;
+    if (service == null) {
+      if (mounted) setState(() => _speechAvailable = false);
+      return;
+    }
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
+    final available = await service.localeAvailable(languageCode);
+    if (!mounted) return;
+    setState(() => _speechAvailable = available);
+  }
+
+  Future<void> _toggleRecording() async {
+    final service = widget.speechService;
+    if (service == null) return;
+
+    if (service.isListening.value) {
+      await service.stopListening();
+      return;
+    }
+
+    setState(() => _speechErrorKey = null);
+    _textBeforeListening = _controller.text.trimRight();
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
+
+    try {
+      AppHaptics.recordingToggled(context);
+      await service.startListening(
+        languageCode: languageCode,
+        onResult: (words) {
+          if (words.isEmpty) return;
+          final prefix =
+              _textBeforeListening.isEmpty ? '' : '$_textBeforeListening ';
+          _controller.text = '$prefix$words';
+          _controller.selection = TextSelection.collapsed(
+            offset: _controller.text.length,
+          );
+        },
+      );
+    } on SpeechUnavailable catch (e) {
+      if (!mounted) return;
+      setState(() => _speechErrorKey = _speechMessageKey(e.reason));
+    }
+  }
+
+  static String _speechMessageKey(SpeechUnavailableReason reason) {
+    switch (reason) {
+      case SpeechUnavailableReason.permissionDenied:
+        return 'mic_permission_denied';
+      case SpeechUnavailableReason.permissionPermanentlyDenied:
+        return 'mic_permission_blocked';
+      case SpeechUnavailableReason.unavailableOnDevice:
+        return 'mic_unavailable';
+      case SpeechUnavailableReason.languageNotInstalled:
+        return 'mic_language_missing';
+    }
+  }
 
   @override
   void dispose() {
@@ -139,10 +221,31 @@ class _ChatViewState extends State<_ChatView> {
                     ],
                   ),
                 ),
+                if (_speechErrorKey != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      0,
+                      AppSpacing.md,
+                      AppSpacing.sm,
+                    ),
+                    child: AppBanner.warning(
+                      message: context.tr(_speechErrorKey!),
+                      actionLabel: _speechErrorKey == 'mic_permission_blocked'
+                          ? context.tr('open_app_settings')
+                          : null,
+                      onAction: _speechErrorKey == 'mic_permission_blocked'
+                          ? () => widget.speechService?.openAppSettings()
+                          : null,
+                    ),
+                  ),
                 _Composer(
                   controller: _controller,
                   enabled: !loaded.isSending,
                   onSend: _send,
+                  speechService:
+                      _speechAvailable == true ? widget.speechService : null,
+                  onToggleRecording: _toggleRecording,
                 ),
               ],
             );
@@ -383,10 +486,16 @@ class _Composer extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSend;
 
+  /// Non-null only when this device can transcribe the active language.
+  final SpeechRecognitionService? speechService;
+  final VoidCallback onToggleRecording;
+
   const _Composer({
     required this.controller,
     required this.enabled,
     required this.onSend,
+    required this.onToggleRecording,
+    this.speechService,
   });
 
   @override
@@ -419,6 +528,28 @@ class _Composer extends StatelessWidget {
               ),
             ),
           ),
+          if (speechService != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            ValueListenableBuilder<bool>(
+              valueListenable: speechService!.isListening,
+              builder: (context, listening, _) => SizedBox(
+                width: AppSpacing.minTouchTarget,
+                height: AppSpacing.minTouchTarget,
+                child: IconButton(
+                  key: const Key('chat_mic_button'),
+                  onPressed: enabled ? onToggleRecording : null,
+                  tooltip: listening
+                      ? context.tr('mic_stop')
+                      : context.tr('speak_observations'),
+                  icon: Icon(
+                    listening ? Icons.stop_rounded : Icons.mic_rounded,
+                    color:
+                        listening ? AppColors.error : AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: AppSpacing.sm),
           SizedBox(
             width: AppSpacing.minTouchTarget,

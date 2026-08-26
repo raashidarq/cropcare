@@ -108,7 +108,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('diagnosis_scan_again_button')), findsOneWidget);
-    expect(find.text('Treatment Guidance'), findsNothing);
+    // A healthy leaf gets no treatment steps at all.
+    expect(find.text('Do this now'), findsNothing);
   });
 
   testWidgets('DiagnosisResultScreen renders diseased diagnosis with treatment card',
@@ -167,11 +168,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tomato Early Blight'), findsOneWidget);
-    expect(find.text('Treatment Guidance'), findsOneWidget);
+    expect(find.text('Do this now'), findsOneWidget);
     expect(find.text('Mock summary from Gemini'), findsOneWidget);
+    // Guidance renders as short numbered steps rather than a prose block.
     expect(find.text('Mock what to do'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     expect(find.text('Mock what to avoid'), findsOneWidget);
-    expect(find.text('Recheck in 4 days'), findsOneWidget);
+    expect(find.text('Check again in 4 days'), findsOneWidget);
   });
 
   testWidgets('DiagnosisResultScreen renders low confidence advisory when confidence < 80%',
@@ -281,8 +284,10 @@ void main() {
     await tester.tap(getTreatmentBtn);
     await tester.pumpAndSettle();
 
+    // Read-aloud sits beside the steps it reads, as an icon button, rather
+    // than as a full-width button floating above them.
     expect(find.byKey(const Key('treatment_tts_button')), findsOneWidget);
-    expect(find.text('Read Aloud'), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
   });
 
   testWidgets('DiagnosisResultScreen displays AI badge when treatment is from remote LLM',
@@ -457,7 +462,10 @@ void main() {
       // name. Showing it costs nothing, so the screen answers "what do I do?"
       // without the farmer having to ask.
       expect(find.text('Seeded on-device summary'), findsOneWidget);
+      // On-device guidelines are stored as prose and split into steps for
+      // display, so the farmer gets a list either way.
       expect(find.text('Seeded what to do'), findsOneWidget);
+      expect(find.text('Do this now'), findsOneWidget);
 
       // And it did so without touching the network.
       expect(repository.remoteCallCount, 0);
@@ -529,9 +537,11 @@ void main() {
 
     expect(card, findsOneWidget);
     expect(find.text('Tomato Late Blight'), findsOneWidget);
-    expect(find.text('21%'), findsOneWidget);
     expect(find.text('Tomato Leaf Mold'), findsOneWidget);
-    expect(find.text('9%'), findsOneWidget);
+    // The percentages are deliberately gone: a farmer cannot act on "21%",
+    // and the ordering already carries what the number was saying.
+    expect(find.text('21%'), findsNothing);
+    expect(find.text('9%'), findsNothing);
   });
 
   testWidgets('A diagnosis with no alternatives shows no alternatives card',
@@ -578,7 +588,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('alternatives_card')), findsNothing);
-    expect(find.text('Other possibilities'), findsNothing);
+    expect(find.text('Not what you see?'), findsNothing);
   });
 
 }

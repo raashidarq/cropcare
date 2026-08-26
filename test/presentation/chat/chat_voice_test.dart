@@ -1,8 +1,12 @@
-// Voice input on the observations field.
+// Voice input in the chat composer.
 //
-// The cases that matter here are the ones where the mic must NOT appear or
-// must fail legibly: an English-only mic button, or one that silently does
-// nothing, is worse for this app's audience than no button at all.
+// The mic moved here from a free-text "observations" box on the diagnosis
+// screen. Speaking a question has an obvious purpose; speaking into a box you
+// were asked to fill in before being told anything did not.
+//
+// The cases that matter are the ones where the mic must NOT appear or must
+// fail legibly: an English-only mic button, or one that silently does nothing,
+// is worse for this app's audience than no button at all.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +14,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cropcare/data/local/speech/speech_recognition_service.dart';
 import 'package:cropcare/domain/entities/diagnosis.dart';
-import 'package:cropcare/domain/entities/scan.dart';
-import 'package:cropcare/domain/entities/treatment.dart';
-import 'package:cropcare/domain/repositories/diagnosis_repository.dart';
-import 'package:cropcare/domain/repositories/treatment_repository.dart';
-import 'package:cropcare/domain/usecases/diagnosis/resolve_treatment_use_case.dart';
-import 'package:cropcare/presentation/diagnosis/diagnosis_result_screen.dart';
+import 'package:cropcare/application/chat/chat_cubit.dart';
+import 'package:cropcare/domain/entities/chat_message.dart';
+import 'package:cropcare/domain/repositories/chat_repository.dart';
+import 'package:cropcare/domain/usecases/chat/get_chat_history_use_case.dart';
+import 'package:cropcare/domain/usecases/chat/send_chat_message_use_case.dart';
+import 'package:cropcare/presentation/chat/chat_screen.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
 
 class _FakeSpeechService implements SpeechRecognitionService {
@@ -68,59 +72,43 @@ class _FakeSpeechService implements SpeechRecognitionService {
   void dispose() {}
 }
 
-class _StubTreatmentRepository implements TreatmentRepository {
-  @override
-  Future<TreatmentResponse?> getLocalTreatmentGuidance({
-    required String diseaseId,
-    required String languageCode,
-  }) async =>
-      null;
+class _StubChatRepository implements ChatRepository {
+  final List<ChatMessage> _messages = [];
 
   @override
-  Future<TreatmentResponse> getTreatmentGuidance({
+  Future<List<ChatMessage>> getHistory(String diagnosisId) async =>
+      List.of(_messages);
+
+  @override
+  Future<void> saveMessage(ChatMessage message) async => _messages.add(message);
+
+  @override
+  Future<void> deleteMessage(String messageId) async =>
+      _messages.removeWhere((m) => m.id == messageId);
+
+  @override
+  Future<ChatMessage> ask({
+    required String diagnosisId,
+    required Diagnosis diagnosis,
     required String cropId,
-    required String diseaseId,
-    required double confidence,
-    required String? severity,
+    required String question,
     required String languageCode,
     String? userObservations,
+    String? treatmentSummary,
     String? authToken,
-  }) async =>
-      const TreatmentResponse(
-        summary: 's',
-        whatToDo: 'd',
-        whatToAvoid: 'a',
-        recheckAfterDays: 5,
-        interpretationId: 'i',
-      );
+  }) async {
+    final reply = ChatMessage(
+      id: 'a1',
+      diagnosisId: diagnosisId,
+      role: ChatRole.assistant,
+      content: 'An answer',
+      languageCode: languageCode,
+      createdAt: '2026-08-24T12:00:01Z',
+    );
+    _messages.add(reply);
+    return reply;
+  }
 }
-
-class _StubDiagnosisRepository implements DiagnosisRepository {
-  @override
-  Future<Diagnosis> createDiagnosis(Diagnosis diagnosis) async => diagnosis;
-
-  @override
-  Future<Diagnosis?> getDiagnosisByScanId(String scanId) async => null;
-
-  @override
-  Future<void> updateTreatmentSource(
-    String diagnosisId, {
-    required TreatmentSource source,
-    String? llmInterpretationId,
-    String? guidelineId,
-  }) async {}
-}
-
-final _scan = Scan(
-  id: 'scan-voice',
-  userId: 'user-1',
-  cropId: 'tomato',
-  imageLocalPath: '/fake/path.jpg',
-  status: ScanStatus.diagnosed,
-  capturedAt: DateTime.parse('2026-08-24T12:00:00Z'),
-  createdAt: DateTime.parse('2026-08-24T12:00:00Z'),
-  updatedAt: DateTime.parse('2026-08-24T12:00:00Z'),
-);
 
 const _diagnosis = Diagnosis(
   id: 'diag-voice',
@@ -139,18 +127,20 @@ Future<void> _pumpScreen(
   SpeechRecognitionService speech, {
   String languageCode = 'en',
 }) async {
+  final repo = _StubChatRepository();
   await tester.pumpWidget(
     LocalizationProvider(
       languageCode: languageCode,
       child: MaterialApp(
-        home: DiagnosisResultScreen(
-          scan: _scan,
-          diagnosis: _diagnosis,
-          resolveTreatmentUseCase: ResolveTreatmentUseCase(
-            treatmentRepository: _StubTreatmentRepository(),
-            diagnosisRepository: _StubDiagnosisRepository(),
-          ),
+        home: ChatScreen(
           speechService: speech,
+          cubit: ChatCubit(
+            getChatHistoryUseCase: GetChatHistoryUseCase(chatRepository: repo),
+            sendChatMessageUseCase: SendChatMessageUseCase(chatRepository: repo),
+            diagnosis: _diagnosis,
+            cropId: 'tomato',
+            languageCode: languageCode,
+          ),
         ),
       ),
     ),
@@ -163,13 +153,13 @@ void main() {
     final speech = _FakeSpeechService();
     await _pumpScreen(tester, speech);
 
-    final field = find.byType(TextField);
-    await tester.ensureVisible(field);
-    await tester.enterText(field, 'leaves curling');
+    await tester.enterText(
+      find.byKey(const Key('chat_input')),
+      'leaves curling',
+    );
     await tester.pumpAndSettle();
 
-    final mic = find.byKey(const Key('observations_mic_button'));
-    await tester.ensureVisible(mic);
+    final mic = find.byKey(const Key('chat_mic_button'));
     await tester.tap(mic);
     await tester.pumpAndSettle();
 
@@ -190,17 +180,16 @@ void main() {
     final speech = _FakeSpeechService();
     await _pumpScreen(tester, speech);
 
-    final mic = find.byKey(const Key('observations_mic_button'));
-    await tester.ensureVisible(mic);
-
-    expect(find.text('Speak instead of typing'), findsOneWidget);
+    final mic = find.byKey(const Key('chat_mic_button'));
+    expect(mic, findsOneWidget);
+    expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
 
     await tester.tap(mic);
     await tester.pumpAndSettle();
 
     // An explicit stop always exists: silence detection is unreliable in wind
     // and field noise.
-    expect(find.text('Stop'), findsOneWidget);
+    expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
 
     await tester.tap(mic);
     await tester.pumpAndSettle();
@@ -215,8 +204,9 @@ void main() {
     // An English-only mic button would serve exactly the users who least need
     // it, so the control is absent rather than present-and-broken. Typing
     // still works.
-    expect(find.byKey(const Key('observations_mic_button')), findsNothing);
-    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byKey(const Key('chat_mic_button')), findsNothing);
+    // Typing still works.
+    expect(find.byKey(const Key('chat_input')), findsOneWidget);
   });
 
   testWidgets('A blocked microphone explains itself and offers settings',
@@ -226,18 +216,16 @@ void main() {
     );
     await _pumpScreen(tester, speech);
 
-    final mic = find.byKey(const Key('observations_mic_button'));
-    await tester.ensureVisible(mic);
+    final mic = find.byKey(const Key('chat_mic_button'));
     await tester.tap(mic);
     await tester.pumpAndSettle();
 
-    final banner = find.textContaining('Microphone access is turned off');
-    await tester.ensureVisible(banner);
-    expect(banner, findsOneWidget);
+    expect(
+      find.textContaining('Microphone access is turned off'),
+      findsOneWidget,
+    );
 
-    final settings = find.text('Open App Settings');
-    await tester.ensureVisible(settings);
-    await tester.tap(settings);
+    await tester.tap(find.text('Open App Settings'));
     await tester.pumpAndSettle();
     expect(speech.settingsOpened, isTrue);
   });
@@ -249,8 +237,7 @@ void main() {
     );
     await _pumpScreen(tester, speech);
 
-    final mic = find.byKey(const Key('observations_mic_button'));
-    await tester.ensureVisible(mic);
+    final mic = find.byKey(const Key('chat_mic_button'));
     await tester.tap(mic);
     await tester.pumpAndSettle();
 

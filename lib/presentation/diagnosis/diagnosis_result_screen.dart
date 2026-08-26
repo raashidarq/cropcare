@@ -143,8 +143,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   void initState() {
     super.initState();
     _ttsService = widget.ttsService ?? TextToSpeechService();
-    _speechService =
-        widget.speechService ?? DeviceSpeechRecognitionService();
+    _speechService = widget.speechService ?? DeviceSpeechRecognitionService();
   }
 
   @override
@@ -157,8 +156,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
     final diseaseId = widget.diagnosis.diseaseId;
     if (diseaseId == null) return;
 
-    final languageCode =
-        LocalizationProvider.of(context)?.languageCode ?? 'en';
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
 
     // The guidance shipped with the app loads immediately. It is a local read:
     // no network, no cost, no waiting, and it is already translated into all
@@ -170,10 +168,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
     // observations, so it is worth asking for. What changed is the default:
     // it used to be that no guidance appeared at all until you asked.
     final cubit = context.read<DiagnosisCubit?>();
-    cubit?.loadLocalGuidance(
-      diseaseId: diseaseId,
-      languageCode: languageCode,
-    );
+    cubit?.loadLocalGuidance(diseaseId: diseaseId, languageCode: languageCode);
 
     final useCase = widget.getDiseaseExplanationUseCase;
     if (useCase == null) return;
@@ -195,8 +190,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   }
 
   void _fetchTreatment(BuildContext context) {
-    final languageCode =
-        LocalizationProvider.of(context)?.languageCode ?? 'en';
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
     final cubit = context.read<DiagnosisCubit?>();
     if (cubit == null) return;
 
@@ -265,13 +259,15 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
     // Whatever guidance is currently on screen goes with the question, so the
     // answers cannot contradict what the farmer is looking at.
     final state = context.read<DiagnosisCubit?>()?.state;
-    final treatmentSummary =
-        state is DiagnosisTreatmentLoaded ? state.treatment.summary : null;
+    final treatmentSummary = state is DiagnosisTreatmentLoaded
+        ? state.treatment.summary
+        : null;
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(
+          speechService: _speechService,
           cubit: ChatCubit(
             getChatHistoryUseCase: getHistory,
             sendChatMessageUseCase: send,
@@ -292,7 +288,8 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   @override
   Widget build(BuildContext context) {
     final isHealthy = widget.diagnosis.isHealthy;
-    final isLowConfidence = !isHealthy &&
+    final isLowConfidence =
+        !isHealthy &&
         (widget.diagnosis.confidence < 0.80 ||
             widget.diagnosis.resultState == DiagnosisResultState.lowConfidence);
 
@@ -305,6 +302,11 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
         child: Column(
           children: [
             Expanded(
+              // SingleChildScrollView, not ListView: the screen is short
+              // enough now that lazy building buys nothing, and a ListView
+              // silently skips building off-screen children — which makes
+              // read-aloud, semantics and widget tests all behave differently
+              // depending on scroll position.
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,
@@ -315,91 +317,45 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 1. The photo, the verdict, the confidence.
-                    _ResultHero(
+                    // The photo, the name, and one line about how much to
+                    // trust it. This used to be five separate widgets — a
+                    // state chip, a severity chip, a confidence meter, a
+                    // caveat banner and a standing AI disclaimer — which is
+                    // four different ways of saying "how sure are we" stacked
+                    // above the thing the farmer actually came for.
+                    _ResultHeader(
                       scan: widget.scan,
                       diagnosis: widget.diagnosis,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // 2. One caveat, not a stack of them.
-                    //
-                    // Hedging still comes before the advice: a farmer may act
-                    // on the first thing they read. But it used to be two
-                    // separate banners (low confidence, then the AI
-                    // disclaimer) and then, on every real diagnosis, a third
-                    // saying the app had no explanation content. Three
-                    // consecutive blocks of "do not fully trust this" before
-                    // any advice reads as noise and gets scrolled past, which
-                    // is the opposite of what a hedge is for.
-                    _ResultCaveat(
                       isLowConfidence: isLowConfidence,
-                      onEscalate: () => _navigateToEscalation(context),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
 
-                    // 3. What to do about it.
-                    //
-                    // Guidance leads now. The on-device guideline is loaded
-                    // when the screen opens, so the answer is already here
-                    // rather than behind a button.
-                    if (isHealthy) ...[
-                      const _HealthyCard(),
-                      const SizedBox(height: AppSpacing.lg),
-                    ] else if (widget.diagnosis.diseaseId != null) ...[
-                      _TreatmentGuidanceSection(
+                    if (isHealthy)
+                      const _HealthyNote()
+                    else if (widget.diagnosis.diseaseId != null) ...[
+                      // What to do, as steps. The whole screen exists for this.
+                      _GuidanceSection(
                         ttsService: _ttsService,
                         onFetch: () => _fetchTreatment(context),
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // 4. What else it might be.
-                      //
-                      // The honest presentation of a closed-set classifier: it
-                      // always names something, so showing the runner-ups and
-                      // how close they were turns that weakness into
-                      // information the farmer can actually use.
-                      _AlternativesCard(diagnosis: widget.diagnosis),
-
-                      // 5. Add detail to improve the advice.
-                      //
-                      // Below the guidance, not above it. Asking a farmer to
-                      // type before they have been told anything is asking
-                      // them to pay first; here it reads as "make this
-                      // better", which is what it does.
-                      _ObservationsCard(
-                        controller: _observationsController,
-                        onSubmit: () => _fetchTreatment(context),
-                        speechService: _speechService,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Follow-up questions. Only offered when the use cases
-                      // were threaded through; the entry point is absent
-                      // rather than inert if they were not.
-                      if (widget.getChatHistoryUseCase != null &&
-                          widget.sendChatMessageUseCase != null) ...[
-                        _AskAboutResultCard(onTap: () => _openChat(context)),
-                        const SizedBox(height: AppSpacing.lg),
-                      ] else
-                        const SizedBox(height: AppSpacing.sm),
+                      _OtherPossibilities(diagnosis: widget.diagnosis),
                     ],
 
-                    // 6. Understanding the result, offline.
-                    //
-                    // Renders nothing at all when no content is stored, which
-                    // is currently the case for every disease.
-                    if (_explanationFuture != null)
+                    if (widget.getChatHistoryUseCase != null &&
+                        widget.sendChatMessageUseCase != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _AskAboutResultButton(onTap: () => _openChat(context)),
+                    ],
+
+                    // Renders nothing when no content is stored, which is
+                    // currently every disease.
+                    if (_explanationFuture != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
                       _ExplanationSection(future: _explanationFuture!),
+                    ],
                   ],
                 ),
               ),
             ),
-
-            // Sticky actions, pinned rather than sitting at the end of a long
-            // scroll. "Ask an expert" in particular is what a farmer reaches
-            // for when the result does not help, and finding it should not
-            // require reading the whole screen first.
             _BottomActions(
               onScanAgain: () {
                 Navigator.of(context).popUntil((route) => route.isFirst);
@@ -413,194 +369,9 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   }
 }
 
-/// The single "how much should I trust this?" block.
-///
-/// Replaces a stack of two banners. When the model is unsure, that is the more
-/// urgent thing to say and it absorbs the standing AI disclaimer rather than
-/// repeating it underneath — one amber block with one action, instead of two
-/// the farmer has to tell apart. When the model is confident, the standing
-/// disclaimer stands alone, as before.
-class _ResultCaveat extends StatelessWidget {
-  final bool isLowConfidence;
-  final VoidCallback onEscalate;
-
-  const _ResultCaveat({
-    required this.isLowConfidence,
-    required this.onEscalate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLowConfidence) {
-      return AppBanner.warning(
-        title: context.tr('low_confidence_title'),
-        message: '${context.tr('low_confidence_msg')} '
-            '${context.tr('ai_disclaimer_msg')}',
-        actionLabel: context.tr('get_expert_help'),
-        onAction: onEscalate,
-      );
-    }
-    return const _AiDisclaimerBanner();
-  }
-}
-
 // =============================================================================
 // Result hero — the photo, the verdict, and how much to trust it
 // =============================================================================
-
-/// Leads with the farmer's own photo.
-///
-/// The previous header was a text-only card that opened with a green
-/// "Confident AI Match" badge. That is the wrong emphasis for a closed-set
-/// classifier that cannot tell it has been shown something it was never
-/// trained on: it presented a guess with the confidence of a fact. This
-/// version shows the photo that produced the result, states the verdict
-/// plainly, and puts the confidence figure next to it rather than leading
-/// with a reassuring badge.
-class _ResultHero extends StatelessWidget {
-  final Scan scan;
-  final Diagnosis diagnosis;
-
-  const _ResultHero({required this.scan, required this.diagnosis});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
-    final isHealthy = diagnosis.isHealthy;
-    final visual = CropVisuals.forCrop(scan.cropId);
-
-    final title = isHealthy
-        ? context.tr('result_healthy_title')
-        : (_formatDiseaseName(diagnosis.diseaseId) ??
-            context.tr('unknown_disease'));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: AppRadius.lg,
-          child: AspectRatio(
-            aspectRatio: 16 / 10,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _ScanImage(path: scan.imageLocalPath),
-                // Bottom-up scrim so the overlaid crop chip stays readable
-                // whatever the photo happens to look like.
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.center,
-                      colors: [Color(0xCC000000), Color(0x00000000)],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: AppSpacing.smPlus,
-                  bottom: AppSpacing.smPlus,
-                  right: AppSpacing.smPlus,
-                  child: Row(
-                    children: [
-                      Icon(visual.icon, size: 18, color: Colors.white),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          _cropLabel(context, languageCode),
-                          style: theme.textTheme.labelMedium
-                              ?.copyWith(color: Colors.white),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          isHealthy
-              ? context.tr('result_healthy_msg')
-              : context.tr('disease_detected'),
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          title,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            color: isHealthy ? AppColors.success : AppColors.onSurface,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _stateChip(context),
-            if (diagnosis.severity != null)
-              AppStatusChip.severity(
-                diagnosis.severity,
-                '${context.tr('severity_label')}: ${diagnosis.severity!}',
-              ),
-          ],
-        ),
-        if (!isHealthy) ...[
-          const SizedBox(height: AppSpacing.md),
-          AppConfidenceMeter(
-            confidence: diagnosis.confidence,
-            label: context.tr('confidence_label'),
-          ),
-        ],
-      ],
-    );
-  }
-
-  String _cropLabel(BuildContext context, String languageCode) {
-    final id = scan.cropId;
-    if (id.isEmpty || id == 'unknown') return context.tr('unknown_disease');
-    return _formatDiseaseName(id) ?? id;
-  }
-
-  Widget _stateChip(BuildContext context) {
-    switch (diagnosis.resultState) {
-      case DiagnosisResultState.confident:
-        return AppStatusChip(
-          icon: Icons.check_circle_outline_rounded,
-          // "Likely match", not "Confident AI Match" — the model cannot
-          // distinguish an unfamiliar input from a familiar one, so the
-          // wording should not promise more than it can deliver.
-          label: context.tr('badge_confident'),
-          foreground: AppColors.onInfoContainer,
-          background: AppColors.infoContainer,
-        );
-      case DiagnosisResultState.lowConfidence:
-        return AppStatusChip(
-          icon: Icons.help_outline_rounded,
-          label: context.tr('badge_low_confidence'),
-          foreground: AppColors.onWarningContainer,
-          background: AppColors.warningContainer,
-        );
-      case DiagnosisResultState.unsupported:
-        return AppStatusChip(
-          icon: Icons.block_outlined,
-          label: context.tr('badge_unsupported'),
-          foreground: AppColors.onSurfaceVariant,
-          background: AppColors.surfaceVariant,
-        );
-      case DiagnosisResultState.analysisFailed:
-        return AppStatusChip(
-          icon: Icons.error_outline_rounded,
-          label: context.tr('badge_failed'),
-          foreground: AppColors.onErrorContainer,
-          background: AppColors.errorContainer,
-        );
-    }
-  }
-}
 
 /// `tomato_late_blight` -> `Tomato Late Blight`.
 ///
@@ -643,9 +414,10 @@ class _ScanImage extends StatelessWidget {
       file,
       fit: BoxFit.cover,
       // Decode at display width, not the camera's full sensor resolution.
-      cacheWidth: (MediaQuery.sizeOf(context).width *
-              MediaQuery.devicePixelRatioOf(context))
-          .round(),
+      cacheWidth:
+          (MediaQuery.sizeOf(context).width *
+                  MediaQuery.devicePixelRatioOf(context))
+              .round(),
       errorBuilder: (_, _, _) => const ColoredBox(
         color: AppColors.surfaceVariant,
         child: Center(
@@ -664,381 +436,27 @@ class _ScanImage extends StatelessWidget {
 // AI Disclaimer
 // =============================================================================
 
-class _AiDisclaimerBanner extends StatelessWidget {
-  const _AiDisclaimerBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBanner.aiDisclaimer(
-      title: context.tr('ai_disclaimer_title'),
-      message: context.tr('ai_disclaimer_msg'),
-    );
-  }
-}
-
 // =============================================================================
 // Healthy Confirmation Card
 // =============================================================================
-
-class _HealthyCard extends StatelessWidget {
-  const _HealthyCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppCard(
-      color: AppColors.successContainer,
-      borderColor: AppColors.successContainer,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: AppColors.success,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              color: AppColors.onSuccess,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              context.tr('healthy_crop_msg'),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSuccessContainer,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // =============================================================================
 // Observations Input Card (Optional)
 // =============================================================================
 
-/// Optional detail the farmer can add, and the action that uses it.
-///
-/// This used to sit *above* the treatment guidance with no action of its own:
-/// a farmer was asked to type into a box before the app had told them
-/// anything, and the text only did something if they later pressed a separate
-/// button further down. It now sits below the guidance and carries the button
-/// that acts on it, so the box has a visible purpose at the point of asking.
-///
-/// The mic is the more important of the two inputs. Typing is the worst
-/// interaction in this app for its audience — Sinhala and Tamil keyboards are
-/// slow, and the farmer is usually one-handed in a field — so speaking is the
-/// path this card is really built around. It is offered only when the device
-/// can actually transcribe the active language: an English-only mic button
-/// would serve exactly the users who least need it.
-class _ObservationsCard extends StatefulWidget {
-  final TextEditingController controller;
-  final VoidCallback onSubmit;
-  final SpeechRecognitionService? speechService;
-
-  const _ObservationsCard({
-    required this.controller,
-    required this.onSubmit,
-    this.speechService,
-  });
-
-  @override
-  State<_ObservationsCard> createState() => _ObservationsCardState();
-}
-
-class _ObservationsCardState extends State<_ObservationsCard> {
-  SpeechRecognitionService? _speech;
-
-  /// Null until the check completes; false means "do not offer the mic".
-  bool? _speechAvailable;
-
-  /// Text already in the field when recording began. Transcription appends to
-  /// it rather than replacing it, so someone can type a little and then speak
-  /// the rest without losing what they wrote.
-  String _textBeforeListening = '';
-
-  String? _errorKey;
-
-  @override
-  void initState() {
-    super.initState();
-    _speech = widget.speechService;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_speechAvailable != null) return;
-    _checkAvailability();
-  }
-
-  Future<void> _checkAvailability() async {
-    final service = _speech;
-    if (service == null) {
-      if (mounted) setState(() => _speechAvailable = false);
-      return;
-    }
-    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
-    final available = await service.localeAvailable(languageCode);
-    if (!mounted) return;
-    setState(() => _speechAvailable = available);
-  }
-
-  Future<void> _toggleRecording() async {
-    final service = _speech;
-    if (service == null) return;
-
-    if (service.isListening.value) {
-      await service.stopListening();
-      return;
-    }
-
-    setState(() => _errorKey = null);
-    _textBeforeListening = widget.controller.text.trimRight();
-    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
-
-    try {
-      AppHaptics.recordingToggled(context);
-      await service.startListening(
-        languageCode: languageCode,
-        onResult: (words) {
-          if (words.isEmpty) return;
-          final prefix =
-              _textBeforeListening.isEmpty ? '' : '$_textBeforeListening ';
-          widget.controller.text = '$prefix$words';
-          widget.controller.selection = TextSelection.collapsed(
-            offset: widget.controller.text.length,
-          );
-        },
-      );
-    } on SpeechUnavailable catch (e) {
-      if (!mounted) return;
-      setState(() => _errorKey = _messageKeyFor(e.reason));
-    }
-  }
-
-  static String _messageKeyFor(SpeechUnavailableReason reason) {
-    switch (reason) {
-      case SpeechUnavailableReason.permissionDenied:
-        return 'mic_permission_denied';
-      case SpeechUnavailableReason.permissionPermanentlyDenied:
-        return 'mic_permission_blocked';
-      case SpeechUnavailableReason.unavailableOnDevice:
-        return 'mic_unavailable';
-      case SpeechUnavailableReason.languageNotInstalled:
-        return 'mic_language_missing';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final service = _speech;
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.edit_note_outlined,
-                size: 20,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  context.tr('treatment_observations_label'),
-                  style: theme.textTheme.titleSmall,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.smPlus),
-          TextField(
-            controller: widget.controller,
-            maxLines: 3,
-            minLines: 2,
-            // Stays editable after transcription: recognition will get
-            // agricultural vocabulary and place names wrong.
-            decoration: InputDecoration(
-              hintText: context.tr('treatment_observations_hint'),
-              hintStyle: theme.textTheme.bodySmall,
-              border: const OutlineInputBorder(borderRadius: AppRadius.md),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.smPlus,
-                vertical: AppSpacing.sm,
-              ),
-            ),
-          ),
-          if (service != null && _speechAvailable == true) ...[
-            const SizedBox(height: AppSpacing.smPlus),
-            ValueListenableBuilder<bool>(
-              valueListenable: service.isListening,
-              builder: (context, listening, _) => _RecordButton(
-                listening: listening,
-                onTap: _toggleRecording,
-              ),
-            ),
-          ],
-          if (_errorKey != null) ...[
-            const SizedBox(height: AppSpacing.smPlus),
-            AppBanner.warning(
-              message: context.tr(_errorKey!),
-              actionLabel:
-                  _errorKey == 'mic_permission_blocked' ? context.tr('open_app_settings') : null,
-              onAction: _errorKey == 'mic_permission_blocked'
-                  ? () => service?.openAppSettings()
-                  : null,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.smPlus),
-          SizedBox(
-            height: AppSpacing.minTouchTarget,
-            child: OutlinedButton.icon(
-              key: const Key('refine_guidance_button'),
-              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-              label: Text(context.tr('refine_guidance_btn')),
-              onPressed: widget.onSubmit,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            context.tr('refine_guidance_hint'),
-            style: theme.textTheme.labelSmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Record / stop control.
-///
-/// Matched to the read-aloud button so the two read as a pair: same height,
-/// same full-width treatment, same "active" colour swap. An explicit stop is
-/// always available — silence detection alone is unreliable in wind and field
-/// noise.
-class _RecordButton extends StatelessWidget {
-  final bool listening;
-  final VoidCallback onTap;
-
-  const _RecordButton({required this.listening, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppSpacing.minTouchTarget,
-      child: ElevatedButton.icon(
-        key: const Key('observations_mic_button'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              listening ? AppColors.error : AppColors.surfaceVariant,
-          foregroundColor:
-              listening ? AppColors.onError : AppColors.onSurfaceVariant,
-          elevation: 0,
-        ),
-        icon: Icon(listening ? Icons.stop_rounded : Icons.mic_rounded),
-        label: Text(
-          listening
-              ? context.tr('mic_stop')
-              : context.tr('speak_observations'),
-        ),
-        onPressed: onTap,
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // Treatment Guidance Section
 // =============================================================================
-
-class _TreatmentGuidanceSection extends StatelessWidget {
-  final VoidCallback onFetch;
-  final TtsService? ttsService;
-
-  const _TreatmentGuidanceSection({
-    required this.onFetch,
-    this.ttsService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cubit = context.watch<DiagnosisCubit?>();
-    if (cubit == null) return const SizedBox.shrink();
-
-    final state = cubit.state;
-
-    // Nothing requested yet: offer the action rather than firing it. The
-    // request tries the online source first and only drops to the on-device
-    // guidelines if that fails (see TreatmentRepositoryImpl), so it can cost
-    // mobile data — that should be the farmer's decision, not a side effect
-    // of opening the screen.
-    if (state is DiagnosisInitial || state is DiagnosisHealthy) {
-      return _TreatmentPrompt(onFetch: onFetch);
-    }
-
-    if (state is DiagnosisTreatmentLoading) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 20.0),
-          child: Column(
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                context.tr('fetching_treatment'),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (state is DiagnosisTreatmentError) {
-      return AppBanner(
-        icon: Icons.wifi_off_rounded,
-        message: context.tr('offline_connection_msg'),
-        foreground: AppColors.onWarningContainer,
-        background: AppColors.warningContainer,
-        actionLabel: context.tr('retry_btn'),
-        onAction: onFetch,
-      );
-    }
-
-    if (state is DiagnosisTreatmentLoaded) {
-      AppHaptics.resultReady(context);
-      // Honours the "read results aloud automatically" setting, which
-      // previously existed in the UI but was wired to nothing. Opt-in and
-      // off by default — unexpected audio is worse than none.
-      _maybeAutoRead(context, state.treatment);
-      return _TreatmentLoadedCard(
-        treatment: state.treatment,
-        ttsService: ttsService,
-      );
-    }
-
-    return const SizedBox.shrink();
-  }
-}
 
 /// Speaks the guidance once, if auto-read is enabled. Guarded by a set of
 /// already-spoken treatments so a rebuild does not restart playback.
 final Set<String> _autoReadFired = <String>{};
 
-void _maybeAutoRead(BuildContext context, TreatmentResponse treatment) {
+void _maybeAutoRead(
+  BuildContext context,
+  TreatmentResponse treatment,
+  TtsService? tts,
+) {
   final AccessibilityCubit cubit;
   try {
     cubit = context.read<AccessibilityCubit>();
@@ -1050,8 +468,6 @@ void _maybeAutoRead(BuildContext context, TreatmentResponse treatment) {
   final signature = '${treatment.interpretationId}|${treatment.summary}';
   if (!_autoReadFired.add(signature)) return;
 
-  final section = context.findAncestorWidgetOfExactType<_TreatmentGuidanceSection>();
-  final tts = section?.ttsService;
   if (tts == null) return;
 
   final lang = LocalizationProvider.of(context)?.languageCode ?? 'en';
@@ -1059,7 +475,11 @@ void _maybeAutoRead(BuildContext context, TreatmentResponse treatment) {
       '${treatment.summary}. ${context.tr('treatment_what_to_do')}: ${treatment.whatToDo}. ${context.tr('treatment_what_to_avoid')}: ${treatment.whatToAvoid}.';
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    tts.speak(text: text, languageCode: lang, speechRate: cubit.state.speechRate);
+    tts.speak(
+      text: text,
+      languageCode: lang,
+      speechRate: cubit.state.speechRate,
+    );
   });
 }
 
@@ -1070,245 +490,6 @@ double _speechRateOf(BuildContext context) {
     return context.read<AccessibilityCubit>().state.speechRate;
   } catch (_) {
     return 0.5;
-  }
-}
-
-class _TreatmentLoadedCard extends StatelessWidget {
-  final TreatmentResponse treatment;
-  final TtsService? ttsService;
-
-  const _TreatmentLoadedCard({
-    required this.treatment,
-    this.ttsService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Guidance Title & Badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    context.tr('treatment_guidance_title'),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                // Where this advice came from — a live AI call or the
-                // on-device fallback guidelines — stated plainly, because it
-                // changes how much a farmer should trust the specifics.
-                Builder(
-                  key: const Key('treatment_source_badge'),
-                  builder: (context) {
-                    final isAi = treatment.interpretationId != null;
-                    final color = isAi
-                        ? AppColors.treatmentSourceAi
-                        : AppColors.treatmentSourceOffline;
-                    return AppStatusChip(
-                      icon: isAi
-                          ? Icons.auto_awesome
-                          : Icons.offline_pin_outlined,
-                      label: isAi
-                          ? context.tr('treatment_source_ai')
-                          : context.tr('treatment_source_offline'),
-                      foreground: color,
-                      background: AppColors.surfaceVariant,
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // ── Read Aloud / TTS Audio Playback Button ──────────────────────
-            if (ttsService != null) ...[
-              ValueListenableBuilder<bool>(
-                valueListenable: ttsService!.isPlaying,
-                builder: (context, isPlaying, _) {
-                  return SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      key: const Key('treatment_tts_button'),
-                      // Read-aloud matters more here than in most apps: it is
-                      // the path through the treatment advice for a farmer
-                      // who does not read comfortably. Given full width and
-                      // a stateful label rather than a small icon button.
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                            isPlaying ? AppColors.error : AppColors.primary,
-                        side: BorderSide(
-                          color:
-                              isPlaying ? AppColors.error : AppColors.primary,
-                          width: 1.5,
-                        ),
-                        backgroundColor:
-                            isPlaying ? AppColors.errorContainer : null,
-                      ),
-                      icon: Icon(
-                        isPlaying
-                            ? Icons.stop_circle_outlined
-                            : Icons.volume_up_rounded,
-                        size: 20,
-                      ),
-                      label: Text(
-                        isPlaying
-                            ? context.tr('stop_reading')
-                            : context.tr('read_aloud'),
-                      ),
-                      onPressed: () {
-                        if (isPlaying) {
-                          ttsService!.stop();
-                        } else {
-                          final lang =
-                              LocalizationProvider.of(context)?.languageCode ??
-                                  'en';
-                          final speechText =
-                              '${treatment.summary}. ${context.tr('treatment_what_to_do')}: ${treatment.whatToDo}. ${context.tr('treatment_what_to_avoid')}: ${treatment.whatToAvoid}.';
-                          ttsService!.speak(
-                            text: speechText,
-                            languageCode: lang,
-                            speechRate: _speechRateOf(context),
-                          );
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // Summary
-            if (treatment.summary.isNotEmpty) ...[
-              _GuidanceBlock(
-                title: context.tr('treatment_summary'),
-                content: treatment.summary,
-                icon: Icons.article_outlined,
-                iconColor: AppColors.info,
-                backgroundColor: AppColors.infoContainer,
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // What to Do
-            if (treatment.whatToDo.isNotEmpty) ...[
-              _GuidanceBlock(
-                title: context.tr('treatment_what_to_do'),
-                content: treatment.whatToDo,
-                icon: Icons.check_circle_outline,
-                iconColor: AppColors.success,
-                backgroundColor: AppColors.successContainer,
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // What to Avoid
-            if (treatment.whatToAvoid.isNotEmpty) ...[
-              _GuidanceBlock(
-                title: context.tr('treatment_what_to_avoid'),
-                content: treatment.whatToAvoid,
-                icon: Icons.cancel_outlined,
-                iconColor: AppColors.error,
-                backgroundColor: AppColors.errorContainer,
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // Recheck After Days Badge
-            if (treatment.recheckAfterDays != null) ...[
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.infoContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.event_available_rounded,
-                        size: 18, color: AppColors.info),
-                    const SizedBox(width: 10),
-                    Text(
-                      '${context.tr('recheck_after_days')} ${treatment.recheckAfterDays} ${context.tr('days')}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GuidanceBlock extends StatelessWidget {
-  final String title;
-  final String content;
-  final IconData icon;
-  final Color iconColor;
-  final Color backgroundColor;
-
-  const _GuidanceBlock({
-    required this.title,
-    required this.content,
-    required this.icon,
-    required this.iconColor,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14.0),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: iconColor),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: iconColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            content,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -1416,8 +597,9 @@ class _ExplanationSection extends StatelessWidget {
             ],
             if (explanation.hasConfusions)
               _ConfusionCard(
-                confusions:
-                    explanation.confusions.where((c) => !c.isEmpty).toList(),
+                confusions: explanation.confusions
+                    .where((c) => !c.isEmpty)
+                    .toList(),
               ),
           ],
         );
@@ -1577,78 +759,9 @@ class _ExplanationSkeleton extends StatelessWidget {
 // Treatment prompt — the explicit ask
 // =============================================================================
 
-class _TreatmentPrompt extends StatelessWidget {
-  final VoidCallback onFetch;
-
-  const _TreatmentPrompt({required this.onFetch});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.medical_services_outlined,
-                size: 20,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  context.tr('treatment_guidance_title'),
-                  style: theme.textTheme.titleSmall,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            context.tr('get_treatment_prompt_desc'),
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: AppSpacing.smPlus),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              key: const Key('get_treatment_guidance_button'),
-              icon: const Icon(Icons.medical_information_outlined),
-              label: Text(context.tr('get_treatment_btn')),
-              onPressed: onFetch,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // Ask about this result
 // =============================================================================
-
-/// Entry point into the follow-up conversation.
-///
-/// Replaces the inert "coming soon" card that used to sit here.
-class _AskAboutResultCard extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _AskAboutResultCard({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppActionTile(
-      key: const Key('ask_about_result_card'),
-      icon: Icons.forum_outlined,
-      title: context.tr('chat_with_result_title'),
-      subtitle: context.tr('chat_with_result_desc'),
-      onTap: onTap,
-    );
-  }
-}
 
 // =============================================================================
 // Other possibilities — the model's runner-up predictions
@@ -1663,108 +776,6 @@ class _AskAboutResultCard extends StatelessWidget {
 // The data has been computed and stored on every diagnosis all along; nothing
 // in the UI read it until now.
 
-class _AlternativesCard extends StatelessWidget {
-  final Diagnosis diagnosis;
-
-  const _AlternativesCard({required this.diagnosis});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final alternatives = diagnosis.alternatives;
-    if (alternatives.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppSectionHeader(
-          title: context.tr('other_possibilities_title'),
-          icon: Icons.alt_route_rounded,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppCard(
-          key: const Key('alternatives_card'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.tr('other_possibilities_desc'),
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppSpacing.smPlus),
-              for (final alternative in alternatives) ...[
-                _AlternativeRow(alternative: alternative),
-                if (alternative != alternatives.last)
-                  const SizedBox(height: AppSpacing.smPlus),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-      ],
-    );
-  }
-}
-
-class _AlternativeRow extends StatelessWidget {
-  final AlternativePrediction alternative;
-
-  const _AlternativeRow({required this.alternative});
-
-  /// Alternatives always carry a real disease id, so the prettifier should
-  /// always succeed; the id itself is a readable last resort rather than a
-  /// crash or a blank row.
-  String _alternativeName(AlternativePrediction a) =>
-      _formatDiseaseName(a.diseaseId) ?? a.diseaseId;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final percent = (alternative.confidence * 100).toStringAsFixed(0);
-
-    return Semantics(
-      label: '${_alternativeName(alternative)}, $percent%',
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _alternativeName(alternative),
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                // A bar rather than a bare number: relative size is readable
-                // without reading, which matters for the audience this app is
-                // built for.
-                ClipRRect(
-                  borderRadius: AppRadius.sm,
-                  child: LinearProgressIndicator(
-                    value: alternative.confidence.clamp(0.0, 1.0),
-                    minHeight: 6,
-                    backgroundColor: AppColors.surfaceVariant,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.smPlus),
-          Text(
-            '$percent%',
-            style: theme.textTheme.labelMedium,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // Placeholders for features not yet built
 // =============================================================================
@@ -1773,35 +784,588 @@ class _AlternativeRow extends StatelessWidget {
 // point's placement can be reviewed alongside the rest of the screen. The
 // implementation briefs live in docs/future/.
 
-/// Marks an entry point as not yet functional. Shared by the chat and
-/// voice-input placeholders so they read as one class of thing.
-class ComingSoonPill extends StatelessWidget {
-  const ComingSoonPill({super.key});
+// =============================================================================
+// Result header — the photo, the name, and one line about trusting it
+// =============================================================================
+
+/// Everything a farmer needs to know about *what this is*, in one block.
+///
+/// This replaced five stacked widgets: a "likely match" chip, a severity chip,
+/// a confidence meter, a low-confidence banner and a standing AI disclaimer.
+/// That was four different renderings of the same question — how sure are we —
+/// piled above the thing the farmer actually opened the app for. One line of
+/// plain words carries it, and the amber note appears only when there is
+/// genuinely a reason to hesitate.
+class _ResultHeader extends StatelessWidget {
+  final Scan scan;
+  final Diagnosis diagnosis;
+  final bool isLowConfidence;
+
+  const _ResultHeader({
+    required this.scan,
+    required this.diagnosis,
+    required this.isLowConfidence,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.infoContainer,
-        borderRadius: AppRadius.full,
-      ),
-      child: Text(
-        context.tr('coming_soon'),
-        style: Theme.of(context)
-            .textTheme
-            .labelSmall
-            ?.copyWith(color: AppColors.onInfoContainer),
+    final theme = Theme.of(context);
+    final isHealthy = diagnosis.isHealthy;
+    final visual = CropVisuals.forCrop(scan.cropId);
+    final percent = (diagnosis.confidence * 100).toStringAsFixed(0);
+
+    final title = isHealthy
+        ? context.tr('result_healthy_title')
+        : (_formatDiseaseName(diagnosis.diseaseId) ??
+              context.tr('unknown_disease'));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Hero(
+          tag: 'scan-image-${scan.id}',
+          child: ClipRRect(
+            borderRadius: AppRadius.lg,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _ScanImage(path: scan.imageLocalPath),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.center,
+                        colors: [Color(0xCC000000), Color(0x00000000)],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: AppSpacing.smPlus,
+                    bottom: AppSpacing.smPlus,
+                    right: AppSpacing.smPlus,
+                    child: Row(
+                      children: [
+                        Icon(visual.icon, size: 18, color: Colors.white),
+                        const SizedBox(width: AppSpacing.xs),
+                        Flexible(
+                          child: Text(
+                            _cropLabel(context),
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          title,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: isHealthy ? AppColors.success : AppColors.onSurface,
+          ),
+        ),
+        if (!isHealthy) ...[
+          const SizedBox(height: AppSpacing.xs),
+          // One trust line, in words first and a number second. The number
+          // alone means little to most people; "not certain" does.
+          Text(
+            '${_trustWord(context)} · '
+            '${context.tr('confidence_percent').replaceFirst('{percent}', percent)}'
+            '${diagnosis.severity != null ? ' · ${context.tr('severity_label')}: ${diagnosis.severity}' : ''}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: isLowConfidence
+                  ? AppColors.onWarningContainer
+                  : AppColors.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (isLowConfidence) ...[
+          const SizedBox(height: AppSpacing.smPlus),
+          AppBanner.warning(
+            title: context.tr('low_confidence_title'),
+            message: context.tr('low_confidence_msg'),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    );
+  }
+
+  String _trustWord(BuildContext context) {
+    switch (diagnosis.resultState) {
+      case DiagnosisResultState.confident:
+        return context.tr('badge_confident');
+      case DiagnosisResultState.lowConfidence:
+        return context.tr('badge_low_confidence');
+      case DiagnosisResultState.unsupported:
+        return context.tr('badge_unsupported');
+      case DiagnosisResultState.analysisFailed:
+        return context.tr('badge_failed');
+    }
+  }
+
+  String _cropLabel(BuildContext context) {
+    final id = scan.cropId;
+    if (id.isEmpty || id == 'unknown') return context.tr('unknown_disease');
+    return _formatDiseaseName(id) ?? id;
+  }
+}
+
+// =============================================================================
+// Healthy
+// =============================================================================
+
+class _HealthyNote extends StatelessWidget {
+  const _HealthyNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.check_circle_rounded, color: AppColors.success),
+        const SizedBox(width: AppSpacing.smPlus),
+        Expanded(
+          child: Text(
+            context.tr('healthy_crop_msg'),
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// Guidance — the reason the screen exists
+// =============================================================================
+
+/// "Do this now" and "Avoid", as short numbered steps.
+///
+/// Previously this was a raised Card containing a title row, a source badge, a
+/// read-aloud button and three more coloured sub-blocks, each with its own
+/// icon, background and padding — a card inside a card inside a card, holding
+/// three paragraphs of prose. A farmer had to read all of it to find the one
+/// thing to do first.
+///
+/// Now the steps are the content: flat, numbered, ordered by urgency by the
+/// backend. Everything else — where the advice came from, read-aloud, the
+/// option to fetch fresher advice — is secondary and rendered as such.
+class _GuidanceSection extends StatelessWidget {
+  final VoidCallback onFetch;
+  final TtsService? ttsService;
+
+  const _GuidanceSection({required this.onFetch, this.ttsService});
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.watch<DiagnosisCubit?>();
+    if (cubit == null) return const SizedBox.shrink();
+    final state = cubit.state;
+
+    if (state is DiagnosisTreatmentLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (state is DiagnosisTreatmentError) {
+      return AppBanner(
+        icon: Icons.wifi_off_rounded,
+        message: context.tr('offline_connection_msg'),
+        foreground: AppColors.onWarningContainer,
+        background: AppColors.warningContainer,
+        actionLabel: context.tr('retry_btn'),
+        onAction: onFetch,
+      );
+    }
+
+    if (state is DiagnosisTreatmentLoaded) {
+      AppHaptics.resultReady(context);
+      _maybeAutoRead(context, state.treatment, ttsService);
+      return _GuidanceBody(
+        treatment: state.treatment,
+        ttsService: ttsService,
+        onFetch: onFetch,
+      );
+    }
+
+    // Nothing on the device for this disease, so the online request is the
+    // only way to get advice. One button, no explanatory card around it.
+    return SizedBox(
+      height: AppSpacing.minTouchTarget,
+      child: ElevatedButton.icon(
+        key: const Key('get_treatment_guidance_button'),
+        icon: const Icon(Icons.medical_information_outlined),
+        label: Text(context.tr('get_treatment_btn')),
+        onPressed: onFetch,
       ),
     );
   }
 }
 
-void showComingSoon(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(context.tr('coming_soon_msg'))),
-  );
+class _GuidanceBody extends StatelessWidget {
+  final TreatmentResponse treatment;
+  final TtsService? ttsService;
+  final VoidCallback onFetch;
+
+  const _GuidanceBody({
+    required this.treatment,
+    required this.onFetch,
+    this.ttsService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final doSteps = treatment.effectiveDoSteps;
+    final avoidSteps = treatment.effectiveAvoidSteps;
+    final isAi = treatment.interpretationId != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (treatment.summary.isNotEmpty) ...[
+          Text(treatment.summary, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        if (doSteps.isNotEmpty) ...[
+          _SectionLabel(
+            label: context.tr('do_this_now'),
+            // Read-aloud sits here rather than as a full-width button of its
+            // own: it is the path through this screen for someone who does
+            // not read comfortably, so it belongs beside the text it reads,
+            // not floating above it.
+            trailing: ttsService == null
+                ? null
+                : _ReadAloudButton(
+                    ttsService: ttsService!,
+                    treatment: treatment,
+                  ),
+          ),
+          const SizedBox(height: AppSpacing.smPlus),
+          for (var i = 0; i < doSteps.length; i++) ...[
+            _Step(number: i + 1, text: doSteps[i]),
+            if (i != doSteps.length - 1)
+              const SizedBox(height: AppSpacing.smPlus),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        if (avoidSteps.isNotEmpty) ...[
+          _SectionLabel(label: context.tr('treatment_what_to_avoid')),
+          const SizedBox(height: AppSpacing.smPlus),
+          for (final step in avoidSteps) ...[
+            _AvoidItem(text: step),
+            if (step != avoidSteps.last) const SizedBox(height: AppSpacing.sm),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        if (treatment.recheckAfterDays != null) ...[
+          Row(
+            children: [
+              const Icon(
+                Icons.event_repeat_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  context
+                      .tr('recheck_after')
+                      .replaceFirst('{days}', '${treatment.recheckAfterDays}'),
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        // Where this came from, and how to get better advice. A footnote,
+        // not a badge competing with the steps for attention.
+        Row(
+          key: const Key('treatment_source_badge'),
+          children: [
+            Icon(
+              isAi ? Icons.auto_awesome : Icons.offline_pin_outlined,
+              size: 14,
+              color: AppColors.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                isAi
+                    ? context.tr('treatment_source_ai')
+                    : context.tr('treatment_source_offline'),
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+            if (!isAi)
+              TextButton(
+                key: const Key('refresh_treatment_guidance_button'),
+                onPressed: onFetch,
+                child: Text(context.tr('get_treatment_btn')),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A small all-caps-free heading. Sentence case, because uppercase does not
+/// exist in Sinhala or Tamil and made the three languages look inconsistent.
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final Widget? trailing;
+
+  const _SectionLabel({required this.label, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
+        ?trailing,
+      ],
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  final int number;
+  final String text;
+
+  const _Step({required this.number, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // A number, not a bullet: these are ordered by urgency, and the order
+        // is information.
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '$number',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: AppColors.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.smPlus),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(text, style: theme.textTheme.bodyMedium),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvoidItem extends StatelessWidget {
+  final String text;
+
+  const _AvoidItem({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 3),
+          child: Icon(Icons.close_rounded, size: 18, color: AppColors.error),
+        ),
+        const SizedBox(width: AppSpacing.smPlus),
+        Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+      ],
+    );
+  }
+}
+
+class _ReadAloudButton extends StatelessWidget {
+  final TtsService ttsService;
+  final TreatmentResponse treatment;
+
+  const _ReadAloudButton({required this.ttsService, required this.treatment});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: ttsService.isPlaying,
+      builder: (context, isPlaying, _) {
+        return IconButton(
+          key: const Key('treatment_tts_button'),
+          onPressed: () {
+            if (isPlaying) {
+              ttsService.stop();
+              return;
+            }
+            final lang = LocalizationProvider.of(context)?.languageCode ?? 'en';
+            // Reads the prose forms, not the step list: flowing sentences
+            // sound like speech, a numbered list read aloud does not.
+            final speechText =
+                '${treatment.summary}. '
+                '${context.tr('treatment_what_to_do')}: ${treatment.whatToDo} '
+                '${context.tr('treatment_what_to_avoid')}: ${treatment.whatToAvoid}';
+            ttsService.speak(
+              text: speechText,
+              languageCode: lang,
+              speechRate: _speechRateOf(context),
+            );
+          },
+          tooltip: isPlaying
+              ? context.tr('stop_reading')
+              : context.tr('read_aloud'),
+          icon: Icon(
+            isPlaying ? Icons.stop_circle_outlined : Icons.volume_up_rounded,
+            color: isPlaying ? AppColors.error : AppColors.primary,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// Other possibilities
+// =============================================================================
+
+/// The runner-up predictions, framed as a question rather than a data readout.
+///
+/// This was a section header plus a bordered card plus a progress bar and a
+/// percentage per row — a chart, essentially, for information that answers one
+/// simple question: "the app says X, but I do not think it is X, so what else
+/// could it be?" It now reads as that question, and the percentages are
+/// dropped: a farmer cannot act on "21%", and the ordering already carries
+/// everything the number was telling them.
+class _OtherPossibilities extends StatelessWidget {
+  final Diagnosis diagnosis;
+
+  const _OtherPossibilities({required this.diagnosis});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Belt and braces alongside the repository's repair: a bare class index
+    // is meaningless to a farmer, so anything that still looks like one is
+    // dropped rather than rendered. Better to show fewer possibilities than
+    // to show "12".
+    final alternatives = diagnosis.alternatives
+        .where((a) =>
+            a.diseaseId.isNotEmpty && int.tryParse(a.diseaseId) == null)
+        .toList();
+    if (alternatives.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: Column(
+        key: const Key('alternatives_card'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1, color: AppColors.outlineVariant),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            context.tr('other_possibilities_title'),
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr('other_possibilities_desc'),
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.smPlus),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final alternative in alternatives)
+                _PossibilityChip(
+                  label:
+                      _formatDiseaseName(alternative.diseaseId) ??
+                      alternative.diseaseId,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PossibilityChip extends StatelessWidget {
+  final String label;
+
+  const _PossibilityChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.smPlus,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: AppRadius.md,
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.bodySmall?.copyWith(color: AppColors.onSurface),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Ask about this result
+// =============================================================================
+
+class _AskAboutResultButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AskAboutResultButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppSpacing.minTouchTarget,
+      child: OutlinedButton.icon(
+        key: const Key('ask_about_result_card'),
+        icon: const Icon(Icons.forum_outlined),
+        label: Text(context.tr('chat_with_result_title')),
+        onPressed: onTap,
+      ),
+    );
+  }
 }

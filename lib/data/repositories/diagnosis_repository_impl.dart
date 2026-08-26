@@ -11,6 +11,7 @@ import 'package:drift/drift.dart';
 import '../../domain/entities/diagnosis.dart';
 import '../../domain/repositories/diagnosis_repository.dart';
 import '../local/database/app_database.dart';
+import '../local/ml/ml_inference_service.dart';
 
 class DiagnosisRepositoryImpl implements DiagnosisRepository {
   final AppDatabase db;
@@ -137,15 +138,34 @@ class DiagnosisRepositoryImpl implements DiagnosisRepository {
   // Mapping helpers
   // ---------------------------------------------------------------------------
 
+  /// Repairs alternatives stored before `RunDiagnosisUseCase` was fixed.
+  ///
+  /// Those rows hold the model's raw class index as a string ("12"), not a
+  /// disease id, so they rendered to the farmer as a bare number under "Not
+  /// what you see?". Mapping happens on read rather than as a migration
+  /// because the fix is cheap, total, and needs no schema change — and a
+  /// migration would still have to handle rows synced down from elsewhere.
+  ///
+  /// Returns an empty string for anything unresolvable, which the caller
+  /// filters out.
+  static String _resolveAlternativeId(String stored) {
+    final index = int.tryParse(stored);
+    if (index == null) return stored; // already a real disease id
+    return MlInferenceService.diseaseIdAt(index) ?? '';
+  }
+
   Diagnosis _mapToEntity(DiagnosisTableData row) {
     List<AlternativePrediction> alternatives = [];
     if (row.alternativesJson != null) {
       final decoded = jsonDecode(row.alternativesJson!) as List<dynamic>;
       alternatives = decoded
           .map((e) => AlternativePrediction(
-                diseaseId: e['disease_id'] as String,
+                diseaseId: _resolveAlternativeId(e['disease_id'] as String),
                 confidence: (e['confidence'] as num).toDouble(),
               ))
+          // Rows written before the id fix can hold a class index this app
+          // has no disease for. Drop those rather than render a number.
+          .where((a) => a.diseaseId.isNotEmpty)
           .toList();
     }
 
