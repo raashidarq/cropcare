@@ -7,12 +7,20 @@
 //  * `loadLocalGuidance` runs when the result screen opens. It reads the
 //    guideline shipped with the app — instant, offline, free — so the screen
 //    answers "what do I do?" without the farmer having to ask for it.
-//  * `fetchTreatmentGuidance` is the explicit upgrade: an LLM call that takes
-//    the farmer's own observations into account. It costs mobile data, so it
-//    stays an action rather than a side effect of opening a screen.
+//  * `fetchTreatmentGuidance` calls the LLM for better, more specific advice.
+//    It now runs automatically once the local guidance is showing, rather than
+//    waiting for a tap.
 //
-// Before this split there was only the second one, which meant the app's
-// entire payload sat behind a button on the screen you opened to get it.
+// The earlier design kept the LLM call behind a button on the grounds that it
+// costs mobile data. That reasoning conflated two very different things: a
+// scan IMAGE upload is megabytes and genuinely worth guarding, but this is a
+// text request and a page of JSON back — a rustle of data. Making a farmer
+// tap for it, and wait, bought them nothing.
+//
+// So both run: the on-device guideline paints immediately, and the AI answer
+// replaces it when it arrives. Crucially, a failed AI call leaves the local
+// guidance on screen rather than replacing it with an error — the farmer is
+// never left with less than they started with.
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -69,6 +77,41 @@ class DiagnosisCubit extends Cubit<DiagnosisState> {
     }
   }
 
+  /// True once an automatic AI fetch has been attempted for this screen, so
+  /// reopening a scan does not silently re-bill the request every time.
+  bool _autoFetchAttempted = false;
+
+  /// Fetches AI guidance without being asked, once per screen.
+  ///
+  /// Silent on failure beyond the flag on the state: the farmer did not ask
+  /// for this, and they already have the on-device guidance in front of them.
+  Future<void> autoFetchAiGuidance({
+    required String diagnosisId,
+    required String cropId,
+    required String diseaseId,
+    required double confidence,
+    required String? severity,
+    required String languageCode,
+    String? userObservations,
+  }) async {
+    if (_autoFetchAttempted) return;
+    _autoFetchAttempted = true;
+
+    final current = state;
+    // Already AI-written; nothing to improve on.
+    if (current is DiagnosisTreatmentLoaded && current.isAi) return;
+
+    await fetchTreatmentGuidance(
+      diagnosisId: diagnosisId,
+      cropId: cropId,
+      diseaseId: diseaseId,
+      confidence: confidence,
+      severity: severity,
+      languageCode: languageCode,
+      userObservations: userObservations,
+    );
+  }
+
   Future<void> fetchTreatmentGuidance({
     required String diagnosisId,
     required String cropId,
@@ -78,7 +121,20 @@ class DiagnosisCubit extends Cubit<DiagnosisState> {
     required String languageCode,
     String? userObservations,
   }) async {
-    emit(const DiagnosisTreatmentLoading());
+    // A manual retry re-arms the automatic path too, so a later observation
+    // edit can still refresh.
+    _autoFetchAttempted = true;
+    final previous = state;
+
+    // Keep whatever is already on screen while the better version is fetched.
+    // Emitting a bare loading state here is what used to make the farmer's
+    // steps vanish behind a spinner.
+    if (previous is DiagnosisTreatmentLoaded) {
+      emit(previous.copyWith(isRefreshing: true, refreshFailed: false));
+    } else {
+      emit(const DiagnosisTreatmentLoading());
+    }
+
     try {
       final treatment = await resolveTreatmentUseCase(
         diagnosisId: diagnosisId,
@@ -102,6 +158,13 @@ class DiagnosisCubit extends Cubit<DiagnosisState> {
             : TreatmentSource.localFallback,
       ));
     } catch (e) {
+      // The whole point of the state shape: if there was guidance before, the
+      // farmer keeps it. An error only replaces the screen when there was
+      // nothing to lose.
+      if (previous is DiagnosisTreatmentLoaded) {
+        emit(previous.copyWith(isRefreshing: false, refreshFailed: true));
+        return;
+      }
       emit(DiagnosisTreatmentError(
         message: e.toString().replaceFirst('TreatmentApiException: ', ''),
       ));

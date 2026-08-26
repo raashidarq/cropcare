@@ -384,7 +384,15 @@ class _AppShellState extends State<_AppShell> {
   Future<void> _runTutorial() async {
     // Home first: the walkthrough points at the real screen, so it has to be
     // the one on display.
-    if (_index != 0) _select(0);
+    if (_index != 0) {
+      _select(0);
+      // And it has to have been laid out. showTutorial measures the target
+      // widgets' rects, and immediately after setState the Home tab has not
+      // rendered yet - the spotlight would land on whatever geometry the
+      // previous tab left behind, or on nothing at all.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
     await showTutorial(context, [
       TutorialStep(
         targetKey: _scanButtonKey,

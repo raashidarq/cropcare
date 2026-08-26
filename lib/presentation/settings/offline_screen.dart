@@ -138,6 +138,55 @@ class OfflineScreen extends StatelessWidget {
   /// Sends the user to sign in, then releases the held queue. Clearing the
   /// hold is the step that actually turns a successful sign-in back into a
   /// working queue — without it the items stay held indefinitely.
+  /// Pulls scans back from the cloud.
+  ///
+  /// Confirms first, because on a rural connection this downloads every photo
+  /// the account holds and that is the farmer's data allowance being spent.
+  Future<void> _restore(BuildContext context, SyncCubit cubit) async {
+    final currentUser = user ?? authCubit?.currentUser;
+    if (currentUser == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        key: const Key('restore_confirm_dialog'),
+        title: Text(dialogCtx.tr('restore_title')),
+        content: Text(dialogCtx.tr('restore_confirm_msg')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(dialogCtx.tr('cancel')),
+          ),
+          ElevatedButton(
+            key: const Key('restore_confirm_button'),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(dialogCtx.tr('restore_action')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    // Resolved before the await: the context may be gone afterwards.
+    final noneMsg = context.tr('restore_none');
+    final doneTemplate = context.tr('restore_done');
+
+    final restored = await cubit.restoreFromCloud(userId: currentUser.id);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          restored == 0
+              // Zero is not a failure: it usually means everything in the
+              // cloud is already on this phone.
+              ? noneMsg
+              : doneTemplate.replaceFirst('{count}', '$restored'),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _handleReauth(BuildContext context, SyncCubit cubit) async {
     final currentUser = user ?? authCubit?.currentUser;
     if (currentUser == null || authCubit == null) {
@@ -293,6 +342,36 @@ class OfflineScreen extends StatelessWidget {
                 cubit: cubit,
                 onSignIn: () => _handleReauth(context, cubit),
               ),
+
+              // ── 1c. Restore ─────────────────────────────────────────────
+              // Sits directly above the delete action on purpose: the two are
+              // a pair, and seeing that scans can come back is what makes
+              // deleting them locally a reasonable thing to do.
+              if (isSignedIn)
+                Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: ListTile(
+                    key: const Key('offline_restore_row'),
+                    leading: CircleAvatar(
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(
+                        Icons.cloud_download_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    title: Text(
+                      context.tr('restore_title'),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      context.tr('restore_desc'),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _restore(context, cubit),
+                  ),
+                ),
 
               // ── 2. Auto-Sync Settings ───────────────────────────────────
               _buildSectionHeader(context, 'auto_sync_title'),

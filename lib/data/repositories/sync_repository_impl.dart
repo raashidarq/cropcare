@@ -2,6 +2,9 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'dart:math';
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/sync_operation.dart';
@@ -548,5 +551,127 @@ class SyncRepositoryImpl implements SyncRepository {
       default:
         return SyncOperationStatus.pending;
     }
+  }
+  @override
+  Future<int> restoreScansFromCloud({
+    required String userId,
+    required String authToken,
+    void Function(int restored, int total)? onProgress,
+  }) async {
+    var offset = 0;
+    var restored = 0;
+    var hasMore = true;
+
+    // Every scan id already here, read once. Checking per row would be a query
+    // per scan against a table that can hold thousands.
+    final existingRemoteIds = (await (db.select(db.scanTable)
+              ..where((t) => t.remoteScanId.isNotNull()))
+            .get())
+        .map((r) => r.remoteScanId)
+        .whereType<String>()
+        .toSet();
+
+    final dir = await getApplicationDocumentsDirectory();
+
+    while (hasMore) {
+      final page = await _apiClient.fetchScans(
+        authToken: authToken,
+        limit: 100,
+        offset: offset,
+      );
+      hasMore = page.hasMore;
+      offset += page.scans.length;
+      if (page.scans.isEmpty) break;
+
+      for (final row in page.scans) {
+        final remoteId = row['id'] as String?;
+        if (remoteId == null || existingRemoteIds.contains(remoteId)) continue;
+
+        // The photo comes down best-effort. A scan with a result and no image
+        // is still worth having; failing the whole restore over one missing
+        // file is not.
+        var localPath = '';
+        final imageUrl = row['image_url'] as String?;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          localPath = await _downloadImage(imageUrl, remoteId, dir.path) ?? '';
+        }
+
+        final localScanId = (row['local_scan_id'] as String?) ?? _uuid();
+        final capturedAt = (row['captured_at'] as String?) ??
+            DateTime.now().toIso8601String();
+
+        await db.into(db.scanTable).insertOnConflictUpdate(
+              ScanTableCompanion.insert(
+                id: localScanId,
+                userId: userId,
+                cropId: (row['crop_id'] as String?) ?? 'unknown',
+                imageLocalPath: localPath,
+                status: (row['status'] as String?) ?? 'DIAGNOSED',
+                capturedAt: capturedAt,
+                createdAt: capturedAt,
+                updatedAt: DateTime.now().toIso8601String(),
+                remoteScanId: Value(remoteId),
+              ),
+            );
+
+        final diseaseId = row['disease_id'] as String?;
+        if (diseaseId != null) {
+          await db.into(db.diagnosisTable).insertOnConflictUpdate(
+                DiagnosisTableCompanion.insert(
+                  id: _uuid(),
+                  scanId: localScanId,
+                  modelVersionId: 'restored',
+                  confidence: (row['confidence'] as num?)?.toDouble() ?? 0.0,
+                  resultState: (row['result_state'] as String?) ?? 'CONFIDENT',
+                  treatmentSource: 'LOCAL_FALLBACK',
+                  inferredAt: (row['diagnosed_at'] as String?) ?? capturedAt,
+                  diseaseId: Value(diseaseId),
+                  severity: Value(row['severity'] as String?),
+                ),
+              );
+        }
+
+        existingRemoteIds.add(remoteId);
+        restored++;
+        onProgress?.call(restored, page.total);
+      }
+    }
+
+    return restored;
+  }
+
+  /// Best-effort image download. Returns the local path, or null.
+  Future<String?> _downloadImage(String url, String id, String dirPath) async {
+    try {
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode != 200) return null;
+      final file = File('$dirPath/restored_$id.jpg');
+      await file.writeAsBytes(response.bodyBytes);
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> deleteRemoteScan({
+    required String remoteScanId,
+    required String authToken,
+  }) {
+    return _apiClient.deleteRemoteScan(
+      remoteScanId: remoteScanId,
+      authToken: authToken,
+    );
+  }
+
+  static String _uuid() {
+    final r = Random();
+    const chars = '0123456789abcdef';
+    String block(int n) =>
+        List.generate(n, (_) => chars[r.nextInt(16)]).join();
+    return '${block(8)}-${block(4)}-4${block(3)}-'
+        '${'89ab'[r.nextInt(4)]}${block(3)}-${block(12)}';
   }
 }

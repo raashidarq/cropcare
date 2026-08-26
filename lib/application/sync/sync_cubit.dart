@@ -142,6 +142,73 @@ class SyncCubit extends Cubit<SyncState> {
     await syncNow();
   }
 
+  /// Pulls scans back down from the cloud.
+  ///
+  /// This is what makes "delete local scans" a safe thing to offer. Until it
+  /// existed the app could upload but never download, so freeing up storage
+  /// destroyed a farmer's history permanently.
+  ///
+  /// Unlike automatic syncing, this ignores the Wi-Fi-only preference: the
+  /// farmer asked for it, and the images have to come down somehow.
+  Future<int> restoreFromCloud({required String userId}) async {
+    final token = await authRepository.getStoredToken();
+    if (token == null || token.isEmpty) {
+      emit(SyncError(
+        message: 'restore_requires_account',
+        pendingCount: state.pendingCount,
+        autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
+        failedOperations: state.failedOperations,
+      ));
+      return 0;
+    }
+
+    emit(SyncInProgress(
+      pendingCount: state.pendingCount,
+      autoSyncEnabled: _autoSyncEnabled,
+      wifiOnly: _wifiOnly,
+      failedOperations: state.failedOperations,
+    ));
+
+    try {
+      final restored = await syncRepository.restoreScansFromCloud(
+        userId: userId,
+        authToken: token,
+      );
+      emit(SyncInitial(
+        pendingCount: await syncRepository.getPendingCount(),
+        autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
+        failedOperations: await _failed(),
+      ));
+      return restored;
+    } catch (e) {
+      emit(SyncError(
+        message: 'restore_failed',
+        pendingCount: state.pendingCount,
+        autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
+        failedOperations: state.failedOperations,
+      ));
+      return 0;
+    }
+  }
+
+  /// Removes one scan from the cloud. Returns null when there is no session,
+  /// so the caller can distinguish "not signed in" from "it failed".
+  Future<bool?> deleteFromCloud(String remoteScanId) async {
+    final token = await authRepository.getStoredToken();
+    if (token == null || token.isEmpty) return null;
+    try {
+      return await syncRepository.deleteRemoteScan(
+        remoteScanId: remoteScanId,
+        authToken: token,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Wi-Fi-only applies to background syncing only, so this never needs a
   /// session check the way auto-sync does.
   Future<void> toggleWifiOnly(bool enabled) async {

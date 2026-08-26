@@ -157,14 +157,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Treatment guidance is no longer fetched on open — it is behind an
-    // explicit button so it cannot spend a farmer's mobile data unasked.
-    // The screen is long, so scroll the button into view before tapping.
-    final getTreatmentBtn =
-        find.byKey(const Key('get_treatment_guidance_button'));
-    await tester.ensureVisible(getTreatmentBtn);
-    await tester.pumpAndSettle();
-    await tester.tap(getTreatmentBtn);
+    // No tap: AI guidance is fetched automatically when the screen opens. It
+    // is the better answer, and it is a text request, so making the farmer
+    // ask for it bought them nothing.
     await tester.pumpAndSettle();
 
     expect(find.text('Tomato Early Blight'), findsOneWidget);
@@ -279,14 +274,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Treatment guidance is no longer fetched on open — it is behind an
-    // explicit button so it cannot spend a farmer's mobile data unasked.
-    // The screen is long, so scroll the button into view before tapping.
-    final getTreatmentBtn =
-        find.byKey(const Key('get_treatment_guidance_button'));
-    await tester.ensureVisible(getTreatmentBtn);
-    await tester.pumpAndSettle();
-    await tester.tap(getTreatmentBtn);
+    // No tap: AI guidance is fetched automatically when the screen opens. It
+    // is the better answer, and it is a text request, so making the farmer
+    // ask for it bought them nothing.
     await tester.pumpAndSettle();
 
     // Read-aloud sits beside the steps it reads, as an icon button, rather
@@ -340,14 +330,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Treatment guidance is no longer fetched on open — it is behind an
-    // explicit button so it cannot spend a farmer's mobile data unasked.
-    // The screen is long, so scroll the button into view before tapping.
-    final getTreatmentBtn =
-        find.byKey(const Key('get_treatment_guidance_button'));
-    await tester.ensureVisible(getTreatmentBtn);
-    await tester.pumpAndSettle();
-    await tester.tap(getTreatmentBtn);
+    // No tap: AI guidance is fetched automatically when the screen opens. It
+    // is the better answer, and it is a text request, so making the farmer
+    // ask for it bought them nothing.
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
@@ -400,21 +385,16 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Treatment guidance is no longer fetched on open — it is behind an
-    // explicit button so it cannot spend a farmer's mobile data unasked.
-    // The screen is long, so scroll the button into view before tapping.
-    final getTreatmentBtn =
-        find.byKey(const Key('get_treatment_guidance_button'));
-    await tester.ensureVisible(getTreatmentBtn);
-    await tester.pumpAndSettle();
-    await tester.tap(getTreatmentBtn);
+    // No tap: AI guidance is fetched automatically when the screen opens. It
+    // is the better answer, and it is a text request, so making the farmer
+    // ask for it bought them nothing.
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
     expect(find.text('On-Device Offline'), findsOneWidget);
   });
   testWidgets(
-    'On-device guidance is on screen when the result opens, with no request',
+    'On-device guidance paints first, then the AI answer replaces it',
     (tester) async {
       final scan = Scan(
         id: 'scan-local',
@@ -463,21 +443,23 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // The app ships a trilingual guideline for every disease the model can
-      // name. Showing it costs nothing, so the screen answers "what do I do?"
-      // without the farmer having to ask.
-      expect(find.text('Seeded on-device summary'), findsOneWidget);
-      // On-device guidelines are stored as prose and split into steps for
-      // display, so the farmer gets a list either way.
-      expect(find.text('Seeded what to do'), findsOneWidget);
+      // The AI answer wins once it arrives - it is written for this crop and
+      // confidence - but the on-device guideline is what paints first, so the
+      // screen is never blank while the request is in flight.
+      expect(find.text('Remote summary'), findsOneWidget);
       expect(find.text('Do this now'), findsOneWidget);
 
-      // And it did so without touching the network.
-      expect(repository.remoteCallCount, 0);
+      // The AI fetch happened without being asked.
+      expect(repository.remoteCallCount, 1);
 
-      // The prompt to request guidance is gone, because guidance is here.
+      // No prompt to request guidance: it already arrived.
       expect(
         find.byKey(const Key('get_treatment_guidance_button')),
+        findsNothing,
+      );
+      // And no "Retry AI" either, because the AI version is what is showing.
+      expect(
+        find.byKey(const Key('refresh_treatment_guidance_button')),
         findsNothing,
       );
     },

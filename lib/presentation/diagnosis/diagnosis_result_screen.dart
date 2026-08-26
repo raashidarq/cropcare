@@ -171,17 +171,30 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
 
     final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
 
-    // The guidance shipped with the app loads immediately. It is a local read:
-    // no network, no cost, no waiting, and it is already translated into all
-    // three languages for every disease the model can name. A farmer opening
-    // this screen wants to know what to do, so the screen tells them.
+    // Two passes. The guidance shipped with the app is a local read - no
+    // network, no cost, no waiting, and already translated - so it paints
+    // first and the screen is never blank. The AI answer is the better one:
+    // short ordered steps written for this crop and this confidence level. It
+    // now fetches on its own rather than waiting for a tap, because the
+    // earlier reasoning ("it costs mobile data") conflated a megabyte photo
+    // upload with a text request and a page of JSON back.
     //
-    // The *online* request stays an explicit action (see `_fetchTreatment`) —
-    // it costs mobile data and tailors advice to the farmer's own
-    // observations, so it is worth asking for. What changed is the default:
-    // it used to be that no guidance appeared at all until you asked.
+    // If the AI call fails, the local guidance stays on screen. The farmer is
+    // never left with less than they started with.
     final cubit = context.read<DiagnosisCubit?>();
-    cubit?.loadLocalGuidance(diseaseId: diseaseId, languageCode: languageCode);
+    cubit
+        ?.loadLocalGuidance(diseaseId: diseaseId, languageCode: languageCode)
+        .then((_) {
+      if (!mounted) return;
+      cubit.autoFetchAiGuidance(
+        diagnosisId: widget.diagnosis.id,
+        cropId: widget.scan.cropId,
+        diseaseId: diseaseId,
+        confidence: widget.diagnosis.confidence,
+        severity: widget.diagnosis.severity,
+        languageCode: languageCode,
+      );
+    });
 
     final useCase = widget.getDiseaseExplanationUseCase;
     if (useCase == null) return;
@@ -1041,11 +1054,15 @@ class _GuidanceSection extends StatelessWidget {
         treatment: state.treatment,
         ttsService: ttsService,
         onFetch: onFetch,
+        isAi: state.isAi,
+        isRefreshing: state.isRefreshing,
+        refreshFailed: state.refreshFailed,
       );
     }
 
-    // Nothing on the device for this disease, so the online request is the
-    // only way to get advice. One button, no explanatory card around it.
+    // Nothing on the device for this disease AND the automatic attempt has
+    // not produced anything, so asking is the only route left. This one keeps
+    // "Get AI recommendation": for this farmer it really is a first request.
     return SizedBox(
       height: AppSpacing.minTouchTarget,
       child: ElevatedButton.icon(
@@ -1062,11 +1079,17 @@ class _GuidanceBody extends StatelessWidget {
   final TreatmentResponse treatment;
   final TtsService? ttsService;
   final VoidCallback onFetch;
+  final bool isAi;
+  final bool isRefreshing;
+  final bool refreshFailed;
 
   const _GuidanceBody({
     required this.treatment,
     required this.onFetch,
     this.ttsService,
+    this.isAi = false,
+    this.isRefreshing = false,
+    this.refreshFailed = false,
   });
 
   @override
@@ -1074,7 +1097,6 @@ class _GuidanceBody extends StatelessWidget {
     final theme = Theme.of(context);
     final doSteps = treatment.effectiveDoSteps;
     final avoidSteps = treatment.effectiveAvoidSteps;
-    final isAi = treatment.interpretationId != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1144,28 +1166,55 @@ class _GuidanceBody extends StatelessWidget {
         Row(
           key: const Key('treatment_source_badge'),
           children: [
-            Icon(
-              isAi ? Icons.auto_awesome : Icons.offline_pin_outlined,
-              size: 14,
-              color: AppColors.onSurfaceVariant,
-            ),
+            if (isRefreshing)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(
+                isAi ? Icons.auto_awesome : Icons.offline_pin_outlined,
+                size: 14,
+                color: AppColors.onSurfaceVariant,
+              ),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
               child: Text(
-                isAi
-                    ? context.tr('treatment_source_ai')
-                    : context.tr('treatment_source_offline'),
+                isRefreshing
+                    // Says what is happening AND that the steps above are
+                    // real and usable meanwhile.
+                    ? context.tr('treatment_improving')
+                    : isAi
+                        ? context.tr('treatment_source_ai')
+                        : context.tr('treatment_source_offline'),
                 style: theme.textTheme.labelSmall,
               ),
             ),
-            if (!isAi)
+            // Offered only when there is something to gain: the guidance is
+            // not AI-written and nothing is in flight. "Retry AI" rather than
+            // "Get AI recommendation" - the fetch already happened on its own,
+            // so this is a second attempt, not a first request.
+            if (!isAi && !isRefreshing)
               TextButton(
                 key: const Key('refresh_treatment_guidance_button'),
                 onPressed: onFetch,
-                child: Text(context.tr('get_treatment_btn')),
+                child: Text(context.tr('retry_ai_btn')),
               ),
           ],
         ),
+
+        // Only after a failure, and deliberately quiet: the farmer still has
+        // working guidance above, so this is a footnote, not an alarm.
+        if (refreshFailed) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr('treatment_ai_failed_note'),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.onWarningContainer,
+            ),
+          ),
+        ],
       ],
     );
   }

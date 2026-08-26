@@ -115,6 +115,32 @@ class FaqScreen extends StatelessWidget {
             answerKey: 'faq_a5',
             theme: theme,
           ),
+          _buildFaqItem(
+            context: context,
+            questionKey: 'faq_q12',
+            answerKey: 'faq_a12',
+            theme: theme,
+          ),
+          const SizedBox(height: 20),
+
+          // ── Category 3: Managing scans ───────────────────────────────────
+          // These cover the things a farmer cannot discover by looking: a
+          // swipe with no visible affordance, an icon that only appears in
+          // one state, and what the app's own hedging actually means.
+          _buildCategoryHeader(
+            context: context,
+            title: context.tr('faq_category_managing'),
+            icon: Icons.history_rounded,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 8),
+          for (final n in [6, 7, 8, 9, 10, 11])
+            _buildFaqItem(
+              context: context,
+              questionKey: 'faq_q$n',
+              answerKey: 'faq_a$n',
+              theme: theme,
+            ),
         ],
       ),
     );

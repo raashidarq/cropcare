@@ -248,12 +248,11 @@ class _SettingsView extends StatelessWidget {
                   icon: Icons.touch_app_outlined,
                   title: context.tr('replay_tutorial'),
                   subtitle: context.tr('replay_tutorial_desc'),
-                  onTap: () {
-                    // Pop back to the shell first: the walkthrough points at
-                    // the real home screen, so it has to be the one showing.
-                    Navigator.of(context).pop();
-                    onReplayTutorial!();
-                  },
+                  // No Navigator.pop() here. Settings is a TAB inside the
+                  // shell's IndexedStack, not a pushed route, so popping took
+                  // the whole HomeScreen off the stack. The shell switches to
+                  // the Home tab itself before running the walkthrough.
+                  onTap: onReplayTutorial!,
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],

@@ -69,6 +69,21 @@ class _FakeSyncRepository implements SyncRepository {
     lastAuthToken = authToken;
     pendingCount = 0;
   }
+  @override
+  Future<int> restoreScansFromCloud({
+    required String userId,
+    required String authToken,
+    void Function(int restored, int total)? onProgress,
+  }) async =>
+      0;
+
+  @override
+  Future<bool> deleteRemoteScan({
+    required String remoteScanId,
+    required String authToken,
+  }) async =>
+      true;
+
 
   @override
   Future<void> syncReferenceData({required String authToken}) async {}

@@ -179,4 +179,88 @@ class SyncApiClient {
       );
     }
   }
+
+  /// Pulls the user's own scans back down, newest first.
+  ///
+  /// Paged deliberately: a season of daily scanning is thousands of rows, and
+  /// this runs on a budget phone over a rural connection. The caller walks the
+  /// pages so a dropped connection costs one page, not the whole restore.
+  Future<RestorePage> fetchScans({
+    required String authToken,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final uri = Uri.parse('$baseUrl/scans').replace(
+      queryParameters: {'limit': '$limit', 'offset': '$offset'},
+    );
+    final response = await _httpClient.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw SyncApiException(
+        'Failed to fetch scans: ${response.body}',
+        response.statusCode,
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes))
+        as Map<String, dynamic>;
+    return RestorePage(
+      scans: (data['scans'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>(),
+      total: data['total'] as int? ?? 0,
+      hasMore: data['has_more'] as bool? ?? false,
+    );
+  }
+
+  /// Removes one scan from the cloud, including its stored image.
+  ///
+  /// Returns whether the image was removed too. The server reports that
+  /// separately because the row can go while the photograph stays, and the
+  /// user is entitled to know which happened.
+  Future<bool> deleteRemoteScan({
+    required String remoteScanId,
+    required String authToken,
+  }) async {
+    final response = await _httpClient.delete(
+      Uri.parse('$baseUrl/scans/$remoteScanId'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+    );
+
+    // Already gone is a success from the caller's point of view: the goal was
+    // for it not to be there.
+    if (response.statusCode == 404) return true;
+
+    if (response.statusCode != 200) {
+      throw SyncApiException(
+        'Failed to delete scan: ${response.body}',
+        response.statusCode,
+      );
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes))
+        as Map<String, dynamic>;
+    return data['image_deleted'] as bool? ?? false;
+  }
+}
+
+/// One page of restored scans.
+class RestorePage {
+  final List<Map<String, dynamic>> scans;
+  final int total;
+  final bool hasMore;
+
+  const RestorePage({
+    required this.scans,
+    required this.total,
+    required this.hasMore,
+  });
 }
