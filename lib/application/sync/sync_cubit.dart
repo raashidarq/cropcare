@@ -45,6 +45,11 @@ class SyncCubit extends Cubit<SyncState> {
   }
 
   bool get autoSyncEnabled => _autoSyncEnabled;
+  bool get wifiOnly => _wifiOnly;
+
+  /// Defaults to true, matching SyncPreferences: opting into background sync
+  /// is not the same as agreeing to pay mobile-data rates for it.
+  bool _wifiOnly = true;
 
   /// Loads the persisted preference. Auto-sync stays off unless it was
   /// explicitly enabled AND there is a session to sync with — a stored
@@ -53,12 +58,14 @@ class SyncCubit extends Cubit<SyncState> {
     final prefs = syncPreferences;
     if (prefs == null) return;
     final stored = await prefs.getAutoSyncEnabled();
+    _wifiOnly = await prefs.getWifiOnly();
     final token = await authRepository.getStoredToken();
     final effective = stored && token != null && token.isNotEmpty;
     _autoSyncEnabled = effective;
     emit(SyncInitial(
       pendingCount: state.pendingCount,
       autoSyncEnabled: effective,
+      wifiOnly: _wifiOnly,
       failedOperations: state.failedOperations,
     ));
   }
@@ -81,9 +88,12 @@ class SyncCubit extends Cubit<SyncState> {
       final wasOffline = !_wasOnline;
       _wasOnline = isOnline;
 
-      // Only auto-sync on the offline → online transition if auto-sync is enabled.
+      // Only auto-sync on the offline → online transition if auto-sync is
+      // enabled, and only over a connection the farmer is not paying for by
+      // the megabyte. Scans upload full-resolution photographs, and doing
+      // that silently in the background on mobile data spends real money.
       if (isOnline && wasOffline && _autoSyncEnabled) {
-        syncNow();
+        _syncIfConnectionAllows();
       }
     });
   }
@@ -110,6 +120,37 @@ class SyncCubit extends Cubit<SyncState> {
     emit(SyncInitial(
       pendingCount: state.pendingCount,
       autoSyncEnabled: _autoSyncEnabled,
+      wifiOnly: _wifiOnly,
+      failedOperations: state.failedOperations,
+    ));
+  }
+
+  /// Runs an automatic sync only if the current connection is acceptable.
+  ///
+  /// Silent about being skipped: the farmer did not ask for this sync, so
+  /// interrupting them to say it did not happen would be noise. The pending
+  /// count in Settings already shows the backlog, and "Sync now" is always
+  /// available.
+  Future<void> _syncIfConnectionAllows() async {
+    if (_wifiOnly) {
+      final service = connectivityService;
+      // With no way to tell what kind of connection this is, err toward not
+      // spending the farmer's money.
+      if (service == null) return;
+      if (!await service.isOnUnmeteredConnection()) return;
+    }
+    await syncNow();
+  }
+
+  /// Wi-Fi-only applies to background syncing only, so this never needs a
+  /// session check the way auto-sync does.
+  Future<void> toggleWifiOnly(bool enabled) async {
+    _wifiOnly = enabled;
+    await syncPreferences?.setWifiOnly(enabled);
+    emit(SyncInitial(
+      pendingCount: state.pendingCount,
+      autoSyncEnabled: _autoSyncEnabled,
+      wifiOnly: _wifiOnly,
       failedOperations: state.failedOperations,
     ));
   }
@@ -142,6 +183,7 @@ class SyncCubit extends Cubit<SyncState> {
       emit(SyncInitial(
         pendingCount: count,
         autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
         failedOperations: await _failed(),
       ));
     } catch (_) {}
@@ -179,6 +221,7 @@ class SyncCubit extends Cubit<SyncState> {
       emit(SyncInitial(
         pendingCount: 0,
         autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
         failedOperations: await _failed(),
       ));
     } catch (e) {
@@ -186,6 +229,7 @@ class SyncCubit extends Cubit<SyncState> {
         message: e.toString(),
         pendingCount: state.pendingCount,
         autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
       ));
     }
   }
@@ -226,12 +270,14 @@ class SyncCubit extends Cubit<SyncState> {
           message: 'Please link or sign in to your CropCare account to sync scans to the cloud.',
           pendingCount: count,
           autoSyncEnabled: _autoSyncEnabled,
+          wifiOnly: _wifiOnly,
           failedOperations: await _failed(),
         ));
       } else {
         emit(SyncInitial(
           pendingCount: 0,
           autoSyncEnabled: _autoSyncEnabled,
+          wifiOnly: _wifiOnly,
           failedOperations: await _failed(),
         ));
       }
@@ -241,6 +287,7 @@ class SyncCubit extends Cubit<SyncState> {
     emit(SyncInProgress(
       pendingCount: count,
       autoSyncEnabled: _autoSyncEnabled,
+      wifiOnly: _wifiOnly,
       failedOperations: state.failedOperations,
     ));
 
@@ -261,6 +308,7 @@ class SyncCubit extends Cubit<SyncState> {
         syncedCount: synced >= 0 ? synced : count,
         pendingCount: remaining,
         autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
         failedOperations: await _failed(),
       ));
     } catch (e) {
@@ -269,6 +317,7 @@ class SyncCubit extends Cubit<SyncState> {
         message: e.toString(),
         pendingCount: remaining,
         autoSyncEnabled: _autoSyncEnabled,
+        wifiOnly: _wifiOnly,
         failedOperations: await _failed(),
       ));
     }

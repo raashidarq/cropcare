@@ -6,6 +6,12 @@ abstract class SyncState {
   final int pendingCount;
   final bool autoSyncEnabled;
 
+  /// Whether automatic syncing waits for an unmetered connection.
+  ///
+  /// Gates AUTOMATIC sync only. An explicit "Sync now" is the farmer saying
+  /// they want it uploaded, and second-guessing that would be patronising.
+  final bool wifiOnly;
+
   /// Operations that will not retry on their own — PERMANENTLY_FAILED or
   /// AUTH_REQUIRED. Carried on every state so the UI can keep showing them
   /// while a fresh sync runs; a farmer whose scans did not reach the cloud
@@ -15,6 +21,7 @@ abstract class SyncState {
   const SyncState({
     this.pendingCount = 0,
     this.autoSyncEnabled = true,
+    this.wifiOnly = true,
     this.failedOperations = const [],
   });
 
@@ -28,6 +35,7 @@ class SyncInitial extends SyncState {
   const SyncInitial({
     super.pendingCount = 0,
     super.autoSyncEnabled = true,
+    super.wifiOnly = true,
     super.failedOperations = const [],
   });
 }
@@ -36,6 +44,7 @@ class SyncInProgress extends SyncState {
   const SyncInProgress({
     super.pendingCount = 0,
     super.autoSyncEnabled = true,
+    super.wifiOnly = true,
     super.failedOperations = const [],
   });
 }
@@ -46,6 +55,7 @@ class SyncSuccess extends SyncState {
     required this.syncedCount,
     super.pendingCount = 0,
     super.autoSyncEnabled = true,
+    super.wifiOnly = true,
     super.failedOperations = const [],
   });
 }
@@ -56,6 +66,7 @@ class SyncError extends SyncState {
     required this.message,
     super.pendingCount = 0,
     super.autoSyncEnabled = true,
+    super.wifiOnly = true,
     super.failedOperations = const [],
   });
 }

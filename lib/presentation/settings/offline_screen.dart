@@ -326,6 +326,35 @@ class OfflineScreen extends StatelessWidget {
                       : null,
                 ),
               ),
+              // Only meaningful while auto-sync is on: it governs *when*
+              // background syncing runs, and "Sync now" ignores it entirely.
+              // Showing it against a disabled auto-sync would suggest it
+              // gates the manual action too.
+              if (isSignedIn && autoSync)
+                Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: SwitchListTile(
+                    key: const Key('offline_wifi_only_switch'),
+                    secondary: CircleAvatar(
+                      backgroundColor: theme.colorScheme.secondaryContainer,
+                      child: Icon(
+                        Icons.wifi_rounded,
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                    title: Text(
+                      context.tr('wifi_only_title'),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      context.tr('wifi_only_desc'),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    value: state.wifiOnly,
+                    onChanged: (val) => cubit.toggleWifiOnly(val),
+                  ),
+                ),
 
               // ── 3. Local Storage Management ──────────────────────────────
               _buildSectionHeader(context, 'section_data_storage'),

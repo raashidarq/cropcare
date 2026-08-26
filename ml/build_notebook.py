@@ -154,7 +154,13 @@ VAL_FRACTION  = 0.15
 # images the model has never seen. The test is now "held-out field images"
 # rather than "held-out field dataset" - slightly weaker as evidence, and far
 # more useful than a guaranteed zero.
-PLANTDOC_TRAIN_FRACTION = 0.5
+# Raised from 0.5 after the second run: 57.4% top-1 / 84.6% top-3 on field
+# images, with the weakest classes (tomato bacterial spot 0.20, corn gray leaf
+# spot 0.32, potato early blight 0.40) all field-data-starved. The crop
+# distribution showed no domination by any one crop, so this - feeding the
+# starved classes more field examples - is the remaining lever. It shrinks the
+# test set to roughly 765 images, still enough to rank classes.
+PLANTDOC_TRAIN_FRACTION = 0.7
 LABEL_SMOOTH  = 0.05         # the labels are not perfectly clean; do not let
                              # the model become certain about them
 DROPOUT       = 0.3
