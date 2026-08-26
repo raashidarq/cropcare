@@ -45,7 +45,7 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | App-level connectivity listener (auto-sync on network recovery, 3 s debounce, offline→online transition only) | Done |
 | Background periodic WorkManager worker (15-min interval, `NETWORK_CONNECTED` constraint, Dart background isolate via `workmanager` plugin) | Done |
 | Reorganized Settings Screen (Profile & Account, Preferences, Data & Storage, Support & Legal, App Version) | Done |
-| SQLite schema (13 Drift tables + migrations, schemaVersion=6) | Done |
+| SQLite schema (14 Drift tables + migrations, schemaVersion=7) | Done |
 | Full localization string tables (EN/SI/TA — 341 keys, parity enforced by review) | Done |
 | Full automated test suite (147 Flutter tests passing) | Done |
 | Design system (`lib/core/theme/`: colours, type, spacing, radius; bundled Noto EN/SI/TA fonts) | Done |
@@ -59,11 +59,11 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 
 ### What is not implemented
 - Push notifications.
-- "Ask about this result" chat — inert placeholder on the diagnosis screen;
-  see `docs/future/chat_with_result_implementation.md`.
-- Voice transcription of observations — inert placeholder on the observations
-  card; see `docs/future/voice_observations_implementation.md`.
-  Note: `RECORD_AUDIO` is **not** in `AndroidManifest.xml` yet.
+- Token refresh. `sessionRefreshToken` is stored and never used; a session
+  simply dies. The UI surfaces this (TD-019) but the backend work is open.
+- Localised disease names. `disease.name_si` / `name_ta` exist and are
+  populated only for the 12 classes added in 2026-08; the original 40 are
+  still English in all three languages.
 - Offline explanation **content**. The tables, read path and UI exist; both
   tables ship empty and nothing seeds them (TD-018).
 
@@ -132,7 +132,7 @@ cropcare/
 │   │   ├── local/
 │   │   │   ├── database/
 │   │   │   │   ├── tables.dart          # All 11 Drift table definitions (schema source of truth)
-│   │   │   │   ├── app_database.dart    # Drift DB class, schemaVersion=4, migrations
+│   │   │   │   ├── app_database.dart    # Drift DB class, schemaVersion=7, migrations
 │   │   │   │   └── app_database.g.dart  # Generated; do not edit
 │   │   │   ├── ml/
 │   │   │   │   └── ml_inference_service.dart # TFLite model load, 224x224 NHWC preprocess, inference
@@ -229,7 +229,7 @@ cropcare/
 | `lib/main.dart` | Entry point; DB init, seed crops/diseases, load ML model, wire all repos, use cases & Cubits | `main()` | — | `AppDatabase`, all `RepositoryImpl`s, `MlInferenceService`, all use cases, Cubits | None (root) |
 | `lib/app.dart` | Root widget; routing via `AppStateCubit`; wraps `LocalizationProvider` | `CropCareApp` | Presentation | `AppStateCubit`, `LocalizationProvider`, `HomeScreen` | `main.dart` |
 | `lib/data/local/database/tables.dart` | Drift table definitions — schema source of truth (11 tables) | 11 table classes | Local Data | `drift` | `app_database.dart` |
-| `lib/data/local/database/app_database.dart` | Drift DB class; migrations up to schemaVersion=4; index creation | `AppDatabase`, `AppDatabase.forTesting()` | Local Data | `drift`, `sqlite3_flutter_libs`, `path_provider` | All `RepositoryImpl` files |
+| `lib/data/local/database/app_database.dart` | Drift DB class; migrations up to schemaVersion=7; index creation | `AppDatabase`, `AppDatabase.forTesting()` | Local Data | `drift`, `sqlite3_flutter_libs`, `path_provider` | All `RepositoryImpl` files |
 | `lib/data/local/ml/ml_inference_service.dart` | Loads bundled TFLite model, preprocesses image (224x224 NHWC), runs inference, applies softmax, maps class index to disease ID | `MlInferenceService`, `InferenceResult` | Local Data / ML | `tflite_flutter`, `image` | `RunDiagnosisUseCase`, `main.dart` |
 | `lib/data/local/tts/text_to_speech_service.dart` | Audio speech synthesis for localized treatment guidance | `TtsService`, `TextToSpeechService` | Local Data / Audio | `flutter_tts` | `DiagnosisResultScreen` |
 | `lib/data/remote/sync_api_client.dart` | Signed URL generation, image binary upload, idempotent REST sync, reference data fetch | `SyncApiClient` | Remote Data | `http` | `SyncRepositoryImpl` |
@@ -353,7 +353,7 @@ SyncCubit.syncNow(token?):
 - **`TreatmentResponse`**: `summary`, `whatToDo`, `whatToAvoid`, `recheckAfterDays`, `interpretationId`
 - **`ScanHistoryItem`**: `scan`, `diagnosis`, `crop`
 
-### SQLite Tables (Drift — `schemaVersion = 6`)
+### SQLite Tables (Drift — `schemaVersion = 7`)
 1. **`app_state`**: Singleton app configuration row.
 2. **`local_user`**: Guest and authenticated user profiles & tokens.
 3. **`crop`**: 15 seeded crop records.
@@ -418,6 +418,11 @@ SyncCubit.syncNow(token?):
 9. Do not infer that a component exists because the architecture mentions it. Verify via the file tree and file contents.
 10. Do not silently change architectural decisions.
 11. New entities must have: a domain entity, a repository interface, a repository impl, and a Drift table registration — in that dependency order.
+22. **Do not fabricate agronomic content.** Treatment guidance, disease names and symptom descriptions must come from a citable source, recorded in `ml/CONTENT_SOURCES.md`. Wrong advice for a real disease is worse than an empty section (TD-026).
+23. **On-device guidance is written as short single-action sentences.** The app splits prose into steps at sentence boundaries; a paragraph renders as one unreadable step (TD-020, TD-026).
+24. **Every diagnosable class needs offline guidance in all three languages.** Enforced by `treatment_guideline_coverage_test.dart`. A diagnosis with nothing to do about it is worse than no diagnosis (TD-026).
+25. **`ml/taxonomy.py` is the single source of truth for the model's class list.** The training notebook is generated from it (`python ml/build_notebook.py`) and the Dart class list is generated by it. A hand-edited class list that has drifted from the app's disease ids is a silent mismapping, not an error (TD-025).
+26. **Never show a raw model artefact to a user** — a class index, a logit, a bare percentage with no framing. Alternatives are named, not numbered (TD-022).
 12. New strings must be added in all three languages in `app_localizations.dart`.
 13. After any schema change in `tables.dart`, increment `AppDatabase.schemaVersion` and add a migration in `MigrationStrategy.onUpgrade`.
 14. The `sync_operation` table exists in schema version 4 for outbox queueing.

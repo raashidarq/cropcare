@@ -250,6 +250,12 @@ on first visit and kept alive after.
 
 ### TD-017 · Treatment Guidance Is Requested, Not Automatic
 
+> **SUPERSEDED by TD-021 (2026-08-26).** The reasoning below was sound but
+> rested on a false premise: it assumed all guidance costs a network request.
+> The app already ships 27 trilingual on-device guidelines, so the common case
+> is free. Kept here because the cost argument still governs the *online*
+> request, which is still opt-in.
+
 **Date:** 2026-08-26
 **Decision:** `DiagnosisResultScreen` no longer fetches treatment guidance on
 open. A "Get Treatment Guidance" button triggers it.
@@ -310,6 +316,186 @@ default. `last_error` is a raw untranslated exception string and stays behind a
 
 ---
 
+### TD-020 · The Result Screen Shows a Diagnosis, Steps, and a Way to Ask
+
+**Date:** 2026-08-26
+**Decision:** `DiagnosisResultScreen` was cut from 1451 lines to 772 and
+restructured to: photo and name, one trust line, what to do, what to avoid,
+when to check again, what else it might be, ask about it.
+
+**Rationale:** It rendered a hero photo, a verdict, a state chip, a severity
+chip, a confidence meter, a caveat banner, a raised Card containing a title
+row, a source badge, a full-width read-aloud button and three more coloured
+sub-blocks of prose, then an alternatives card, an observations card, a chat
+tile and a sticky bar. Cards inside cards, and four separate renderings of
+"how sure are we" stacked above the one thing the farmer opened the app for.
+
+Specific consequences:
+- The state chip, severity chip, confidence meter and standing AI disclaimer
+  collapsed into one plain line plus an amber note shown only when there is
+  genuinely a reason to hesitate.
+- Guidance renders as numbered steps. The order is information: the backend
+  sorts by urgency, so step 1 really is what to do first.
+- Read-aloud moved from a full-width button above the text to an icon beside
+  the heading it reads. It still exists because it is the path through this
+  screen for anyone who does not read comfortably.
+- The free-text observations box was removed. Asking a farmer to type is what
+  chat is for now, and the mic moved to the chat composer where speaking has
+  an obvious purpose.
+- `SingleChildScrollView`, not `ListView`: lazy building silently skips
+  off-screen children, which makes semantics and tests depend on scroll
+  position for no benefit on a screen this short.
+
+---
+
+### TD-021 · On-Device Guidance Loads on Open; the LLM Call Stays Opt-In
+
+**Date:** 2026-08-26
+**Supersedes:** TD-017
+**Decision:** `TreatmentRepository` split into `getLocalTreatmentGuidance`
+(local read, no network) and the existing `getTreatmentGuidance` (LLM). The
+local read runs when the result screen opens. The online call remains an
+explicit action.
+
+**Rationale:** TD-017 put all guidance behind a button because the fetch tried
+the network first, and a farmer who only wanted to know what the plant has
+should not pay for advice they did not ask for. That is still true of the
+*online* call. But the app seeds trilingual guidelines for every disease the
+model can name, so the common path costs nothing at all — and TD-017 had the
+effect of hiding the app's entire payload behind a button on the screen you
+opened to get it.
+
+---
+
+### TD-022 · Runner-Up Predictions Are Shown, Without Percentages
+
+**Date:** 2026-08-26
+**Decision:** The top-3 alternatives are rendered as named chips under
+"Not what you see?". The confidence figures are deliberately not displayed.
+
+**Rationale:** The honest presentation of a closed-set softmax that cannot say
+"none of the above" (TD-014): showing what else it considered turns the
+weakness into something a farmer who knows their own crop can act on. The
+percentages were dropped because a farmer cannot act on "21%", and the
+ordering already carries what the number was saying.
+
+**Bug fixed at source:** `AlternativePrediction.diseaseId` stored the model's
+raw class index as a string, so it joined to nothing and rendered as a bare
+number. It now holds a real disease id, and ids stored before the fix are
+mapped back on read so existing scans repair themselves without a migration.
+
+---
+
+### TD-023 · Chat Is Scoped to One Diagnosis, and the Transcript Is Local
+
+**Date:** 2026-08-26
+**Decision:** "Ask about this result" is a full screen backed by a
+`chat_message` table (schema v7). The backend keeps no session; the device's
+transcript is authoritative and is sent with each question.
+
+**Rationale:** Offline-first. A conversation has to survive a dropped
+connection, an app restart, and a week in a field with no signal, so the only
+copy that matters is the local one. A question is persisted *before* the
+request goes out and marked `FAILED` if it does not land, so it stays on
+screen and can be retried without retyping rather than evaporating.
+
+The cubit takes its `Diagnosis` as a constructor argument rather than a method
+parameter, so there is no path to asking about a different scan. Confidence
+and `resultState` go to the backend, which hedges harder on an uncertain
+result: a chat interface is the easiest place in this app to launder a shaky
+closed-set guess into confident prose.
+
+---
+
+### TD-024 · Voice Input Lives in the Chat Composer
+
+**Date:** 2026-08-26
+**Decision:** `SpeechRecognitionService` mirrors `TtsService`. The mic is
+offered only when the device can transcribe the *active* language.
+
+**Rationale:** Typing is the worst interaction in this app for its audience:
+Sinhala and Tamil keyboards are slow, the farmer is usually one-handed in a
+field, and limited literacy is why read-aloud is already a first-class
+control. This is its input-side counterpart.
+
+It was first attached to the observations box on the result screen and moved
+when that box was removed (TD-020) — speaking a question has an obvious
+purpose, speaking into a box you were asked to fill in before being told
+anything did not.
+
+Language support belongs to the platform, not the package, so on a phone with
+no Sinhala pack the control is **absent rather than present-and-broken**. An
+English-only mic button would serve exactly the users who least need it.
+`MicrophonePermissionService` deliberately does **not** copy
+`CameraPermissionService`'s blanket `catch (_)`, which reports plugin failure
+as user denial.
+
+**Unverified:** si/ta recognition has never been tested on physical hardware.
+
+---
+
+### TD-025 · The Model Is Being Replaced Because of Its Data, Not Its Architecture
+
+**Date:** 2026-08-26
+**Decision:** `ml/` holds a Kaggle training pipeline for a MobileNetV3 model
+over a 34-class taxonomy covering rice, tomato, cassava, maize, potato and
+chili. `ml/taxonomy.py` is the single source of truth; the notebook is
+generated from it.
+
+**Rationale:** The shipped model is stock PlantVillage, and three things are
+wrong with it:
+
+1. **It cannot see rice.** The app seeds `paddy` with disease rows and a
+   translated guideline, but the classifier has no rice class, so a rice leaf
+   returns a confident tomato answer. Rice is the staple crop of the audience
+   this app is for.
+2. **It was trained on lab plates.** Models scoring 99.35% on PlantVillage's
+   own split drop to 31.4% on field images, and a classifier trained on eight
+   background pixels alone reaches 49% — the network is substantially reading
+   the backdrop, not the leaf.
+3. **It has one arthropod class**, so pests are unsupported.
+
+Architecture does not address any of that: MobileNetV2 88.5% -> MobileNetV3
+92.4% is four points against a 68-point field collapse. So the taxonomy drops
+24 temperate-fruit classes, adds rice and cassava, and PlantDoc is held out of
+training entirely as the field test set — the validation number is measured on
+the training distribution and will look good regardless.
+
+Two compatibility choices keep the app's preprocessing untouched: the model
+takes `[0,1]` input with the `[-1,1]` rescale baked into the graph, and emits
+raw logits, because `MlInferenceService` applies softmax and derives entropy
+itself.
+
+---
+
+### TD-026 · Treatment Guidance Is Sourced and Cited, Never Written From Memory
+
+**Date:** 2026-08-26
+**Decision:** All 28 diagnosable classes have on-device trilingual guidance.
+The 12 added for rice and cassava are sourced from IRRI's Rice Knowledge Bank
+and Pacific Pests / CABI, with per-class provenance in
+`ml/CONTENT_SOURCES.md`.
+
+**Rationale:** Wrong treatment advice for a real disease is worse than an
+empty section, and several of these would have been wrong if guessed: brown
+spot is a poor-soil problem rather than a spray problem; insecticide is
+explicitly ineffective against tungro; clipping leaf tips removes 75–90% of
+rice hispa grubs; cassava bacterial blight has no chemical control at all.
+
+Guidance is written as short single-action sentences because the app splits
+on-device prose into steps at sentence boundaries, so it renders as the same
+numbered list the LLM path produces.
+`treatment_guideline_coverage_test.dart` enforces coverage, translation, and
+step shape — the failure mode is otherwise silent: add a class, retrain, and
+nothing complains until someone is standing in a field.
+
+**Outstanding, and not a code problem:** si/ta are unreviewed; the chemical
+names come from international sources and should be checked against Department
+of Agriculture / RRDI recommendations; and `cassava_green_mottle` may not
+occur in Sri Lanka at all.
+
+---
+
 ## Personal Notes
 
 ### 2026-08-24 — Gradle JVM Build Issue
@@ -351,8 +537,8 @@ default. `last_error` is a raw untranslated exception string and stays behind a
   a native speaker and need review before release.** They are grounded in
   vocabulary already present in `app_localizations.dart`, but that is not the
   same as being correct or natural.
-- Two features have placeholder entry points and written briefs, not
-  implementations: "Ask about this result" (chat) and speak-your-observations
-  (voice). See `docs/future/`.
-- `add_photo_screen.dart` is now off the default path but still compiled and
-  tested. Decide whether to keep it as the gallery entry point or remove it.
+- ~~Two features have placeholder entry points and written briefs~~ — both
+  built on 2026-08-26. See TD-023 (chat) and TD-024 (voice); the briefs moved
+  to `docs/implemented/`.
+- ~~`add_photo_screen.dart` is off the default path but still compiled~~ —
+  deleted on 2026-08-26 along with `crop_selection_screen.dart`.

@@ -1,3 +1,26 @@
+> # STATUS — 2026-08-26
+>
+> Most of this plan is done. What shipped, and where it differs:
+>
+> | Item | Status |
+> |---|---|
+> | 0.1 explanation content | **Hidden when empty**, rather than seeded — it apologised on every real diagnosis |
+> | 0.2 `scan_result_screen` | **Rebuilt** — it was showing scan UUIDs and filesystem paths to farmers |
+> | 0.3 orphaned screens | **Deleted** (`add_photo`, `crop_selection`) |
+> | 0.4 / 3.1 alternatives | **Shipped**, and the class-index bug fixed at source. Percentages deliberately dropped — see TD-022 |
+> | 2.3 settings/profile | **Rebuilt** on design tokens |
+> | 2.4 diagnosis result | **Superseded** by a full restructure — see TD-020 |
+> | 3.5 localised disease names | **Blocked, not skipped.** `name_si`/`name_ta` exist but no seeder ever populated them, so the join this plan proposes would return null for all 40 diseases. Only the 12 new classes have them |
+>
+> Not done, and still worth doing: **1.x motion** (the app is still static),
+> **2.1 home dashboard**, **2.2 history**, **3.2 scan comparison**,
+> **3.3 treatment reminders**, **3.4 disease reference library**.
+>
+> Two items became wrong rather than done: 3.1's advice to map the class index
+> "before display" — it is fixed at source instead — and 2.4's "sticky action
+> bar", which shipped, but alongside a much larger simplification the plan did
+> not anticipate.
+
 # CropCare — UX & UI improvement plan
 
 > **Optimising for:** demo / evaluation quality.

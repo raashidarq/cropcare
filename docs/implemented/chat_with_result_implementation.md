@@ -1,3 +1,13 @@
+> # IMPLEMENTED — 2026-08-26
+>
+> This brief has been built. See TD-023 in `DECISIONS.md`, the app code in
+> `lib/application/chat/`, `lib/data/repositories/chat_repository_impl.dart`
+> and `lib/presentation/chat/chat_screen.dart`, and the backend endpoint
+> `POST /chat-about-diagnosis` in the cropcare-backend repo.
+>
+> Kept for the reasoning, not as a work item. Where it disagrees with the
+> code, the code wins.
+
 # Implementation brief — "Ask about this result" (chat)
 
 > Written for an agent that has not seen this codebase. Every path, class and

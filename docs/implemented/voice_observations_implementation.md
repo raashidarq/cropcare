@@ -1,3 +1,16 @@
+> # IMPLEMENTED — 2026-08-26
+>
+> This brief has been built. See TD-024 in `DECISIONS.md` and
+> `lib/data/local/speech/speech_recognition_service.dart`.
+>
+> One deliberate departure: the mic ended up in the **chat composer**, not on
+> the observations field. That field was removed when the result screen was
+> restructured (TD-020) — speaking a question has an obvious purpose, speaking
+> into a box you were asked to fill in before being told anything did not.
+>
+> Still unverified, as this brief asked: Sinhala and Tamil recognition has
+> never been tested on physical hardware.
+
 # Implementation brief — speak observations (voice transcription)
 
 > Written for an agent that has not seen this codebase. Every path, class and

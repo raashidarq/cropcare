@@ -777,14 +777,6 @@ class _ExplanationSkeleton extends StatelessWidget {
 // in the UI read it until now.
 
 // =============================================================================
-// Placeholders for features not yet built
-// =============================================================================
-//
-// Both are deliberately inert and visibly marked. They exist so the entry
-// point's placement can be reviewed alongside the rest of the screen. The
-// implementation briefs live in docs/future/.
-
-// =============================================================================
 // Result header — the photo, the name, and one line about trusting it
 // =============================================================================
 
