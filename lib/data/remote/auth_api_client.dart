@@ -100,7 +100,7 @@ class AuthApiClient {
   Future<AuthResponse> requestPhoneOtp({
     required String phoneNumber,
   }) async {
-    final uri = Uri.parse('$baseUrl/auth/phone/request-otp');
+    final uri = Uri.parse('$baseUrl/auth/request-otp');
     return _sendAuthRequest(uri, {
       'phone_number': phoneNumber.trim(),
     });
@@ -110,7 +110,7 @@ class AuthApiClient {
     required String phoneNumber,
     required String otpCode,
   }) async {
-    final uri = Uri.parse('$baseUrl/auth/phone/verify-otp');
+    final uri = Uri.parse('$baseUrl/auth/verify-otp');
     return _sendAuthRequest(uri, {
       'phone_number': phoneNumber.trim(),
       'otp_code': otpCode.trim(),

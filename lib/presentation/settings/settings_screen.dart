@@ -286,28 +286,17 @@ class _SettingsView extends StatelessWidget {
               AppActionTile(
                 key: const Key('settings_terms_privacy_row'),
                 icon: Icons.policy_outlined,
-                title: context.tr('terms_of_service'),
+                title: context.tr('section_terms_privacy'),
+                subtitle: '${context.tr('terms_of_service')} '
+                    '${context.tr('and_connector')} '
+                    '${context.tr('privacy_policy')}',
+                // One row, not two. Splitting them implied two destinations,
+                // but the screen behind is a tabbed pair - open either and
+                // both are one tap away - so the second row led somewhere the
+                // first already went.
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const TermsPrivacyScreen(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Its own row rather than a shared one: "where does my data go"
-              // is a different question from "what am I agreeing to", and the
-              // screen already supported deep-linking to this tab from auth
-              // while Settings could only ever open the first one.
-              AppActionTile(
-                key: const Key('settings_privacy_row'),
-                icon: Icons.shield_outlined,
-                title: context.tr('privacy_policy'),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TermsPrivacyScreen(initialTabIndex: 1),
-                  ),
+                  MaterialPageRoute(builder: (_) => const TermsPrivacyScreen()),
                 ),
               ),
 
