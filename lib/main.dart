@@ -39,6 +39,7 @@ import 'domain/usecases/auth/verify_phone_change_otp_use_case.dart';
 import 'domain/usecases/auth/verify_phone_otp_use_case.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import 'domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import 'domain/usecases/diagnosis/validate_image_use_case.dart';
@@ -174,6 +175,11 @@ void main() async {
     treatmentRepository: treatmentRepository,
     diagnosisRepository: diagnosisRepository,
   );
+  // Reads the guidance seeded on the device, so the result screen can answer
+  // "what do I do?" immediately instead of behind a metered request.
+  final getLocalTreatmentGuidanceUseCase = GetLocalTreatmentGuidanceUseCase(
+    treatmentRepository: treatmentRepository,
+  );
   final createEscalationUseCase = CreateEscalationUseCase(
     escalationRepository: escalationRepository,
     scanRepository: scanRepository,
@@ -235,6 +241,7 @@ void main() async {
     validateImageUseCase: validateImageUseCase,
     runDiagnosisUseCase: runDiagnosisUseCase,
     resolveTreatmentUseCase: resolveTreatmentUseCase,
+    getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
     getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
     createEscalationUseCase: createEscalationUseCase,
     getScanHistoryUseCase: getScanHistoryUseCase,

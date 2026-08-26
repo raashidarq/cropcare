@@ -26,6 +26,7 @@ import '../../data/local/database/app_database.dart';
 import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
@@ -49,6 +50,7 @@ class CaptureScreen extends StatefulWidget {
   final ValidateImageUseCase? validateImageUseCase;
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
 
@@ -63,6 +65,7 @@ class CaptureScreen extends StatefulWidget {
     this.validateImageUseCase,
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
+    this.getLocalTreatmentGuidanceUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
   });
@@ -101,6 +104,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       cameraService: widget.cameraService ?? const DefaultCameraService(),
       initialTempImagePath: widget.initialTempImagePath,
       resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+      getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
       getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
       createEscalationUseCase: widget.createEscalationUseCase,
     );
@@ -149,6 +153,7 @@ class _CaptureView extends StatefulWidget {
   final CameraService cameraService;
   final String? initialTempImagePath;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
 
@@ -159,6 +164,7 @@ class _CaptureView extends StatefulWidget {
     required this.cameraService,
     this.initialTempImagePath,
     this.resolveTreatmentUseCase,
+    this.getLocalTreatmentGuidanceUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
   });
@@ -264,6 +270,7 @@ class _CaptureViewState extends State<_CaptureView> {
                 scan: state.scan,
                 diagnosis: state.diagnosis,
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
+                getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
         getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
                 createEscalationUseCase: widget.createEscalationUseCase,
               ),

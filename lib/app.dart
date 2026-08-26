@@ -12,6 +12,7 @@ import 'data/repositories/accessibility_repository_impl.dart';
 import 'domain/entities/local_user.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import 'domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
 import 'domain/usecases/diagnosis/validate_image_use_case.dart';
@@ -35,6 +36,7 @@ class CropCareApp extends StatelessWidget {
   final ValidateImageUseCase validateImageUseCase;
   final RunDiagnosisUseCase runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
@@ -52,6 +54,7 @@ class CropCareApp extends StatelessWidget {
     required this.validateImageUseCase,
     required this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
+    this.getLocalTreatmentGuidanceUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
@@ -116,6 +119,7 @@ class CropCareApp extends StatelessWidget {
                               validateImageUseCase: validateImageUseCase,
                               runDiagnosisUseCase: runDiagnosisUseCase,
                               resolveTreatmentUseCase: resolveTreatmentUseCase,
+                              getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
                               getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
                               createEscalationUseCase: createEscalationUseCase,
                               getScanHistoryUseCase: getScanHistoryUseCase,

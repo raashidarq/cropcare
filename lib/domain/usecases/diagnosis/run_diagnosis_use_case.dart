@@ -102,12 +102,22 @@ class RunDiagnosisUseCase {
         state = DiagnosisResultState.lowConfidence;
       }
 
-      // Build top-N alternatives (skip the top itself, only supported diseases)
+      // Build top-N alternatives (skip the top itself, only supported diseases).
+      //
+      // `diseaseId` holds a real `disease` table id. It previously held
+      // `pair.$1.toString()` — the raw class index — which joined to nothing
+      // and could not be displayed. Classes with no disease row (the model
+      // knows 38, not all of which this app carries) are dropped rather than
+      // shown as a number.
       final alternatives = result.topFive
           .skip(1)
-          .where((pair) => MlInferenceService.classNameAt(pair.$1).isNotEmpty)
+          .map((pair) => (
+                MlInferenceService.diseaseIdAt(pair.$1),
+                pair.$2,
+              ))
+          .where((pair) => pair.$1 != null)
           .map((pair) => AlternativePrediction(
-                diseaseId: pair.$1.toString(), // stored as class index string for now
+                diseaseId: pair.$1!,
                 confidence: pair.$2,
               ))
           .take(3)

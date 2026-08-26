@@ -24,6 +24,7 @@ import '../../domain/entities/disease_explanation.dart';
 import '../../domain/entities/scan.dart';
 import '../../domain/entities/treatment.dart';
 import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../escalation/escalation_screen.dart';
@@ -34,6 +35,7 @@ class DiagnosisResultScreen extends StatelessWidget {
   final Scan scan;
   final Diagnosis diagnosis;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
+  final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
@@ -43,6 +45,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     required this.scan,
     required this.diagnosis,
     this.resolveTreatmentUseCase,
+    this.getLocalTreatmentGuidanceUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
@@ -54,6 +57,7 @@ class DiagnosisResultScreen extends StatelessWidget {
       return BlocProvider<DiagnosisCubit>(
         create: (_) => DiagnosisCubit(
           resolveTreatmentUseCase: resolveTreatmentUseCase!,
+          getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
         )..checkDiagnosis(diagnosis),
         child: _DiagnosisResultView(
           scan: scan,
@@ -114,20 +118,33 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Treatment guidance is NO LONGER fetched automatically. It costs a
-    // network round trip and, on a metered rural connection, a farmer who
-    // only wanted to know what the plant has should not pay for advice they
-    // did not ask for. It is now behind an explicit button.
-
     if (_explanationRequested) return;
     _explanationRequested = true;
 
-    final useCase = widget.getDiseaseExplanationUseCase;
     final diseaseId = widget.diagnosis.diseaseId;
-    if (useCase == null || diseaseId == null) return;
+    if (diseaseId == null) return;
 
     final languageCode =
         LocalizationProvider.of(context)?.languageCode ?? 'en';
+
+    // The guidance shipped with the app loads immediately. It is a local read:
+    // no network, no cost, no waiting, and it is already translated into all
+    // three languages for every disease the model can name. A farmer opening
+    // this screen wants to know what to do, so the screen tells them.
+    //
+    // The *online* request stays an explicit action (see `_fetchTreatment`) —
+    // it costs mobile data and tailors advice to the farmer's own
+    // observations, so it is worth asking for. What changed is the default:
+    // it used to be that no guidance appeared at all until you asked.
+    final cubit = context.read<DiagnosisCubit?>();
+    cubit?.loadLocalGuidance(
+      diseaseId: diseaseId,
+      languageCode: languageCode,
+    );
+
+    final useCase = widget.getDiseaseExplanationUseCase;
+    if (useCase == null) return;
+
     setState(() {
       _explanationFuture = useCase(
         diseaseId: diseaseId,
@@ -213,87 +230,134 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.md,
-            AppSpacing.md,
-            AppSpacing.xl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── 1. The photo, the verdict, the confidence ────────────────
-              _ResultHero(scan: widget.scan, diagnosis: widget.diagnosis),
-              const SizedBox(height: AppSpacing.md),
-
-              // ── 2. Hedging comes BEFORE the advice ───────────────────────
-              // A farmer may act on the first thing they read, so any reason
-              // to doubt the result is placed above the treatment guidance
-              // rather than below it.
-              if (isLowConfidence) ...[
-                _LowConfidenceBanner(
-                  onEscalate: () => _navigateToEscalation(context),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
                 ),
-                const SizedBox(height: AppSpacing.smPlus),
-              ],
-              const _AiDisclaimerBanner(),
-              const SizedBox(height: AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. The photo, the verdict, the confidence.
+                    _ResultHero(
+                      scan: widget.scan,
+                      diagnosis: widget.diagnosis,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
 
-              // ── 3. Understanding the result (offline) ────────────────────
-              // Placed before treatment: what this is, and whether to
-              // believe it, comes before what to do about it.
-              if (_explanationFuture != null) ...[
-                _ExplanationSection(future: _explanationFuture!),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+                    // 2. One caveat, not a stack of them.
+                    //
+                    // Hedging still comes before the advice: a farmer may act
+                    // on the first thing they read. But it used to be two
+                    // separate banners (low confidence, then the AI
+                    // disclaimer) and then, on every real diagnosis, a third
+                    // saying the app had no explanation content. Three
+                    // consecutive blocks of "do not fully trust this" before
+                    // any advice reads as noise and gets scrolled past, which
+                    // is the opposite of what a hedge is for.
+                    _ResultCaveat(
+                      isLowConfidence: isLowConfidence,
+                      onEscalate: () => _navigateToEscalation(context),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
 
-              // ── 4. Healthy vs disease ────────────────────────────────────
-              if (isHealthy) ...[
-                const _HealthyCard(),
-                const SizedBox(height: AppSpacing.lg),
-              ] else if (widget.diagnosis.diseaseId != null) ...[
-                _ObservationsCard(
-                  controller: _observationsController,
+                    // 3. What to do about it.
+                    //
+                    // Guidance leads now. The on-device guideline is loaded
+                    // when the screen opens, so the answer is already here
+                    // rather than behind a button.
+                    if (isHealthy) ...[
+                      const _HealthyCard(),
+                      const SizedBox(height: AppSpacing.lg),
+                    ] else if (widget.diagnosis.diseaseId != null) ...[
+                      _TreatmentGuidanceSection(
+                        ttsService: _ttsService,
+                        onFetch: () => _fetchTreatment(context),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // 4. What else it might be.
+                      //
+                      // The honest presentation of a closed-set classifier: it
+                      // always names something, so showing the runner-ups and
+                      // how close they were turns that weakness into
+                      // information the farmer can actually use.
+                      _AlternativesCard(diagnosis: widget.diagnosis),
+
+                      // 5. Add detail to improve the advice.
+                      //
+                      // Below the guidance, not above it. Asking a farmer to
+                      // type before they have been told anything is asking
+                      // them to pay first; here it reads as "make this
+                      // better", which is what it does.
+                      _ObservationsCard(
+                        controller: _observationsController,
+                        onSubmit: () => _fetchTreatment(context),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+
+                    // 6. Understanding the result, offline.
+                    //
+                    // Renders nothing at all when no content is stored, which
+                    // is currently the case for every disease.
+                    if (_explanationFuture != null)
+                      _ExplanationSection(future: _explanationFuture!),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                _TreatmentGuidanceSection(
-                  ttsService: _ttsService,
-                  onFetch: () => _fetchTreatment(context),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const _ChatWithResultPlaceholder(),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-
-              // ── 4. Actions ───────────────────────────────────────────────
-              _BottomActions(
-                onScanAgain: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                onConsultExpert: () => _navigateToEscalation(context),
               ),
-            ],
-          ),
+            ),
+
+            // Sticky actions, pinned rather than sitting at the end of a long
+            // scroll. "Ask an expert" in particular is what a farmer reaches
+            // for when the result does not help, and finding it should not
+            // require reading the whole screen first.
+            _BottomActions(
+              onScanAgain: () {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              onConsultExpert: () => _navigateToEscalation(context),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _LowConfidenceBanner extends StatelessWidget {
+/// The single "how much should I trust this?" block.
+///
+/// Replaces a stack of two banners. When the model is unsure, that is the more
+/// urgent thing to say and it absorbs the standing AI disclaimer rather than
+/// repeating it underneath — one amber block with one action, instead of two
+/// the farmer has to tell apart. When the model is confident, the standing
+/// disclaimer stands alone, as before.
+class _ResultCaveat extends StatelessWidget {
+  final bool isLowConfidence;
   final VoidCallback onEscalate;
 
-  const _LowConfidenceBanner({required this.onEscalate});
+  const _ResultCaveat({
+    required this.isLowConfidence,
+    required this.onEscalate,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AppBanner.warning(
-      title: context.tr('low_confidence_title'),
-      message: context.tr('low_confidence_msg'),
-      actionLabel: context.tr('get_expert_help'),
-      onAction: onEscalate,
-    );
+    if (isLowConfidence) {
+      return AppBanner.warning(
+        title: context.tr('low_confidence_title'),
+        message: '${context.tr('low_confidence_msg')} '
+            '${context.tr('ai_disclaimer_msg')}',
+        actionLabel: context.tr('get_expert_help'),
+        onAction: onEscalate,
+      );
+    }
+    return const _AiDisclaimerBanner();
   }
 }
 
@@ -577,20 +641,26 @@ class _HealthyCard extends StatelessWidget {
 // Observations Input Card (Optional)
 // =============================================================================
 
+/// Optional detail the farmer can add, and the action that uses it.
+///
+/// This used to sit *above* the treatment guidance with no action of its own:
+/// a farmer was asked to type into a box before the app had told them
+/// anything, and the text only did something if they later pressed a separate
+/// button further down. It now sits below the guidance and carries the button
+/// that acts on it, so the box has a visible purpose at the point of asking.
 class _ObservationsCard extends StatelessWidget {
   final TextEditingController controller;
+  final VoidCallback onSubmit;
 
-  const _ObservationsCard({required this.controller});
+  const _ObservationsCard({required this.controller, required this.onSubmit});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return AppCard(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -624,55 +694,21 @@ class _ObservationsCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
             ),
-            const SizedBox(height: 10),
-            // Speaking is far more realistic than typing here: the keyboard
-            // for Sinhala and Tamil is slow, and this is a field where a
-            // farmer is holding a phone in one hand. Entry point placed
-            // now; implementation is a separate piece of work.
-            _VoiceInputPlaceholder(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Inert entry point for speaking observations instead of typing them.
-class _VoiceInputPlaceholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => showComingSoon(context),
-      borderRadius: AppRadius.md,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceVariant,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.mic_none_rounded,
-                size: 20,
-                color: AppColors.primary,
+            const SizedBox(height: AppSpacing.smPlus),
+            SizedBox(
+              height: AppSpacing.minTouchTarget,
+              child: OutlinedButton.icon(
+                key: const Key('refine_guidance_button'),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                label: Text(context.tr('refine_guidance_btn')),
+                onPressed: onSubmit,
               ),
             ),
-            const SizedBox(width: AppSpacing.smPlus),
-            Expanded(
-              child: Text(
-                context.tr('speak_observations'),
-                style: theme.textTheme.bodySmall,
-              ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              context.tr('refine_guidance_hint'),
+              style: theme.textTheme.labelSmall,
             ),
-            const ComingSoonPill(),
           ],
         ),
       ),
@@ -1103,8 +1139,13 @@ class _ExplanationSection extends StatelessWidget {
         }
 
         final explanation = snapshot.data;
+        // Render nothing when there is no content. `disease_explanation` ships
+        // empty by design (TD-018), so this section previously rendered an
+        // apology on every real diagnosis — a farmer scrolling to the advice
+        // passed a banner telling them the app has nothing to say. An absent
+        // section is quieter and more honest than a present empty one.
         if (explanation == null || explanation.isEmpty) {
-          return const _ExplanationUnavailable();
+          return const SizedBox.shrink();
         }
 
         return Column(
@@ -1290,21 +1331,6 @@ class _ExplanationSkeleton extends StatelessWidget {
   }
 }
 
-/// Shown when the device holds no explanation content for this disease.
-/// Stated plainly rather than hidden, so the absence reads as "not delivered
-/// yet" rather than "this screen is broken".
-class _ExplanationUnavailable extends StatelessWidget {
-  const _ExplanationUnavailable();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBanner.info(
-      title: context.tr('understand_result_title'),
-      message: context.tr('explanation_unavailable_msg'),
-    );
-  }
-}
-
 // =============================================================================
 // Treatment prompt — the explicit ask
 // =============================================================================
@@ -1359,63 +1385,127 @@ class _TreatmentPrompt extends StatelessWidget {
 }
 
 // =============================================================================
-// Placeholders for features not yet built
+// Other possibilities — the model's runner-up predictions
 // =============================================================================
 //
-// Both are deliberately inert and visibly marked. They exist so the entry
-// point's placement can be reviewed alongside the rest of the screen. The
-// implementation briefs live in docs/future/.
+// The model is a closed-set 38-class softmax with no rejection option: it
+// cannot answer "none of the above", so it always names something (TD-014).
+// Showing what else it considered, and how close those were, is the honest
+// way to present that. It is also the most useful thing on the screen when the
+// top answer looks wrong to a farmer who knows their own crop.
+//
+// The data has been computed and stored on every diagnosis all along; nothing
+// in the UI read it until now.
 
-class _ChatWithResultPlaceholder extends StatelessWidget {
-  const _ChatWithResultPlaceholder();
+class _AlternativesCard extends StatelessWidget {
+  final Diagnosis diagnosis;
+
+  const _AlternativesCard({required this.diagnosis});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AppCard(
-      color: AppColors.surfaceVariant,
-      onTap: () => showComingSoon(context),
+    final alternatives = diagnosis.alternatives;
+    if (alternatives.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppSectionHeader(
+          title: context.tr('other_possibilities_title'),
+          icon: Icons.alt_route_rounded,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        AppCard(
+          key: const Key('alternatives_card'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('other_possibilities_desc'),
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.smPlus),
+              for (final alternative in alternatives) ...[
+                _AlternativeRow(alternative: alternative),
+                if (alternative != alternatives.last)
+                  const SizedBox(height: AppSpacing.smPlus),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    );
+  }
+}
+
+class _AlternativeRow extends StatelessWidget {
+  final AlternativePrediction alternative;
+
+  const _AlternativeRow({required this.alternative});
+
+  /// Alternatives always carry a real disease id, so the prettifier should
+  /// always succeed; the id itself is a readable last resort rather than a
+  /// crash or a blank row.
+  String _alternativeName(AlternativePrediction a) =>
+      _formatDiseaseName(a.diseaseId) ?? a.diseaseId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percent = (alternative.confidence * 100).toStringAsFixed(0);
+
+    return Semantics(
+      label: '${_alternativeName(alternative)}, $percent%',
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: AppRadius.md,
-            ),
-            child: const Icon(Icons.forum_outlined, color: AppColors.primary),
-          ),
-          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        context.tr('chat_with_result_title'),
-                        style: theme.textTheme.titleSmall,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    const ComingSoonPill(),
-                  ],
+                Text(
+                  _alternativeName(alternative),
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  context.tr('chat_with_result_desc'),
-                  style: theme.textTheme.bodySmall,
+                // A bar rather than a bare number: relative size is readable
+                // without reading, which matters for the audience this app is
+                // built for.
+                ClipRRect(
+                  borderRadius: AppRadius.sm,
+                  child: LinearProgressIndicator(
+                    value: alternative.confidence.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor: AppColors.surfaceVariant,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ],
             ),
+          ),
+          const SizedBox(width: AppSpacing.smPlus),
+          Text(
+            '$percent%',
+            style: theme.textTheme.labelMedium,
           ),
         ],
       ),
     );
   }
 }
+
+// =============================================================================
+// Placeholders for features not yet built
+// =============================================================================
+//
+// Both are deliberately inert and visibly marked. They exist so the entry
+// point's placement can be reviewed alongside the rest of the screen. The
+// implementation briefs live in docs/future/.
 
 /// Marks an entry point as not yet functional. Shared by the chat and
 /// voice-input placeholders so they read as one class of thing.

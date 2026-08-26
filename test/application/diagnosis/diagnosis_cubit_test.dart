@@ -12,6 +12,15 @@ class _FakeTreatmentRepository implements TreatmentRepository {
   TreatmentResponse? response;
   Exception? exception;
 
+  // The screen reads on-device guidance on open; these fakes exercise the
+  // explicit online request, so there is nothing local to hand back.
+  @override
+  Future<TreatmentResponse?> getLocalTreatmentGuidance({
+    required String diseaseId,
+    required String languageCode,
+  }) async =>
+      null;
+
   @override
   Future<TreatmentResponse> getTreatmentGuidance({
     required String cropId,

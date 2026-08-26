@@ -349,6 +349,12 @@ class AppLocalizations {
       'empty_history_msg': 'Your checked plants will appear here.',
       'ai_disclaimer_title': 'AI suggestion, not a diagnosis',
       'ai_disclaimer_msg': 'This is an automatic guess from a photo. For a serious or spreading problem, confirm with an agronomist.',
+      'other_possibilities_title': 'Other possibilities',
+      'other_possibilities_desc':
+          'The app compares your photo against every problem it knows and picks the closest. These were the next closest, so if the answer above does not match what you see, check these.',
+      'refine_guidance_btn': 'Update advice',
+      'refine_guidance_hint':
+          'Uses mobile data. Sends what you typed to get advice written for your situation.',
       'low_confidence_title': 'Not confident about this',
       'low_confidence_msg': 'The result below may be wrong. Consider retaking the photo in better light, or asking an expert.',
       'confidence_label': 'Match confidence',
@@ -766,6 +772,12 @@ class AppLocalizations {
       'empty_history_msg': 'ඔබ පරීක්ෂා කළ පැළ මෙහි දිස්වේ.',
       'ai_disclaimer_title': 'AI යෝජනාවක්, රෝග විනිශ්චයක් නොවේ',
       'ai_disclaimer_msg': 'මෙය ඡායාරූපයකින් ලබාගත් ස්වයංක්‍රීය අනුමානයකි. බරපතළ තත්ත්වයකදී කෘෂි උපදේශකයෙකුගෙන් තහවුරු කරගන්න.',
+      'other_possibilities_title': 'වෙනත් හැකියාවන්',
+      'other_possibilities_desc':
+          'යෙදුම ඔබගේ ඡායාරූපය එය දන්නා සෑම රෝගයක් සමඟම සසඳා ආසන්නම එක තෝරා ගනී. මේවා ඊළඟට ආසන්නම විය. ඉහත පිළිතුර ඔබ දකින දෙයට නොගැළපේ නම්, මේවා පරීක්ෂා කරන්න.',
+      'refine_guidance_btn': 'උපදෙස් යාවත්කාලීන කරන්න',
+      'refine_guidance_hint':
+          'ජංගම දත්ත භාවිත වේ. ඔබගේ තත්ත්වයට ගැළපෙන උපදෙස් ලබා ගැනීමට ඔබ ලියූ දේ යවයි.',
       'low_confidence_title': 'මෙය පිළිබඳ විශ්වාස නැත',
       'low_confidence_msg': 'පහත ප්‍රතිඵලය වැරදි විය හැක. හොඳ ආලෝකයක ඡායාරූපය නැවත ගන්න හෝ විශේෂඥයෙකුගෙන් අසන්න.',
       'confidence_label': 'ගැළපීමේ විශ්වාසය',
@@ -1184,6 +1196,12 @@ class AppLocalizations {
       'empty_history_msg': 'நீங்கள் சரிபார்த்த செடிகள் இங்கே தோன்றும்.',
       'ai_disclaimer_title': 'AI பரிந்துரை, நோயறிதல் அல்ல',
       'ai_disclaimer_msg': 'இது படத்திலிருந்து பெறப்பட்ட தானியங்கி ஊகம். தீவிரமான பிரச்சனைக்கு வேளாண் நிபுணரிடம் உறுதிப்படுத்தவும்.',
+      'other_possibilities_title': 'பிற சாத்தியங்கள்',
+      'other_possibilities_desc':
+          'செயலி உங்கள் படத்தை அது அறிந்த ஒவ்வொரு நோயுடனும் ஒப்பிட்டு மிக நெருக்கமானதைத் தேர்ந்தெடுக்கிறது. அடுத்ததாக நெருக்கமானவை இவை. மேலே உள்ள பதில் நீங்கள் காண்பதற்குப் பொருந்தவில்லை என்றால், இவற்றைப் பாருங்கள்.',
+      'refine_guidance_btn': 'ஆலோசனையைப் புதுப்பிக்கவும்',
+      'refine_guidance_hint':
+          'மொபைல் தரவைப் பயன்படுத்துகிறது. உங்கள் நிலைமைக்கு ஏற்ற ஆலோசனையைப் பெற நீங்கள் தட்டச்சு செய்ததை அனுப்புகிறது.',
       'low_confidence_title': 'இதில் உறுதி இல்லை',
       'low_confidence_msg': 'கீழுள்ள முடிவு தவறாக இருக்கலாம். நல்ல வெளிச்சத்தில் மீண்டும் படம் எடுக்கவும் அல்லது நிபுணரிடம் கேட்கவும்.',
       'confidence_label': 'பொருத்த நம்பிக்கை',

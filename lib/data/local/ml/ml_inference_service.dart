@@ -217,6 +217,14 @@ class MlInferenceService {
   /// Returns the class name string for a given output index.
   static String classNameAt(int index) => _classNames[index];
 
+  /// Returns the `disease` table id for a given output index, or null when the
+  /// class is one this app does not carry a disease row for.
+  ///
+  /// Exposed so callers recording runner-up predictions can store a real
+  /// disease id. They previously stored `index.toString()`, which looked like
+  /// an id, joined to nothing, and could not be rendered.
+  static String? diseaseIdAt(int index) => _classIndexToDiseaseId[index];
+
   // ---------------------------------------------------------------------------
   // Preprocessing
   // ---------------------------------------------------------------------------
