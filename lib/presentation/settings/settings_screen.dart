@@ -1,22 +1,47 @@
 // lib/presentation/settings/settings_screen.dart
+//
+// The Account tab.
+//
+// Rebuilt on the design system. What changed and why:
+//
+//  * It was the least-tokenised screen in the app while being one of three
+//    bottom-nav destinations — raw `Card`/`ListTile`, inline
+//    `TextStyle(fontSize: 12)`, and `colorScheme.*` instead of `AppColors`.
+//    It now uses `AppActionTile` / `AppSectionHeader` like everywhere else.
+//  * Section headers were `.toUpperCase()`. `AppSectionHeader`'s own
+//    documentation explains why that was removed: uppercase is harder to read
+//    and does not exist in Sinhala or Tamil, so it made the three languages
+//    look inconsistent.
+//  * The "Notifications — Coming Soon" row is gone. A row that exists only to
+//    tell you it does nothing is a dead end; nothing else in Settings routes
+//    nowhere, so it was the odd one out.
+//  * The "Replay onboarding" row is gone. It was marked TEMPORARY in source —
+//    a reviewer preview hook, never intended to ship.
+//  * Export had two hit targets on one row (a trailing button *and* an
+//    `onTap`) both running the same export, while also looking like it
+//    navigated. It is now one row, one action.
+//  * The profile row became a real header: identity, account state, and the
+//    thing a guest most needs to know — that their scans are only on this
+//    phone.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-import '../../core/theme/app_colors.dart';
 
 import '../../application/auth/auth_cubit.dart';
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/settings/settings_cubit.dart';
 import '../../application/settings/settings_state.dart';
 import '../../application/sync/sync_cubit.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/usecases/feedback/submit_feedback_use_case.dart';
 import '../../domain/usecases/history/export_scan_history_use_case.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../onboarding/widgets/change_language_dialog.dart';
+import '../shared/widgets/app_components.dart';
 import 'accessibility_screen.dart';
-import '../onboarding/onboarding_screen.dart';
 import 'faq_screen.dart';
 import 'feedback_screen.dart';
 import 'offline_screen.dart';
@@ -44,7 +69,8 @@ class SettingsScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => SettingsCubit()),
-        if (syncCubit != null) BlocProvider.value(value: syncCubit!..refreshPendingCount()),
+        if (syncCubit != null)
+          BlocProvider.value(value: syncCubit!..refreshPendingCount()),
       ],
       child: _SettingsView(
         user: user,
@@ -72,54 +98,47 @@ class _SettingsView extends StatelessWidget {
     this.submitFeedbackUseCase,
   });
 
-  void _showComingSoonDialog(BuildContext context, String titleKey) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(context.tr(titleKey)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.construction,
-              size: 48,
-              color: AppColors.warning,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              context.tr('coming_soon'),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.tr('coming_soon_desc'),
-              textAlign: TextAlign.center,
-            ),
-          ],
+  Future<void> _export(BuildContext context) async {
+    final useCase = exportScanHistoryUseCase;
+    if (useCase == null) return;
+    final count = await useCase.execute();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          count > 0
+              ? context.tr('export_data_success')
+              : context.tr('export_data_empty'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String titleKey) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-      child: Text(
-        context.tr(titleKey).toUpperCase(),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.1,
+  void _openProfile(BuildContext context, LocalUser currentUser) {
+    final cubit = authCubit;
+    if (cubit == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: cubit,
+          child: ProfileScreen(user: currentUser, authCubit: cubit),
         ),
+      ),
+    );
+  }
+
+  void _openOffline(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => syncCubit != null
+            ? BlocProvider.value(
+                value: syncCubit!,
+                child: OfflineScreen(user: user, authCubit: authCubit),
+              )
+            : OfflineScreen(user: user, authCubit: authCubit),
       ),
     );
   }
@@ -129,16 +148,13 @@ class _SettingsView extends StatelessWidget {
     final theme = Theme.of(context);
     final currentLang = context.watch<AppStateCubit>().state.languageCode;
 
-    String currentLangName = context.tr('lang_english');
-    if (currentLang == 'si') {
-      currentLangName = context.tr('lang_sinhala');
-    } else if (currentLang == 'ta') {
-      currentLangName = context.tr('lang_tamil');
-    }
+    final currentLangName = switch (currentLang) {
+      'si' => context.tr('lang_sinhala'),
+      'ta' => context.tr('lang_tamil'),
+      _ => context.tr('lang_english'),
+    };
 
     final currentUser = authCubit?.currentUser ?? user;
-    final isGuest = currentUser?.isGuest ?? true;
-    final displayId = currentUser?.email ?? currentUser?.phoneNumber ?? context.tr('guest_badge');
 
     return Scaffold(
       appBar: AppBar(
@@ -148,362 +164,222 @@ class _SettingsView extends StatelessWidget {
       body: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (context, state) {
           return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.xxl,
+            ),
             children: [
-              // ── 1. Profile & Account Section ─────────────────────────────
-              _buildSectionHeader(context, 'section_profile'),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_profile_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: isGuest
-                        ? theme.colorScheme.surfaceContainerHighest
-                        : theme.colorScheme.primaryContainer,
-                    child: Icon(
-                      isGuest ? Icons.person_outline : Icons.person,
-                      color: isGuest
-                          ? theme.colorScheme.onSurfaceVariant
-                          : theme.colorScheme.primary,
+              _ProfileHeader(
+                user: currentUser,
+                onTap: currentUser == null || authCubit == null
+                    ? null
+                    : () => _openProfile(context, currentUser),
+              ),
+
+              // ── Preferences ──────────────────────────────────────────────
+              const SizedBox(height: AppSpacing.lg),
+              AppSectionHeader(title: context.tr('section_preferences')),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_language_row'),
+                icon: Icons.language_rounded,
+                title: context.tr('section_language'),
+                subtitle: currentLangName,
+                onTap: () => ChangeLanguageDialog.show(context),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_accessibility_row'),
+                icon: Icons.accessibility_new_rounded,
+                title: context.tr('section_accessibility'),
+                subtitle: context.tr('accessibility_subtitle'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AccessibilityScreen(),
+                  ),
+                ),
+              ),
+
+              // ── Data & storage ───────────────────────────────────────────
+              const SizedBox(height: AppSpacing.lg),
+              AppSectionHeader(title: context.tr('section_data_storage')),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_offline_data_row'),
+                icon: Icons.cloud_sync_outlined,
+                title: context.tr('section_offline'),
+                subtitle: context.tr('offline_subtitle'),
+                onTap: () => _openOffline(context),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_export_data_row'),
+                icon: Icons.file_download_outlined,
+                title: context.tr('export_data_title'),
+                subtitle: context.tr('export_data_desc'),
+                // One row, one action. The trailing glyph is a share icon
+                // rather than a chevron so the row does not promise a screen
+                // it never opens.
+                trailing: const Icon(
+                  Icons.ios_share_rounded,
+                  color: AppColors.onSurfaceVariant,
+                ),
+                onTap: () => _export(context),
+              ),
+
+              // ── Support & legal ──────────────────────────────────────────
+              const SizedBox(height: AppSpacing.lg),
+              AppSectionHeader(title: context.tr('section_support_legal')),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_faq_row'),
+                icon: Icons.help_outline_rounded,
+                title: context.tr('section_help_faq'),
+                subtitle: context.tr('faq_title'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FaqScreen()),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_feedback_row'),
+                icon: Icons.feedback_outlined,
+                title: context.tr('send_feedback'),
+                subtitle: context.tr('feedback_title'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FeedbackScreen(
+                      user: currentUser,
+                      submitFeedbackUseCase: submitFeedbackUseCase,
                     ),
                   ),
-                  title: Text(
-                    context.tr('profile_title'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    isGuest ? context.tr('account_guest_desc') : displayId,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    if (currentUser != null && authCubit != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: authCubit!,
-                            child: ProfileScreen(
-                              user: currentUser,
-                              authCubit: authCubit,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppActionTile(
+                key: const Key('settings_terms_privacy_row'),
+                icon: Icons.policy_outlined,
+                title: context.tr('section_terms_privacy'),
+                subtitle: '${context.tr('terms_of_service')} '
+                    '${context.tr('and_connector')} '
+                    '${context.tr('privacy_policy')}',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TermsPrivacyScreen()),
                 ),
               ),
 
-              // ── 2. Preferences Section ───────────────────────────────────
-              _buildSectionHeader(context, 'section_preferences'),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_language_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.language, color: theme.colorScheme.primary),
-                  ),
-                  title: Text(
-                    context.tr('section_language'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(currentLangName),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => ChangeLanguageDialog.show(context),
-                ),
-              ),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_notifications_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.tertiaryContainer,
-                    child: Icon(Icons.notifications_none,
-                        color: theme.colorScheme.tertiary),
-                  ),
-                  title: Text(
-                    context.tr('section_notifications'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(context.tr('coming_soon')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showComingSoonDialog(
-                    context,
-                    'section_notifications',
-                  ),
-                ),
-              ),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_accessibility_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    child: Icon(Icons.accessibility_new,
-                        color: theme.colorScheme.secondary),
-                  ),
-                  title: Text(
-                    context.tr('section_accessibility'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    context.tr('accessibility_subtitle'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AccessibilityScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ── 3. Data & Storage Section ────────────────────────────────
-              _buildSectionHeader(context, 'section_data_storage'),
-              _buildOfflineRow(context, theme),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_export_data_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.tertiaryContainer,
-                    child: Icon(Icons.file_download_outlined,
-                        color: theme.colorScheme.onTertiaryContainer),
-                  ),
-                  title: Text(
-                    context.tr('export_data_title'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    context.tr('export_data_desc'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: TextButton.icon(
-                    key: const Key('settings_export_button'),
-                    icon: const Icon(Icons.share, size: 16),
-                    label: Text(context.tr('export_data_btn')),
-                    onPressed: () async {
-                      if (exportScanHistoryUseCase != null) {
-                        final count = await exportScanHistoryUseCase!.execute();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                count > 0
-                                    ? context.tr('export_data_success')
-                                    : context.tr('export_data_empty'),
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                  onTap: () async {
-                    if (exportScanHistoryUseCase != null) {
-                      final count = await exportScanHistoryUseCase!.execute();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              count > 0
-                                  ? context.tr('export_data_success')
-                                  : context.tr('export_data_empty'),
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
-
-              // ── 4. Support & Legal Section ───────────────────────────────
-              _buildSectionHeader(context, 'section_support_legal'),
-
-              // TEMPORARY — preview entry point for the onboarding redesign.
-              // Runs the flow in preview mode: it shows the slides without
-              // the closing account step and without re-running onboarding
-              // state. Remove once the flow has been signed off.
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_replay_onboarding_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.slideshow_outlined,
-                        color: theme.colorScheme.primary),
-                  ),
-                  title: Text(
-                    context.tr('replay_onboarding'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    context.tr('replay_onboarding_desc'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const OnboardingScreen(isPreview: true),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_faq_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.help_outline,
-                        color: theme.colorScheme.primary),
-                  ),
-                  title: Text(
-                    context.tr('section_help_faq'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    context.tr('faq_title'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const FaqScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_feedback_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    child: Icon(Icons.feedback_outlined,
-                        color: theme.colorScheme.secondary),
-                  ),
-                  title: Text(
-                    context.tr('send_feedback'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    context.tr('feedback_title'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FeedbackScreen(
-                          user: currentUser,
-                          submitFeedbackUseCase: submitFeedbackUseCase,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ListTile(
-                  key: const Key('settings_terms_privacy_row'),
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    child: Icon(Icons.policy_outlined,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                  title: Text(
-                    context.tr('section_terms_privacy'),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${context.tr('terms_of_service')} ${context.tr('and_connector')} ${context.tr('privacy_policy')}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TermsPrivacyScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── App Footer ───────────────────────────────────────────────
+              const SizedBox(height: AppSpacing.xl),
               Center(
                 child: Text(
                   'CropCare v1.0.0 (Build 1)\n${context.tr('splash_subtitle')}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
+                  style: theme.textTheme.labelSmall,
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 16),
             ],
           );
         },
       ),
     );
   }
+}
 
-  Widget _buildOfflineRow(BuildContext context, ThemeData theme) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        key: const Key('settings_offline_data_row'),
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: Icon(
-            Icons.cloud_sync_outlined,
-            color: theme.colorScheme.primary,
+// =============================================================================
+// Profile header
+// =============================================================================
+
+/// Identity at the top of the tab, rather than a settings row that happens to
+/// be first. A guest sees the one fact that matters to them — their scans are
+/// only on this phone — without opening anything.
+class _ProfileHeader extends StatelessWidget {
+  final LocalUser? user;
+  final VoidCallback? onTap;
+
+  const _ProfileHeader({required this.user, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isGuest = user?.isGuest ?? true;
+    final displayId = user?.email ?? user?.phoneNumber;
+
+    return AppCard(
+      key: const Key('settings_profile_row'),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: isGuest
+                      ? AppColors.surfaceVariant
+                      : AppColors.primaryContainer,
+                  borderRadius: AppRadius.md,
+                ),
+                child: Icon(
+                  isGuest ? Icons.person_outline_rounded : Icons.person_rounded,
+                  size: 28,
+                  color: isGuest
+                      ? AppColors.onSurfaceVariant
+                      : AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.tr('profile_title'),
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      displayId ?? context.tr('account_guest_desc'),
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.onSurfaceVariant,
+                ),
+            ],
           ),
-        ),
-        title: Text(
-          context.tr('section_offline'),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          context.tr('offline_subtitle'),
-          style: const TextStyle(fontSize: 12),
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => syncCubit != null
-                  ? BlocProvider.value(
-                      value: syncCubit!,
-                      child: OfflineScreen(user: user, authCubit: authCubit),
-                    )
-                  : OfflineScreen(user: user, authCubit: authCubit),
-            ),
-          );
-        },
+          const SizedBox(height: AppSpacing.smPlus),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: isGuest
+                ? AppStatusChip(
+                    icon: Icons.phone_android_rounded,
+                    label: context.tr('guest_badge'),
+                    foreground: AppColors.onWarningContainer,
+                    background: AppColors.warningContainer,
+                  )
+                : AppStatusChip(
+                    icon: Icons.cloud_done_rounded,
+                    label: context.tr('account_linked_badge'),
+                    foreground: AppColors.onSuccessContainer,
+                    background: AppColors.successContainer,
+                  ),
+          ),
+        ],
       ),
     );
   }

@@ -34,8 +34,6 @@ class AppLocalizations {
       'home_welcome': 'Welcome to CropCare!',
       'home_subtitle': 'Detect crop diseases and get treatment advice instantly.',
       'change_language': 'Change Language',
-      'select_crop_title': 'Select Crop',
-      'select_crop_subtitle': 'Choose the crop you want to scan',
       'camera_permission_title': 'Camera Permission Required',
       'camera_permission_desc':
           'CropCare needs access to your camera to take photos for disease detection.',
@@ -46,18 +44,13 @@ class AppLocalizations {
       'retake': 'Retake',
       'use_photo': 'Use Photo',
       'scan_result_title': 'Scan Details',
-      'scan_id': 'Scan ID',
       'crop': 'Crop',
-      'image_path': 'Image Path',
       'status': 'Status',
-      'captured_at': 'Captured At',
       'settings_title': 'Settings',
       'section_language': 'Language',
       'section_accessibility': 'Accessibility',
-      'section_notifications': 'Notifications',
       'section_offline_data': 'Offline Data & Sync',
       'coming_soon': 'Coming Soon',
-      'coming_soon_desc': 'This section will be available in a future update.',
       'start_scan': 'Scan Crop',
       'diagnosis_result_title': 'Diagnosis Result',
       'treatment_guidance_title': 'Treatment Guidance',
@@ -120,6 +113,7 @@ class AppLocalizations {
       'password': 'Password',
       'link_guest_account': 'Link this device\'s scan history to your account',
       'guest_badge': 'Guest Mode',
+      'account_linked_badge': 'Backed up',
       'link_account_btn': 'Link Account',
       'signed_in_as': 'Signed in as',
       'sign_out': 'Sign Out',
@@ -302,6 +296,23 @@ class AppLocalizations {
       // Shown when a photo is rejected BEFORE running the model. Each states
       // what was wrong and what to do differently, in plain language.
       'image_rejected_title': 'Let’s try that photo again',
+      'scan_load_failed_title': 'Could not open this scan',
+      'scan_load_failed_msg':
+          'Something went wrong reading this scan from your phone. Try again.',
+      'scan_not_found_title': 'Scan not found',
+      'scan_not_found_msg':
+          'This scan is no longer saved on your phone.',
+      'scan_invalid_image_msg':
+          'This photo could not be read as a leaf, so it was not analysed. Get closer to a single leaf, in good light, and try again.',
+      'scan_analysis_failed_msg':
+          'The analysis did not finish for this photo. Taking it again usually works.',
+      'scan_cancelled_title': 'Scan cancelled',
+      'scan_cancelled_msg': 'This scan was stopped before it finished.',
+      'scan_pending_msg':
+          'This photo has not been analysed yet. Open it again in a moment.',
+      'scan_no_result_title': 'No result saved',
+      'scan_no_result_msg':
+          'This scan finished but no result was saved with it. Scanning again will give you a fresh result.',
       'image_rejected_no_plant': 'We couldn’t find a leaf in this photo. Point the camera at a single leaf so it fills most of the frame.',
       'image_rejected_blurry': 'This photo is too blurry. Hold the phone steady, and tap the screen to focus before taking the picture.',
       'image_rejected_too_dark': 'This photo is too dark. Move to a brighter spot or take the photo in daylight.',
@@ -330,7 +341,6 @@ class AppLocalizations {
       'account_title': 'Account',
       'nav_home': 'Home',
       'nav_history': 'History',
-      'nav_account': 'Account',
       'guest_banner_title': 'You\'re using CropCare as a guest',
       'guest_banner_msg': 'Link an account to back up your scans and reach them from any phone.',
       'guest_banner_action': 'Link account',
@@ -417,8 +427,6 @@ class AppLocalizations {
       'onboarding_guest_note': 'You can link an account later — nothing is lost.',
       'onboarding_next': 'Next',
       'onboarding_back': 'Back',
-      'replay_onboarding': 'Replay onboarding',
-      'replay_onboarding_desc': 'Preview the welcome screens again',
       'close': 'Close',
     },
     'si': {
@@ -446,8 +454,6 @@ class AppLocalizations {
       'home_welcome': 'CropCare වෙත සාදරයෙන් පිළිගනිමු!',
       'home_subtitle': 'බෝග රෝග හඳුනාගෙන නිවැරදි ප්‍රතිකාර උපදෙස් ලබාගන්න.',
       'change_language': 'භාෂාව වෙනස් කරන්න',
-      'select_crop_title': 'බෝගය තෝරන්න',
-      'select_crop_subtitle': 'ඔබට පරීක්ෂා කිරීමට අවශ්‍ය බෝගය තෝරන්න',
       'camera_permission_title': 'කැමරා අවසරය අවශ්‍යයි',
       'camera_permission_desc':
           'බෝග රෝග හඳුනාගැනීම සඳහා ඡායාරූප ගැනීමට CropCare හට කැමරා අවසරය අවශ්‍ය වේ.',
@@ -458,18 +464,13 @@ class AppLocalizations {
       'retake': 'නැවත ගන්න',
       'use_photo': 'මෙම ඡායාරූපය භාවිතා කරන්න',
       'scan_result_title': 'පරීක්ෂණ විස්තර',
-      'scan_id': 'ස්කෑන් අංකය',
       'crop': 'බෝගය',
-      'image_path': 'ඡායාරූප මාර්ගය',
       'status': 'තත්ත්වය',
-      'captured_at': 'ලබාගත් වේලාව',
       'settings_title': 'සැකසුම්',
       'section_language': 'භාෂාව',
       'section_accessibility': 'ප්‍රවේශ්‍යතාව',
-      'section_notifications': 'දැනුම්දීම්',
       'section_offline_data': 'නොබැඳි දත්ත සහ සමමුහුර්තකරණය',
       'coming_soon': 'ළඟදීම බලාපොරොත්තු වන්න',
-      'coming_soon_desc': 'මෙම විශේෂාංගය ළඟදීම එක් කෙරේ.',
       'start_scan': 'බෝගය පරීක්ෂා කරන්න',
       'diagnosis_result_title': 'රෝග විනිශ්චය ප්‍රතිඵලය',
       'treatment_guidance_title': 'ප්‍රතිකාර මාර්ගෝපදේශය',
@@ -532,6 +533,7 @@ class AppLocalizations {
       'password': 'මුරපදය',
       'link_guest_account': 'මෙම දුරකථනයේ ස්කෑන් ඉතිහාසය ඔබගේ ගිණුමට සම්බන්ධ කරන්න',
       'guest_badge': 'ආගන්තුක මාදිලිය',
+      'account_linked_badge': 'උපස්ථ කර ඇත',
       'link_account_btn': 'ගිණුම සම්බන්ධ කරන්න',
       'signed_in_as': 'පිවිස ඇත්තේ',
       'sign_out': 'ඉවත් වන්න',
@@ -713,6 +715,22 @@ class AppLocalizations {
       'scan_failed_msg': 'මෙම ඡායාරූපය පරීක්ෂා කළ නොහැකි විය. නැවත උත්සාහ කරන්න.',
       // Image rejection (pre-inference quality/content gate).
       'image_rejected_title': 'නැවත ඡායාරූපයක් ගන්න',
+      'scan_load_failed_title': 'මෙම පරීක්ෂාව විවෘත කළ නොහැක',
+      'scan_load_failed_msg':
+          'ඔබගේ දුරකථනයෙන් මෙම පරීක්ෂාව කියවීමේදී දෝෂයක් ඇති විය. නැවත උත්සාහ කරන්න.',
+      'scan_not_found_title': 'පරීක්ෂාව හමු නොවීය',
+      'scan_not_found_msg': 'මෙම පරීක්ෂාව තවදුරටත් ඔබගේ දුරකථනයේ නැත.',
+      'scan_invalid_image_msg':
+          'මෙම ඡායාරූපය කොළයක් ලෙස කියවිය නොහැකි විය, එබැවින් එය විශ්ලේෂණය නොකළේය. හොඳ ආලෝකයේ තනි කොළයකට ළං වී නැවත උත්සාහ කරන්න.',
+      'scan_analysis_failed_msg':
+          'මෙම ඡායාරූපය සඳහා විශ්ලේෂණය සම්පූර්ණ නොවීය. නැවත ඡායාරූපයක් ගැනීමෙන් සාමාන්‍යයෙන් විසඳේ.',
+      'scan_cancelled_title': 'පරීක්ෂාව අවලංගු කරන ලදී',
+      'scan_cancelled_msg': 'මෙම පරීක්ෂාව අවසන් වීමට පෙර නවත්වන ලදී.',
+      'scan_pending_msg':
+          'මෙම ඡායාරූපය තවම විශ්ලේෂණය කර නැත. මොහොතකින් නැවත විවෘත කරන්න.',
+      'scan_no_result_title': 'ප්‍රතිඵලයක් සුරකින ලද්දේ නැත',
+      'scan_no_result_msg':
+          'මෙම පරීක්ෂාව අවසන් වූ නමුත් ප්‍රතිඵලයක් සුරකින ලද්දේ නැත. නැවත පරීක්ෂා කිරීමෙන් නව ප්‍රතිඵලයක් ලැබේ.',
       'image_rejected_no_plant': 'මෙම ඡායාරූපයේ පත්‍රයක් හමු නොවීය. පත්‍රයක් ඡායාරූපයේ වැඩි ප්‍රමාණයක් ආවරණය වන ලෙස ගන්න.',
       'image_rejected_blurry': 'ඡායාරූපය අපැහැදිලියි. දුරකථනය ස්ථිරව තබාගෙන නැවත ගන්න.',
       'image_rejected_too_dark': 'ඡායාරූපය ඉතා අඳුරුයි. වැඩි ආලෝකයක් ඇති තැනක නැවත ගන්න.',
@@ -740,7 +758,6 @@ class AppLocalizations {
       'account_title': 'ගිණුම',
       'nav_home': 'මුල් පිටුව',
       'nav_history': 'ඉතිහාසය',
-      'nav_account': 'ගිණුම',
       'guest_banner_title': 'ඔබ අමුත්තෙකු ලෙස භාවිතා කරයි',
       'guest_banner_msg': 'ඔබගේ ස්කෑන් සුරැකීමට ගිණුමක් සම්බන්ධ කරන්න.',
       'guest_banner_action': 'ගිණුම සම්බන්ධ කරන්න',
@@ -827,8 +844,6 @@ class AppLocalizations {
       'onboarding_guest_note': 'ඔබට පසුව ගිණුමක් සම්බන්ධ කළ හැක — කිසිවක් නැති නොවේ.',
       'onboarding_next': 'ඊළඟ',
       'onboarding_back': 'ආපසු',
-      'replay_onboarding': 'හැඳින්වීම නැවත බලන්න',
-      'replay_onboarding_desc': 'පිළිගැනීමේ තිර නැවත බලන්න',
       'close': 'වසන්න',
     },
     'ta': {
@@ -857,9 +872,6 @@ class AppLocalizations {
       'home_welcome': 'CropCare க்கு நல்வரவு!',
       'home_subtitle': 'பயிர் நோய்களைக் கண்டறிந்து உடனடி சிகிச்சை ஆலோசனைகளைப் பெறுங்கள்.',
       'change_language': 'மொழியை மாற்றவும்',
-      'select_crop_title': 'பயிரைத் தேர்ந்தெடுக்கவும்',
-      'select_crop_subtitle':
-          'நீங்கள் ஸ்கேன் செய்ய விரும்பும் பயிரைத் தேர்ந்தெடுக்கவும்',
       'camera_permission_title': 'கேமரா அனுமதி தேவை',
       'camera_permission_desc':
           'பயிர் நோய் கண்டறிதலுக்கு புகைப்படங்களை எடுக்க CropCare க்கு கேமரா அனுமதி தேவை.',
@@ -870,18 +882,13 @@ class AppLocalizations {
       'retake': 'மீண்டும் எடுக்கவும்',
       'use_photo': 'புகைப்படத்தைப் பயன்படுத்தவும்',
       'scan_result_title': 'ஸ்கேன் விவரங்கள்',
-      'scan_id': 'ஸ்கேன் ஐடி',
       'crop': 'பயிர்',
-      'image_path': 'படப் பாதை',
       'status': 'நிலை',
-      'captured_at': 'எடுக்கப்பட்ட நேரம்',
       'settings_title': 'அமைப்புகள்',
       'section_language': 'மொழி',
       'section_accessibility': 'அணுகல்தன்மை',
-      'section_notifications': 'அறிவிப்புகள்',
       'section_offline_data': 'ஆஃப்லைன் தரவு & ஒத்திசைவு',
       'coming_soon': 'விரைவில்',
-      'coming_soon_desc': 'இந்த அம்சம் விரைவில் கிடைக்கும்.',
       'start_scan': 'பயிரைச் சோதிக்கவும்',
       'diagnosis_result_title': 'நோய் கண்டறிதல் முடிவு',
       'treatment_guidance_title': 'சிகிச்சை வழிகாட்டுதல்',
@@ -944,6 +951,7 @@ class AppLocalizations {
       'password': 'கடவுச்சொல்',
       'link_guest_account': 'இந்த சாதனத்தின் ஸ்கேன் வரலாற்றை உங்கள் கணக்குடன் இணைக்கவும்',
       'guest_badge': 'விருந்தினர் பயன்முறை',
+      'account_linked_badge': 'காப்புப் பிரதி எடுக்கப்பட்டது',
       'link_account_btn': 'கணக்கை இணைக்கவும்',
       'signed_in_as': 'உள்நுழைந்துள்ளீர்கள்',
       'sign_out': 'வெளியேறு',
@@ -1125,6 +1133,22 @@ class AppLocalizations {
       'scan_failed_msg': 'இந்தப் புகைப்படத்தைச் சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
       // Image rejection (pre-inference quality/content gate).
       'image_rejected_title': 'மீண்டும் படம் எடுக்கவும்',
+      'scan_load_failed_title': 'இந்த ஸ்கேனைத் திறக்க முடியவில்லை',
+      'scan_load_failed_msg':
+          'உங்கள் தொலைபேசியிலிருந்து இந்த ஸ்கேனைப் படிக்கும்போது பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.',
+      'scan_not_found_title': 'ஸ்கேன் கிடைக்கவில்லை',
+      'scan_not_found_msg': 'இந்த ஸ்கேன் இனி உங்கள் தொலைபேசியில் சேமிக்கப்படவில்லை.',
+      'scan_invalid_image_msg':
+          'இந்தப் படத்தை இலையாகப் படிக்க முடியவில்லை, எனவே அது பகுப்பாய்வு செய்யப்படவில்லை. நல்ல வெளிச்சத்தில் ஒரு இலைக்கு அருகில் சென்று மீண்டும் முயற்சிக்கவும்.',
+      'scan_analysis_failed_msg':
+          'இந்தப் படத்திற்கான பகுப்பாய்வு நிறைவடையவில்லை. மீண்டும் படம் எடுப்பது பொதுவாக வேலை செய்யும்.',
+      'scan_cancelled_title': 'ஸ்கேன் ரத்து செய்யப்பட்டது',
+      'scan_cancelled_msg': 'இந்த ஸ்கேன் முடிவதற்கு முன்பே நிறுத்தப்பட்டது.',
+      'scan_pending_msg':
+          'இந்தப் படம் இன்னும் பகுப்பாய்வு செய்யப்படவில்லை. சிறிது நேரத்தில் மீண்டும் திறக்கவும்.',
+      'scan_no_result_title': 'முடிவு சேமிக்கப்படவில்லை',
+      'scan_no_result_msg':
+          'இந்த ஸ்கேன் முடிந்தது ஆனால் அதனுடன் எந்த முடிவும் சேமிக்கப்படவில்லை. மீண்டும் ஸ்கேன் செய்தால் புதிய முடிவு கிடைக்கும்.',
       'image_rejected_no_plant': 'இந்தப் புகைப்படத்தில் இலை காணப்படவில்லை. ஒரு இலை படத்தில் பெரும்பகுதியை நிரப்பும்படி எடுக்கவும்.',
       'image_rejected_blurry': 'புகைப்படம் தெளிவாக இல்லை. தொலைபேசியை அசையாமல் பிடித்து மீண்டும் எடுக்கவும்.',
       'image_rejected_too_dark': 'புகைப்படம் மிகவும் இருட்டாக உள்ளது. வெளிச்சம் அதிகமான இடத்தில் மீண்டும் எடுக்கவும்.',
@@ -1152,7 +1176,6 @@ class AppLocalizations {
       'account_title': 'கணக்கு',
       'nav_home': 'முகப்பு',
       'nav_history': 'வரலாறு',
-      'nav_account': 'கணக்கு',
       'guest_banner_title': 'நீங்கள் விருந்தினராகப் பயன்படுத்துகிறீர்கள்',
       'guest_banner_msg': 'உங்கள் ஸ்கேன்களைப் பாதுகாக்க கணக்கை இணைக்கவும்.',
       'guest_banner_action': 'கணக்கை இணைக்கவும்',
@@ -1239,8 +1262,6 @@ class AppLocalizations {
       'onboarding_guest_note': 'பின்னர் கணக்கை இணைக்கலாம் — எதுவும் இழக்கப்படாது.',
       'onboarding_next': 'அடுத்து',
       'onboarding_back': 'பின்',
-      'replay_onboarding': 'அறிமுகத்தை மீண்டும் பார்க்க',
-      'replay_onboarding_desc': 'வரவேற்புத் திரைகளை மீண்டும் பார்க்கவும்',
       'close': 'மூடு',
     },
   };
@@ -1249,4 +1270,14 @@ class AppLocalizations {
     final map = _localizedValues[languageCode] ?? _localizedValues['en']!;
     return map[key] ?? _localizedValues['en']![key] ?? key;
   }
+
+  /// The raw translation tables, exposed so a test can assert key parity
+  /// across the three languages.
+  ///
+  /// Parity used to be enforced by review alone, which is exactly the kind of
+  /// thing review misses: a key present in `en` but absent in `si` renders the
+  /// raw key string — `treatment_what_to_avoid` — to a Sinhala-speaking
+  /// farmer, and nothing fails until someone notices in the app.
+  @visibleForTesting
+  static Map<String, Map<String, String>> get tables => _localizedValues;
 }

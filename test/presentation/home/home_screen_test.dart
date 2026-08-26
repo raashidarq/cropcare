@@ -119,7 +119,10 @@ void main() {
     expect(find.byKey(const Key('app_bottom_nav')), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
-    expect(find.text('Account'), findsOneWidget);
+    // The third tab is labelled for the screen it opens. It read "Account"
+    // while building SettingsScreen, whose AppBar says "Settings".
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Account'), findsNothing);
 
     // Home shows a summary and the most recent scans; the full, filterable
     // history now lives in its own tab rather than being embedded here.

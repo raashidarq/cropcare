@@ -330,10 +330,15 @@ class _AppShellState extends State<_AppShell> {
         selectedIcon: const Icon(Icons.history_rounded),
         label: context.tr('nav_history'),
       ),
+      // Labelled for what the tab actually opens. It previously read
+      // "Account" but built SettingsScreen, whose AppBar says "Settings" —
+      // three of its four sections are app settings, and changing language
+      // is the single most-wanted item in it for a trilingual audience.
+      // Identity still leads the screen, as a profile header.
       NavigationDestination(
-        icon: const Icon(Icons.person_outline_rounded),
-        selectedIcon: const Icon(Icons.person_rounded),
-        label: context.tr('nav_account'),
+        icon: const Icon(Icons.settings_outlined),
+        selectedIcon: const Icon(Icons.settings_rounded),
+        label: context.tr('settings_title'),
       ),
     ];
 
