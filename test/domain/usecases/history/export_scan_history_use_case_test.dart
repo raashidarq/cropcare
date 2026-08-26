@@ -37,6 +37,9 @@ class _FakeScanRepository implements ScanRepository {
 
   @override
   Future<int> purgeFailedScans() async => 0;
+  @override
+  Future<void> deleteScan(String scanId) async {}
+
 
   @override
   Future<void> deleteAllLocalScans() async {}

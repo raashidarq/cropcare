@@ -18,8 +18,10 @@ void main() {
     expect(find.text('CropCare Terms of Service'), findsOneWidget);
     expect(find.textContaining('1. Purpose'), findsOneWidget);
 
-    // Tap Privacy Policy tab
-    await tester.tap(find.byIcon(Icons.privacy_tip_outlined));
+    // Tap the Privacy Policy tab. The tabs are text-only now: an icon plus a
+    // label squeezed "පෞද්ගලිකත්ව ප්‍රතිපත්තිය" and "தனியுரிமைக் கொள்கை" into
+    // half the screen each, and the icons said nothing the words did not.
+    await tester.tap(find.text('Privacy Policy').first);
     await tester.pumpAndSettle();
 
     // Verify Privacy Policy content

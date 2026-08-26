@@ -38,6 +38,7 @@ import '../../domain/usecases/diagnosis/validate_image_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
 import '../../domain/usecases/feedback/submit_feedback_use_case.dart';
 import '../../domain/usecases/history/export_scan_history_use_case.dart';
+import '../../domain/usecases/history/delete_scan_use_case.dart';
 import '../../domain/usecases/history/get_scan_history_use_case.dart';
 import '../auth/auth_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
@@ -97,6 +98,9 @@ class _FallbackScanRepository implements ScanRepository {
 
   @override
   Future<List<ScanHistoryItem>> getScanHistory() async => [];
+  @override
+  Future<void> deleteScan(String scanId) async {}
+
 
   @override
   Future<void> deleteAllLocalScans() async {}
@@ -117,6 +121,7 @@ class HomeScreen extends StatefulWidget {
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
+  final DeleteScanUseCase? deleteScanUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
@@ -141,6 +146,7 @@ class HomeScreen extends StatefulWidget {
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
+    this.deleteScanUseCase,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
     this.openAccountOnLaunch = false,
@@ -181,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return BlocProvider<HistoryCubit>(
       create: (_) => HistoryCubit(
         getScanHistoryUseCase: _getScanHistoryUseCase,
+        deleteScanUseCase: widget.deleteScanUseCase,
       )..loadHistory(),
       child: _AppShell(
         user: _user,

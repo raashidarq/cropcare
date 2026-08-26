@@ -51,6 +51,7 @@ import 'domain/usecases/diagnosis/validate_image_use_case.dart';
 import 'domain/usecases/escalation/create_escalation_use_case.dart';
 import 'domain/usecases/feedback/submit_feedback_use_case.dart';
 import 'domain/usecases/history/export_scan_history_use_case.dart';
+import 'domain/usecases/history/delete_scan_use_case.dart';
 import 'domain/usecases/history/get_scan_history_use_case.dart';
 import 'domain/usecases/onboarding/complete_onboarding_use_case.dart';
 import 'domain/usecases/onboarding/get_app_state_use_case.dart';
@@ -206,6 +207,7 @@ void main() async {
     scanRepository: scanRepository,
   );
   final getScanHistoryUseCase = GetScanHistoryUseCase(scanRepository);
+  final deleteScanUseCase = DeleteScanUseCase(scanRepository: scanRepository);
   final exportScanHistoryUseCase = ExportScanHistoryUseCase(scanRepository);
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -269,6 +271,7 @@ void main() async {
     getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
     createEscalationUseCase: createEscalationUseCase,
     getScanHistoryUseCase: getScanHistoryUseCase,
+    deleteScanUseCase: deleteScanUseCase,
     exportScanHistoryUseCase: exportScanHistoryUseCase,
     submitFeedbackUseCase: submitFeedbackUseCase,
   ));

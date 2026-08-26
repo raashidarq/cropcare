@@ -226,7 +226,10 @@ void main() {
       find.text('Not confident about this'),
       findsOneWidget,
     );
-    expect(find.text('WhatsApp Share with Expert'), findsWidgets);
+    // The footer says "Ask an expert", not "WhatsApp Share with Expert": it
+    // opens the escalation screen, which then offers WhatsApp, copy, or any
+    // share target. Naming one channel overpromised.
+    expect(find.text('Ask an expert'), findsWidgets);
   });
 
   testWidgets('DiagnosisResultScreen renders Read Aloud button and speaks guidance on tap',

@@ -22,6 +22,7 @@ import 'domain/usecases/diagnosis/validate_image_use_case.dart';
 import 'domain/usecases/escalation/create_escalation_use_case.dart';
 import 'domain/usecases/feedback/submit_feedback_use_case.dart';
 import 'domain/usecases/history/export_scan_history_use_case.dart';
+import 'domain/usecases/history/delete_scan_use_case.dart';
 import 'domain/usecases/history/get_scan_history_use_case.dart';
 import 'domain/usecases/settings/get_accessibility_settings_use_case.dart';
 import 'domain/usecases/settings/save_accessibility_settings_use_case.dart';
@@ -46,6 +47,7 @@ class CropCareApp extends StatelessWidget {
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
+  final DeleteScanUseCase? deleteScanUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
@@ -67,6 +69,7 @@ class CropCareApp extends StatelessWidget {
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
+    this.deleteScanUseCase,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
   });
@@ -135,6 +138,7 @@ class CropCareApp extends StatelessWidget {
                               getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
                               createEscalationUseCase: createEscalationUseCase,
                               getScanHistoryUseCase: getScanHistoryUseCase,
+                              deleteScanUseCase: deleteScanUseCase,
                               exportScanHistoryUseCase: exportScanHistoryUseCase,
                               submitFeedbackUseCase: submitFeedbackUseCase,
                             )

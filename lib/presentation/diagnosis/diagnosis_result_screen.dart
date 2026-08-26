@@ -508,32 +508,58 @@ class _BottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            key: const Key('diagnosis_scan_again_button'),
-            icon: const Icon(Icons.camera_alt),
-            label: Text(
-              context.tr('scan_again'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            onPressed: onScanAgain,
+    // Pinned chrome, so it needs to look pinned. Previously this was a bare
+    // Column dropped at the bottom of the screen: no padding, so the buttons
+    // sat flush against the screen edges; no background or border, so content
+    // scrolled up to touch them with nothing marking where the page ended;
+    // and no bottom inset, so on a gesture-navigation phone the lower button
+    // sat under the home indicator.
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.smPlus,
+            AppSpacing.md,
+            AppSpacing.smPlus,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: AppSpacing.minTouchTarget,
+                child: ElevatedButton.icon(
+                  key: const Key('diagnosis_scan_again_button'),
+                  icon: const Icon(Icons.camera_alt_rounded),
+                  label: Text(context.tr('scan_again')),
+                  onPressed: onScanAgain,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              // A text button, not a second full-height outlined one. Two
+              // stacked 48dp buttons plus padding took about a fifth of a
+              // small phone's screen permanently, competing with the result
+              // itself. This still meets the 48dp touch target through the
+              // button's own minimum size.
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  key: const Key('diagnosis_expert_button'),
+                  icon: const Icon(Icons.support_agent_rounded, size: 20),
+                  label: Text(context.tr('ask_an_expert')),
+                  onPressed: onConsultExpert,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.support_agent),
-            label: Text(context.tr('get_expert_help')),
-            onPressed: onConsultExpert,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

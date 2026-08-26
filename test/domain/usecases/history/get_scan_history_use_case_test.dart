@@ -39,6 +39,9 @@ class _FakeScanRepository implements ScanRepository {
 
   @override
   Future<List<ScanHistoryItem>> getScanHistory() async => historyToReturn;
+  @override
+  Future<void> deleteScan(String scanId) async {}
+
 
   @override
   Future<void> deleteAllLocalScans() async {}

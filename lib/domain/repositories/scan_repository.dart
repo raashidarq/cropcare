@@ -40,6 +40,14 @@ abstract class ScanRepository {
   Future<List<ScanHistoryItem>> getScanHistory();
 
   /// Deletes all local scans and related history records from this device.
+  /// Removes one scan and everything that belongs to it: its diagnosis, any
+  /// chat about that diagnosis, its validation record, any escalation, its
+  /// queued sync operations, and the photo on disk.
+  ///
+  /// Local only. A scan already uploaded stays in the cloud — see
+  /// `SyncRepository` for remote deletion.
+  Future<void> deleteScan(String scanId);
+
   Future<void> deleteAllLocalScans();
 }
 

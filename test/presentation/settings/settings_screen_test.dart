@@ -78,8 +78,13 @@ void main() {
     expect(find.byKey(const Key('settings_faq_row')), findsOneWidget);
     expect(find.byKey(const Key('settings_feedback_row')), findsOneWidget);
     expect(find.byKey(const Key('settings_terms_privacy_row')), findsOneWidget);
+    // Privacy has its own row and deep-links to its tab: "where does my data
+    // go" is a different question from "what am I agreeing to", and Settings
+    // could previously only ever open the first tab.
+    expect(find.byKey(const Key('settings_privacy_row')), findsOneWidget);
     expect(find.text('Help & FAQ'), findsOneWidget);
     expect(find.text('Send Feedback'), findsOneWidget);
-    expect(find.text('Terms & Privacy Policy'), findsOneWidget);
+    expect(find.text('Terms of Service'), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
   });
 }

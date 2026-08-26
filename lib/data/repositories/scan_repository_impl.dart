@@ -395,6 +395,56 @@ class ScanRepositoryImpl implements ScanRepository {
   }
 
   @override
+  Future<void> deleteScan(String scanId) async {
+    // Read the path before the row goes, or the file becomes an unreachable
+    // orphan — the same mistake deleteAllLocalScans used to make.
+    final scanRow = await getScanById(scanId);
+
+    await db.transaction(() async {
+      // chat_message hangs off diagnosis, not scan, so its rows have to be
+      // found through the diagnoses being removed.
+      final diagnosisIds = (await (db.select(db.diagnosisTable)
+                ..where((t) => t.scanId.equals(scanId)))
+              .get())
+          .map((d) => d.id)
+          .toList();
+
+      if (diagnosisIds.isNotEmpty) {
+        await (db.delete(db.chatMessageTable)
+              ..where((t) => t.diagnosisId.isIn(diagnosisIds)))
+            .go();
+      }
+
+      await (db.delete(db.diagnosisTable)
+            ..where((t) => t.scanId.equals(scanId)))
+          .go();
+      await (db.delete(db.imageValidationTable)
+            ..where((t) => t.scanId.equals(scanId)))
+          .go();
+      await (db.delete(db.escalationTable)
+            ..where((t) => t.scanId.equals(scanId)))
+          .go();
+
+      // Cancel anything still queued for this scan. Without it, deleting a
+      // scan that had not synced yet would still upload the photo afterwards
+      // — bandwidth on a metered connection for something the farmer just
+      // asked to be rid of. IN_PROGRESS is deliberately left alone: a request
+      // already in flight cannot be recalled, and deleting its row would only
+      // hide it from the failure UI.
+      await (db.delete(db.syncOperationTable)
+            ..where((t) =>
+                t.entityId.equals(scanId) &
+                t.status.isIn(const ['PENDING', 'FAILED'])))
+          .go();
+
+      await (db.delete(db.scanTable)..where((t) => t.id.equals(scanId))).go();
+    });
+
+    final path = scanRow?.imageLocalPath;
+    if (path != null) await _deleteImageFiles([path]);
+  }
+
+  @override
   Future<void> deleteAllLocalScans() async {
     // Collect the image paths BEFORE the rows are gone, otherwise the files
     // become unreachable orphans. This is the app's "free up storage"
@@ -404,6 +454,10 @@ class ScanRepositoryImpl implements ScanRepository {
     final paths = await _allScanImagePaths();
 
     await db.transaction(() async {
+      // Children before parents. chat_message references diagnosis, which
+      // references scan; foreign keys are not enforced at runtime, so a
+      // missed table leaves silent orphans rather than an error.
+      await db.delete(db.chatMessageTable).go();
       await db.delete(db.diagnosisTable).go();
       await db.delete(db.imageValidationTable).go();
       await db.delete(db.escalationTable).go();
