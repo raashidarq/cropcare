@@ -55,6 +55,10 @@ class SettingsScreen extends StatelessWidget {
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
 
+  /// Replays the home walkthrough. Supplied by the shell, which owns the
+  /// widgets the tutorial points at.
+  final VoidCallback? onReplayTutorial;
+
   const SettingsScreen({
     super.key,
     this.user,
@@ -62,6 +66,7 @@ class SettingsScreen extends StatelessWidget {
     this.syncCubit,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
+    this.onReplayTutorial,
   });
 
   @override
@@ -78,6 +83,7 @@ class SettingsScreen extends StatelessWidget {
         syncCubit: syncCubit,
         exportScanHistoryUseCase: exportScanHistoryUseCase,
         submitFeedbackUseCase: submitFeedbackUseCase,
+        onReplayTutorial: onReplayTutorial,
       ),
     );
   }
@@ -89,6 +95,7 @@ class _SettingsView extends StatelessWidget {
   final SyncCubit? syncCubit;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
   final SubmitFeedbackUseCase? submitFeedbackUseCase;
+  final VoidCallback? onReplayTutorial;
 
   const _SettingsView({
     this.user,
@@ -96,6 +103,7 @@ class _SettingsView extends StatelessWidget {
     this.syncCubit,
     this.exportScanHistoryUseCase,
     this.submitFeedbackUseCase,
+    this.onReplayTutorial,
   });
 
   Future<void> _export(BuildContext context) async {
@@ -234,6 +242,21 @@ class _SettingsView extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               AppSectionHeader(title: context.tr('section_support_legal')),
               const SizedBox(height: AppSpacing.sm),
+              if (onReplayTutorial != null) ...[
+                AppActionTile(
+                  key: const Key('settings_replay_tutorial_row'),
+                  icon: Icons.touch_app_outlined,
+                  title: context.tr('replay_tutorial'),
+                  subtitle: context.tr('replay_tutorial_desc'),
+                  onTap: () {
+                    // Pop back to the shell first: the walkthrough points at
+                    // the real home screen, so it has to be the one showing.
+                    Navigator.of(context).pop();
+                    onReplayTutorial!();
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               AppActionTile(
                 key: const Key('settings_faq_row'),
                 icon: Icons.help_outline_rounded,

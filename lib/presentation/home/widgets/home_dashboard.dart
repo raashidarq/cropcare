@@ -33,6 +33,9 @@ import 'scan_history_card.dart';
 
 class HomeDashboard extends StatelessWidget {
   final LocalUser user;
+
+  /// Spotlight target for the walkthrough, owned by the shell.
+  final GlobalKey? scanButtonKey;
   final VoidCallback onStartScan;
   final VoidCallback onSeeAllHistory;
   final VoidCallback onLinkAccount;
@@ -41,6 +44,7 @@ class HomeDashboard extends StatelessWidget {
   const HomeDashboard({
     super.key,
     required this.user,
+    this.scanButtonKey,
     required this.onStartScan,
     required this.onSeeAllHistory,
     required this.onLinkAccount,
@@ -59,7 +63,7 @@ class HomeDashboard extends StatelessWidget {
           AppSpacing.xxl,
         ),
         children: [
-          _ScanCallToAction(onTap: onStartScan),
+          _ScanCallToAction(key: scanButtonKey, onTap: onStartScan),
           const SizedBox(height: AppSpacing.md),
           const _StatsRow(),
           const SizedBox(height: AppSpacing.md),
@@ -93,7 +97,7 @@ class HomeDashboard extends StatelessWidget {
 class _ScanCallToAction extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _ScanCallToAction({required this.onTap});
+  const _ScanCallToAction({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

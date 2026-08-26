@@ -42,6 +42,8 @@ import '../../domain/usecases/history/delete_scan_use_case.dart';
 import '../../domain/usecases/history/get_scan_history_use_case.dart';
 import '../auth/auth_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
+import '../../data/local/preferences/tutorial_preferences.dart';
+import '../shared/widgets/tutorial_overlay.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../scan/capture_screen.dart';
 import '../scan/scan_result_screen.dart';
@@ -268,6 +270,8 @@ class _AppShellState extends State<_AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+
     if (widget.openAccountOnLaunch) {
       // Deferred to the first frame: the shell has to exist before anything
       // can be pushed on top of it.
@@ -357,6 +361,44 @@ class _AppShellState extends State<_AppShell> {
     });
   }
 
+  // Targets for the walkthrough. They live here rather than on the widgets so
+  // the tutorial can point at controls it does not own.
+  final GlobalKey _scanButtonKey = GlobalKey();
+  final GlobalKey _navKey = GlobalKey();
+
+  final TutorialPreferences _tutorialPrefs = TutorialPreferences();
+  bool _tutorialChecked = false;
+
+  /// Runs once, after the first frame, so the targets have been laid out and
+  /// have rects to point at.
+  Future<void> _maybeShowTutorial() async {
+    if (_tutorialChecked) return;
+    _tutorialChecked = true;
+    if (await _tutorialPrefs.hasSeenHomeTutorial()) return;
+    if (!mounted) return;
+    await _tutorialPrefs.setHomeTutorialSeen(true);
+    if (!mounted) return;
+    await _runTutorial();
+  }
+
+  Future<void> _runTutorial() async {
+    // Home first: the walkthrough points at the real screen, so it has to be
+    // the one on display.
+    if (_index != 0) _select(0);
+    await showTutorial(context, [
+      TutorialStep(
+        targetKey: _scanButtonKey,
+        titleKey: 'tutorial_scan_title',
+        bodyKey: 'tutorial_scan_body',
+      ),
+      TutorialStep(
+        targetKey: _navKey,
+        titleKey: 'tutorial_nav_title',
+        bodyKey: 'tutorial_nav_body',
+      ),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final destinations = [
@@ -391,6 +433,7 @@ class _AppShellState extends State<_AppShell> {
           // Order must match `destinations` below.
           _lazy(0, () => _HomeTab(
             user: widget.user,
+            scanButtonKey: _scanButtonKey,
             onStartScan: _startScan,
             onSeeAllHistory: () => _select(1),
             onLinkAccount: _handleAccountAction,
@@ -402,6 +445,7 @@ class _AppShellState extends State<_AppShell> {
             onStartScan: _startScan,
           )),
           _lazy(2, () => SettingsScreen(
+            onReplayTutorial: _runTutorial,
             user: widget.user,
             authCubit: widget.authCubit,
             syncCubit: widget.syncCubit,
@@ -410,11 +454,17 @@ class _AppShellState extends State<_AppShell> {
           )),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        key: const Key('app_bottom_nav'),
-        selectedIndex: _index,
-        onDestinationSelected: _select,
-        destinations: destinations,
+      // KeyedSubtree so the nav can carry both keys: the stable test key and
+      // the tutorial's spotlight target. Its context resolves to the child's
+      // render box, which is what the overlay measures.
+      bottomNavigationBar: KeyedSubtree(
+        key: _navKey,
+        child: NavigationBar(
+          key: const Key('app_bottom_nav'),
+          selectedIndex: _index,
+          onDestinationSelected: _select,
+          destinations: destinations,
+        ),
       ),
     );
   }
@@ -426,6 +476,7 @@ class _AppShellState extends State<_AppShell> {
 
 class _HomeTab extends StatelessWidget {
   final LocalUser user;
+  final GlobalKey? scanButtonKey;
   final VoidCallback onStartScan;
   final VoidCallback onSeeAllHistory;
   final VoidCallback onLinkAccount;
@@ -433,6 +484,7 @@ class _HomeTab extends StatelessWidget {
 
   const _HomeTab({
     required this.user,
+    this.scanButtonKey,
     required this.onStartScan,
     required this.onSeeAllHistory,
     required this.onLinkAccount,
@@ -464,6 +516,7 @@ class _HomeTab extends StatelessWidget {
         user: user,
         onStartScan: onStartScan,
         onSeeAllHistory: onSeeAllHistory,
+        scanButtonKey: scanButtonKey,
         onLinkAccount: onLinkAccount,
         onOpenScan: onOpenScan,
       ),

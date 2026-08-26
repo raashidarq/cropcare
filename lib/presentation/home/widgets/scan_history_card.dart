@@ -92,6 +92,21 @@ class ScanHistoryCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    // Shown only when a scan has NOT reached the cloud.
+                    // Marking the synced ones would put a badge on almost
+                    // every row and say nothing; the exception is the
+                    // information. Settings has only ever had an aggregate
+                    // pending count, so there was no way to tell WHICH scan
+                    // was still waiting.
+                    if (item.scan.remoteScanId == null) ...[
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        size: 14,
+                        color: AppColors.onSurfaceVariant,
+                        semanticLabel: context.tr('not_backed_up'),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
                     if (diagnosis != null && !diagnosis.isHealthy)
                       Text(
                         '${(diagnosis.confidence * 100).toStringAsFixed(0)}%',

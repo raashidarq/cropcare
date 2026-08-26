@@ -188,18 +188,22 @@ class _AuthScreenState extends State<AuthScreen> {
 
                       ..._buildFields(context, isLoading),
 
-                      const SizedBox(height: AppSpacing.lg),
+                      // Above the button, not below it. Tapping "Create
+                      // account" IS the act of agreeing, and the terms were
+                      // printed underneath it - after the decision, where
+                      // nobody reads them.
+                      if (_isSignUp) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        const _ConsentDisclaimer(),
+                        const SizedBox(height: AppSpacing.sm),
+                      ] else
+                        const SizedBox(height: AppSpacing.lg),
                       _SubmitButton(
                         isLoading: isLoading,
                         isPhone: _isPhone,
                         isSignUp: _isSignUp,
                         onPressed: () => _submit(context),
                       ),
-
-                      if (_isSignUp) ...[
-                        const SizedBox(height: AppSpacing.smPlus),
-                        const _ConsentDisclaimer(),
-                      ],
 
                       const SizedBox(height: AppSpacing.lg),
                       _IntentSwitch(

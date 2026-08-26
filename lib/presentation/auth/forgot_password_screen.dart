@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../application/auth/auth_cubit.dart';
 import '../../application/auth/auth_state.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_radius.dart';
+import '../../core/theme/app_spacing.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../shared/widgets/app_components.dart';
 import 'widgets/auth_form_fields.dart';
@@ -68,7 +70,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           }
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Form(
               key: _formKey,
               child: Column(
@@ -77,11 +79,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const SizedBox(height: 12),
                   CircleAvatar(
                     radius: 36,
-                    backgroundColor: theme.colorScheme.primaryContainer,
+                    backgroundColor: AppColors.primaryContainer,
                     child: Icon(
                       Icons.lock_reset,
                       size: 40,
-                      color: theme.colorScheme.primary,
+                      color: AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -97,7 +99,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     context.tr('forgot_password_subtitle'),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: AppColors.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -130,7 +132,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       key: const Key('forgot_password_submit_button'),
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: AppRadius.md,
                         ),
                       ),
                       onPressed: isLoading ? null : () => _handleSubmit(context),
@@ -154,7 +156,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Widget _buildSuccessView(BuildContext context, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,7 +193,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppRadius.md,
               ),
             ),
             onPressed: () => Navigator.of(context).pop(),
