@@ -12,6 +12,9 @@ import 'data/repositories/accessibility_repository_impl.dart';
 import 'domain/entities/local_user.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import 'domain/usecases/chat/delete_chat_message_use_case.dart';
+import 'domain/usecases/chat/get_chat_history_use_case.dart';
+import 'domain/usecases/chat/send_chat_message_use_case.dart';
 import 'domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -37,6 +40,9 @@ class CropCareApp extends StatelessWidget {
   final RunDiagnosisUseCase runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
@@ -55,6 +61,9 @@ class CropCareApp extends StatelessWidget {
     required this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
@@ -120,6 +129,9 @@ class CropCareApp extends StatelessWidget {
                               runDiagnosisUseCase: runDiagnosisUseCase,
                               resolveTreatmentUseCase: resolveTreatmentUseCase,
                               getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
+                              getChatHistoryUseCase: getChatHistoryUseCase,
+                              sendChatMessageUseCase: sendChatMessageUseCase,
+                              deleteChatMessageUseCase: deleteChatMessageUseCase,
                               getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
                               createEscalationUseCase: createEscalationUseCase,
                               getScanHistoryUseCase: getScanHistoryUseCase,

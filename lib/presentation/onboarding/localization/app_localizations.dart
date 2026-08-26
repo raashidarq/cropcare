@@ -382,6 +382,24 @@ class AppLocalizations {
       'get_treatment_prompt_desc': 'Get advice on what to do. Uses the internet if you have it, otherwise the guidance saved on your phone.',
       'chat_with_result_title': 'Ask about this result',
       'chat_with_result_desc': 'Ask follow-up questions about this diagnosis in your own words.',
+      'chat_disclaimer_msg':
+          'These answers are written by AI from your scan. It can be wrong. For a serious or spreading problem, ask an agronomist.',
+      'chat_input_hint': 'Ask about this result…',
+      'chat_send': 'Send',
+      'chat_thinking': 'Thinking…',
+      'chat_sending': 'Sending',
+      'chat_not_sent': 'Not sent',
+      'chat_suggestions_title': 'You could ask',
+      'chat_suggestion_spread': 'How fast will this spread?',
+      'chat_suggestion_edible': 'Is the fruit still safe to eat?',
+      'chat_suggestion_already_sprayed': 'I already sprayed last week. What now?',
+      'chat_suggestion_prevent': 'How do I stop this happening again?',
+      'chat_offline_msg':
+          'Your question could not be sent. It is saved here — try again when you have a connection.',
+      'chat_rate_limited_msg':
+          'Too many questions in a short time. Wait a moment and try again.',
+      'chat_server_error_msg':
+          'The answer could not be fetched right now. Your question is saved — try again shortly.',
       'speak_observations': 'Speak instead of typing',
       'mic_stop': 'Stop',
       'mic_permission_denied':
@@ -814,6 +832,24 @@ class AppLocalizations {
       'get_treatment_prompt_desc': 'කුමක් කළ යුතුද යන්න පිළිබඳ උපදෙස් ලබා ගන්න. අන්තර්ජාලය ඇත්නම් එය භාවිත කරයි, නැතිනම් දුරකථනයේ සුරකින ලද මාර්ගෝපදේශ භාවිත කරයි.',
       'chat_with_result_title': 'මෙම ප්‍රතිඵලය ගැන අසන්න',
       'chat_with_result_desc': 'මෙම රෝග විනිශ්චය ගැන ඔබගේම වචන වලින් තවත් ප්‍රශ්න අසන්න.',
+      'chat_disclaimer_msg':
+          'මෙම පිළිතුරු ඔබගේ ස්කෑන් එකෙන් AI විසින් ලියන ලදී. එය වැරදි විය හැක. බරපතළ හෝ පැතිරෙන ගැටලුවක් සඳහා කෘෂි උපදේශකයෙකුගෙන් විමසන්න.',
+      'chat_input_hint': 'මෙම ප්‍රතිඵලය ගැන අසන්න…',
+      'chat_send': 'යවන්න',
+      'chat_thinking': 'සිතමින්…',
+      'chat_sending': 'යවමින්',
+      'chat_not_sent': 'යවා නැත',
+      'chat_suggestions_title': 'ඔබට මෙසේ ඇසිය හැක',
+      'chat_suggestion_spread': 'මෙය කොපමණ වේගයෙන් පැතිරෙයිද?',
+      'chat_suggestion_edible': 'ගෙඩි තවමත් අනුභව කිරීමට ආරක්ෂිතද?',
+      'chat_suggestion_already_sprayed': 'මම පසුගිය සතියේ ඉසින්නා. දැන් කුමක් කළ යුතුද?',
+      'chat_suggestion_prevent': 'මෙය නැවත සිදු වීම වළක්වන්නේ කෙසේද?',
+      'chat_offline_msg':
+          'ඔබගේ ප්‍රශ්නය යැවීමට නොහැකි විය. එය මෙහි සුරැකී ඇත — සම්බන්ධතාවයක් ඇති විට නැවත උත්සාහ කරන්න.',
+      'chat_rate_limited_msg':
+          'කෙටි කාලයක් තුළ ප්‍රශ්න ඕනෑවට වඩා. මොහොතක් රැඳී නැවත උත්සාහ කරන්න.',
+      'chat_server_error_msg':
+          'දැන් පිළිතුර ලබා ගැනීමට නොහැකි විය. ඔබගේ ප්‍රශ්නය සුරැකී ඇත — මොහොතකින් නැවත උත්සාහ කරන්න.',
       'speak_observations': 'ටයිප් කරනවා වෙනුවට කථා කරන්න',
       'mic_stop': 'නවත්වන්න',
       'mic_permission_denied':
@@ -1247,6 +1283,24 @@ class AppLocalizations {
       'get_treatment_prompt_desc': 'என்ன செய்வது என்பது குறித்த ஆலோசனையைப் பெறுங்கள். இணையம் இருந்தால் அதைப் பயன்படுத்தும், இல்லையெனில் தொலைபேசியில் சேமித்த வழிகாட்டுதலைப் பயன்படுத்தும்.',
       'chat_with_result_title': 'இந்த முடிவு பற்றிக் கேளுங்கள்',
       'chat_with_result_desc': 'இந்த நோயறிதல் குறித்து உங்கள் சொந்த வார்த்தைகளில் கேள்விகள் கேளுங்கள்.',
+      'chat_disclaimer_msg':
+          'இந்தப் பதில்கள் உங்கள் ஸ்கேனிலிருந்து AI எழுதியவை. அவை தவறாக இருக்கலாம். தீவிரமான அல்லது பரவும் பிரச்சினைக்கு வேளாண் நிபுணரிடம் கேளுங்கள்.',
+      'chat_input_hint': 'இந்த முடிவு பற்றிக் கேளுங்கள்…',
+      'chat_send': 'அனுப்பு',
+      'chat_thinking': 'யோசிக்கிறது…',
+      'chat_sending': 'அனுப்புகிறது',
+      'chat_not_sent': 'அனுப்பப்படவில்லை',
+      'chat_suggestions_title': 'நீங்கள் கேட்கலாம்',
+      'chat_suggestion_spread': 'இது எவ்வளவு வேகமாகப் பரவும்?',
+      'chat_suggestion_edible': 'பழம் இன்னும் சாப்பிடப் பாதுகாப்பானதா?',
+      'chat_suggestion_already_sprayed': 'நான் கடந்த வாரம் தெளித்துவிட்டேன். இப்போது என்ன செய்வது?',
+      'chat_suggestion_prevent': 'இது மீண்டும் நிகழாமல் தடுப்பது எப்படி?',
+      'chat_offline_msg':
+          'உங்கள் கேள்வியை அனுப்ப முடியவில்லை. அது இங்கே சேமிக்கப்பட்டுள்ளது — இணைப்பு கிடைக்கும்போது மீண்டும் முயற்சிக்கவும்.',
+      'chat_rate_limited_msg':
+          'குறுகிய நேரத்தில் அதிகமான கேள்விகள். சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும்.',
+      'chat_server_error_msg':
+          'இப்போது பதிலைப் பெற முடியவில்லை. உங்கள் கேள்வி சேமிக்கப்பட்டுள்ளது — சிறிது நேரத்தில் மீண்டும் முயற்சிக்கவும்.',
       'speak_observations': 'தட்டச்சு செய்வதற்குப் பதிலாகப் பேசுங்கள்',
       'mic_stop': 'நிறுத்து',
       'mic_permission_denied':

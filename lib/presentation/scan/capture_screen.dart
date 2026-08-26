@@ -26,6 +26,9 @@ import '../../data/local/database/app_database.dart';
 import '../../data/repositories/scan_repository_impl.dart';
 import '../../domain/entities/local_user.dart';
 import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import '../../domain/usecases/chat/delete_chat_message_use_case.dart';
+import '../../domain/usecases/chat/get_chat_history_use_case.dart';
+import '../../domain/usecases/chat/send_chat_message_use_case.dart';
 import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -51,6 +54,9 @@ class CaptureScreen extends StatefulWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
 
@@ -66,6 +72,9 @@ class CaptureScreen extends StatefulWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
   });
@@ -105,6 +114,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       initialTempImagePath: widget.initialTempImagePath,
       resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
       getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+      getChatHistoryUseCase: widget.getChatHistoryUseCase,
+      sendChatMessageUseCase: widget.sendChatMessageUseCase,
+      deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
       getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
       createEscalationUseCase: widget.createEscalationUseCase,
     );
@@ -154,6 +166,9 @@ class _CaptureView extends StatefulWidget {
   final String? initialTempImagePath;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
 
@@ -165,6 +180,9 @@ class _CaptureView extends StatefulWidget {
     this.initialTempImagePath,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
   });
@@ -271,6 +289,9 @@ class _CaptureViewState extends State<_CaptureView> {
                 diagnosis: state.diagnosis,
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
                 getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+                getChatHistoryUseCase: widget.getChatHistoryUseCase,
+                sendChatMessageUseCase: widget.sendChatMessageUseCase,
+                deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
         getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
                 createEscalationUseCase: widget.createEscalationUseCase,
               ),

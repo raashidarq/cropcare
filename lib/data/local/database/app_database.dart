@@ -29,6 +29,7 @@ part 'app_database.g.dart';
   SyncOperationTable,
   DiseaseExplanationTable,
   DiseaseConfusionTable,
+  ChatMessageTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -38,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -69,6 +70,11 @@ class AppDatabase extends _$AppDatabase {
             // nothing to backfill here.
             await m.createTable(diseaseExplanationTable);
             await m.createTable(diseaseConfusionTable);
+          }
+          if (from < 7) {
+            // Follow-up chat about a diagnosis. Nothing to backfill: a device
+            // upgrading has no prior conversations.
+            await m.createTable(chatMessageTable);
           }
 
           // Indexes were previously only created in onCreate, so ANY device
@@ -110,6 +116,9 @@ class AppDatabase extends _$AppDatabase {
           'ON sync_operation(entity_id, entity_type)',
       // Looked up by scan when rendering history rows and escalations.
       'CREATE INDEX IF NOT EXISTS idx_escalation_scan ON escalation(scan_id)',
+      // Every chat read is "the transcript for this diagnosis".
+      'CREATE INDEX IF NOT EXISTS idx_chat_message_diagnosis '
+          'ON chat_message(diagnosis_id)',
     ];
     for (final sql in statements) {
       await exec(sql, const []);

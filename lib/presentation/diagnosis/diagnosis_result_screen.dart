@@ -25,6 +25,11 @@ import '../../domain/entities/disease_explanation.dart';
 import '../../domain/entities/scan.dart';
 import '../../domain/entities/treatment.dart';
 import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import '../../application/chat/chat_cubit.dart';
+import '../../domain/usecases/chat/delete_chat_message_use_case.dart';
+import '../../domain/usecases/chat/get_chat_history_use_case.dart';
+import '../../domain/usecases/chat/send_chat_message_use_case.dart';
+import '../chat/chat_screen.dart';
 import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
@@ -41,6 +46,9 @@ class DiagnosisResultScreen extends StatelessWidget {
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
   final SpeechRecognitionService? speechService;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
 
   const DiagnosisResultScreen({
     super.key,
@@ -52,6 +60,9 @@ class DiagnosisResultScreen extends StatelessWidget {
     this.createEscalationUseCase,
     this.ttsService,
     this.speechService,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
   });
 
   @override
@@ -69,6 +80,9 @@ class DiagnosisResultScreen extends StatelessWidget {
           createEscalationUseCase: createEscalationUseCase,
           ttsService: ttsService,
           speechService: speechService,
+          getChatHistoryUseCase: getChatHistoryUseCase,
+          sendChatMessageUseCase: sendChatMessageUseCase,
+          deleteChatMessageUseCase: deleteChatMessageUseCase,
         ),
       );
     }
@@ -80,6 +94,9 @@ class DiagnosisResultScreen extends StatelessWidget {
       createEscalationUseCase: createEscalationUseCase,
       ttsService: ttsService,
       speechService: speechService,
+      getChatHistoryUseCase: getChatHistoryUseCase,
+      sendChatMessageUseCase: sendChatMessageUseCase,
+      deleteChatMessageUseCase: deleteChatMessageUseCase,
     );
   }
 }
@@ -91,6 +108,9 @@ class _DiagnosisResultView extends StatefulWidget {
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
   final SpeechRecognitionService? speechService;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
 
   const _DiagnosisResultView({
     required this.scan,
@@ -99,6 +119,9 @@ class _DiagnosisResultView extends StatefulWidget {
     this.createEscalationUseCase,
     this.ttsService,
     this.speechService,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
   });
 
   @override
@@ -228,6 +251,44 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
     );
   }
 
+  /// Opens the follow-up conversation for this diagnosis.
+  ///
+  /// A full screen rather than an inline expander: the result screen is
+  /// already long, and a conversation needs the height.
+  void _openChat(BuildContext context) {
+    final getHistory = widget.getChatHistoryUseCase;
+    final send = widget.sendChatMessageUseCase;
+    if (getHistory == null || send == null) return;
+
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
+
+    // Whatever guidance is currently on screen goes with the question, so the
+    // answers cannot contradict what the farmer is looking at.
+    final state = context.read<DiagnosisCubit?>()?.state;
+    final treatmentSummary =
+        state is DiagnosisTreatmentLoaded ? state.treatment.summary : null;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          cubit: ChatCubit(
+            getChatHistoryUseCase: getHistory,
+            sendChatMessageUseCase: send,
+            deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
+            diagnosis: widget.diagnosis,
+            cropId: widget.scan.cropId,
+            languageCode: languageCode,
+            userObservations: _observationsController.text.trim().isNotEmpty
+                ? _observationsController.text.trim()
+                : null,
+            treatmentSummary: treatmentSummary,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isHealthy = widget.diagnosis.isHealthy;
@@ -311,7 +372,17 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
                         onSubmit: () => _fetchTreatment(context),
                         speechService: _speechService,
                       ),
-                      const SizedBox(height: AppSpacing.lg),
+                      const SizedBox(height: AppSpacing.md),
+
+                      // Follow-up questions. Only offered when the use cases
+                      // were threaded through; the entry point is absent
+                      // rather than inert if they were not.
+                      if (widget.getChatHistoryUseCase != null &&
+                          widget.sendChatMessageUseCase != null) ...[
+                        _AskAboutResultCard(onTap: () => _openChat(context)),
+                        const SizedBox(height: AppSpacing.lg),
+                      ] else
+                        const SizedBox(height: AppSpacing.sm),
                     ],
 
                     // 6. Understanding the result, offline.
@@ -1551,6 +1622,30 @@ class _TreatmentPrompt extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// =============================================================================
+// Ask about this result
+// =============================================================================
+
+/// Entry point into the follow-up conversation.
+///
+/// Replaces the inert "coming soon" card that used to sit here.
+class _AskAboutResultCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AskAboutResultCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppActionTile(
+      key: const Key('ask_about_result_card'),
+      icon: Icons.forum_outlined,
+      title: context.tr('chat_with_result_title'),
+      subtitle: context.tr('chat_with_result_desc'),
+      onTap: onTap,
     );
   }
 }

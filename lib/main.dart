@@ -39,6 +39,11 @@ import 'domain/usecases/auth/verify_phone_change_otp_use_case.dart';
 import 'domain/usecases/auth/verify_phone_otp_use_case.dart';
 import 'domain/usecases/crop/get_supported_crops_use_case.dart';
 import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import 'data/remote/chat_api_client.dart';
+import 'data/repositories/chat_repository_impl.dart';
+import 'domain/usecases/chat/delete_chat_message_use_case.dart';
+import 'domain/usecases/chat/get_chat_history_use_case.dart';
+import 'domain/usecases/chat/send_chat_message_use_case.dart';
 import 'domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -180,6 +185,22 @@ void main() async {
   final getLocalTreatmentGuidanceUseCase = GetLocalTreatmentGuidanceUseCase(
     treatmentRepository: treatmentRepository,
   );
+  // Follow-up chat about a diagnosis. The local transcript is authoritative:
+  // the backend keeps no session, so the device's copy is the one that
+  // survives a dropped connection.
+  final chatRepository = ChatRepositoryImpl(
+    db: database,
+    apiClient: ChatApiClient(),
+  );
+  final getChatHistoryUseCase = GetChatHistoryUseCase(
+    chatRepository: chatRepository,
+  );
+  final sendChatMessageUseCase = SendChatMessageUseCase(
+    chatRepository: chatRepository,
+  );
+  final deleteChatMessageUseCase = DeleteChatMessageUseCase(
+    chatRepository: chatRepository,
+  );
   final createEscalationUseCase = CreateEscalationUseCase(
     escalationRepository: escalationRepository,
     scanRepository: scanRepository,
@@ -242,6 +263,9 @@ void main() async {
     runDiagnosisUseCase: runDiagnosisUseCase,
     resolveTreatmentUseCase: resolveTreatmentUseCase,
     getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
+    getChatHistoryUseCase: getChatHistoryUseCase,
+    sendChatMessageUseCase: sendChatMessageUseCase,
+    deleteChatMessageUseCase: deleteChatMessageUseCase,
     getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
     createEscalationUseCase: createEscalationUseCase,
     getScanHistoryUseCase: getScanHistoryUseCase,

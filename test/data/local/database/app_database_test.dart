@@ -15,6 +15,7 @@ const _expectedIndexes = {
   'idx_sync_operation_status',
   'idx_sync_operation_entity',
   'idx_escalation_scan',
+  'idx_chat_message_diagnosis',
 };
 
 Future<Set<String>> _indexNames(AppDatabase db) async {
@@ -60,6 +61,30 @@ Future<void> _rewindToV4(File dbFile) async {
   await seed.close();
 }
 
+/// Rewinds a freshly-created database at [dbFile] so it looks like a genuine
+/// v6 install: chat_message and its index are dropped and user_version is set
+/// back, so reopening runs a real onUpgrade(6 -> 7).
+Future<void> _rewindToV6(File dbFile) async {
+  final seed = AppDatabase.forTesting(NativeDatabase(dbFile));
+  await seed.customSelect('SELECT 1').get();
+
+  await seed.customStatement('DROP INDEX IF EXISTS idx_chat_message_diagnosis');
+  await seed.customStatement('DROP TABLE IF EXISTS chat_message');
+
+  // Assert the rewind took on THIS connection; it cannot be checked after
+  // reopening, because any query on a new connection triggers the migration
+  // being observed.
+  final tables = await seed
+      .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .get();
+  if (tables.map((r) => r.read<String>('name')).contains('chat_message')) {
+    throw StateError('rewind failed, chat_message still present');
+  }
+
+  await seed.customStatement('PRAGMA user_version = 6');
+  await seed.close();
+}
+
 void main() {
   group('AppDatabase schema (fresh install)', () {
     late AppDatabase db;
@@ -73,8 +98,24 @@ void main() {
       await db.close();
     });
 
-    test('schemaVersion is 6', () {
-      expect(db.schemaVersion, 6);
+    test('schemaVersion is 7', () {
+      expect(db.schemaVersion, 7);
+    });
+
+    test('chat_message exists with the columns the chat feature reads',
+        () async {
+      expect(
+        await _columnsOf(db, 'chat_message'),
+        containsAll(<String>[
+          'id',
+          'diagnosis_id',
+          'role',
+          'content',
+          'language_code',
+          'status',
+          'created_at',
+        ]),
+      );
     });
 
     test('creates every expected index', () async {
@@ -163,5 +204,38 @@ void main() {
       );
       await upgraded.close();
     });
+
+    test(
+      'upgrading from v6 adds chat_message and its index, keeping prior rows',
+      () async {
+        final seed = AppDatabase.forTesting(NativeDatabase(dbFile));
+        await seed.customSelect('SELECT 1').get();
+        await seed.customStatement(
+          "INSERT INTO local_user (id, is_guest, created_at, updated_at) "
+          "VALUES ('user-v6', 1, '2026-01-01', '2026-01-01')",
+        );
+        await seed.close();
+
+        await _rewindToV6(dbFile);
+
+        // Reopening runs the real onUpgrade(6 -> 7).
+        final upgraded = AppDatabase.forTesting(NativeDatabase(dbFile));
+        await upgraded.customSelect('SELECT 1').get();
+
+        expect(
+          await _columnsOf(upgraded, 'chat_message'),
+          containsAll(<String>['id', 'diagnosis_id', 'role', 'content']),
+        );
+        // _createIndexes runs on upgrade too, so the new index is not
+        // fresh-install-only - the bug this file already guards against.
+        expect(await _indexNames(upgraded), contains('idx_chat_message_diagnosis'));
+
+        final rows =
+            await upgraded.customSelect('SELECT id FROM local_user').get();
+        expect(rows.map((r) => r.read<String>('id')), contains('user-v6'));
+
+        await upgraded.close();
+      },
+    );
   });
 }

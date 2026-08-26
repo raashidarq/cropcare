@@ -28,6 +28,9 @@ import '../../domain/repositories/crop_repository.dart';
 import '../../domain/repositories/scan_repository.dart';
 import '../../domain/usecases/crop/get_supported_crops_use_case.dart';
 import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
+import '../../domain/usecases/chat/delete_chat_message_use_case.dart';
+import '../../domain/usecases/chat/get_chat_history_use_case.dart';
+import '../../domain/usecases/chat/send_chat_message_use_case.dart';
 import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -108,6 +111,9 @@ class HomeScreen extends StatefulWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final GetScanHistoryUseCase? getScanHistoryUseCase;
@@ -129,6 +135,9 @@ class HomeScreen extends StatefulWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.getScanHistoryUseCase,
@@ -183,6 +192,9 @@ class _HomeScreenState extends State<HomeScreen> {
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
         resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
         getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+        getChatHistoryUseCase: widget.getChatHistoryUseCase,
+        sendChatMessageUseCase: widget.sendChatMessageUseCase,
+        deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
         getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
         createEscalationUseCase: widget.createEscalationUseCase,
         exportScanHistoryUseCase: widget.exportScanHistoryUseCase,
@@ -203,6 +215,9 @@ class _AppShell extends StatefulWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetChatHistoryUseCase? getChatHistoryUseCase;
+  final SendChatMessageUseCase? sendChatMessageUseCase;
+  final DeleteChatMessageUseCase? deleteChatMessageUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final ExportScanHistoryUseCase? exportScanHistoryUseCase;
@@ -219,6 +234,9 @@ class _AppShell extends StatefulWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getChatHistoryUseCase,
+    this.sendChatMessageUseCase,
+    this.deleteChatMessageUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.exportScanHistoryUseCase,
@@ -265,6 +283,9 @@ class _AppShellState extends State<_AppShell> {
           runDiagnosisUseCase: widget.runDiagnosisUseCase,
           resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
           getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+          getChatHistoryUseCase: widget.getChatHistoryUseCase,
+          sendChatMessageUseCase: widget.sendChatMessageUseCase,
+          deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
         getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
           createEscalationUseCase: widget.createEscalationUseCase,
         ),
@@ -285,6 +306,9 @@ class _AppShellState extends State<_AppShell> {
                 diagnosis: diagnosis,
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
                 getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+                getChatHistoryUseCase: widget.getChatHistoryUseCase,
+                sendChatMessageUseCase: widget.sendChatMessageUseCase,
+                deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
         getDiseaseExplanationUseCase: widget.getDiseaseExplanationUseCase,
                 createEscalationUseCase: widget.createEscalationUseCase,
               ),

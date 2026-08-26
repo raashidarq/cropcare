@@ -7483,6 +7483,489 @@ class DiseaseConfusionTableCompanion
   }
 }
 
+class $ChatMessageTableTable extends ChatMessageTable
+    with TableInfo<$ChatMessageTableTable, ChatMessageTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChatMessageTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _diagnosisIdMeta = const VerificationMeta(
+    'diagnosisId',
+  );
+  @override
+  late final GeneratedColumn<String> diagnosisId = GeneratedColumn<String>(
+    'diagnosis_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES diagnosis (id)',
+    ),
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _languageCodeMeta = const VerificationMeta(
+    'languageCode',
+  );
+  @override
+  late final GeneratedColumn<String> languageCode = GeneratedColumn<String>(
+    'language_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('SENT'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<String> createdAt = GeneratedColumn<String>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    diagnosisId,
+    role,
+    content,
+    languageCode,
+    status,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chat_message';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChatMessageTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('diagnosis_id')) {
+      context.handle(
+        _diagnosisIdMeta,
+        diagnosisId.isAcceptableOrUnknown(
+          data['diagnosis_id']!,
+          _diagnosisIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_diagnosisIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('language_code')) {
+      context.handle(
+        _languageCodeMeta,
+        languageCode.isAcceptableOrUnknown(
+          data['language_code']!,
+          _languageCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_languageCodeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChatMessageTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChatMessageTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      diagnosisId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diagnosis_id'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      languageCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language_code'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ChatMessageTableTable createAlias(String alias) {
+    return $ChatMessageTableTable(attachedDatabase, alias);
+  }
+}
+
+class ChatMessageTableData extends DataClass
+    implements Insertable<ChatMessageTableData> {
+  final String id;
+  final String diagnosisId;
+
+  /// 'USER' | 'ASSISTANT'
+  final String role;
+  final String content;
+
+  /// The language the exchange happened in. Kept per message because a farmer
+  /// can change language mid-conversation, and a Sinhala answer rendered under
+  /// a Tamil heading is worse than one that says which language it is in.
+  final String languageCode;
+
+  /// 'PENDING' | 'SENT' | 'FAILED'
+  ///
+  /// Only ever non-SENT on a USER message: a question typed with no signal is
+  /// kept and marked, so it is visibly still there rather than silently lost.
+  final String status;
+  final String createdAt;
+  const ChatMessageTableData({
+    required this.id,
+    required this.diagnosisId,
+    required this.role,
+    required this.content,
+    required this.languageCode,
+    required this.status,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['diagnosis_id'] = Variable<String>(diagnosisId);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    map['language_code'] = Variable<String>(languageCode);
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<String>(createdAt);
+    return map;
+  }
+
+  ChatMessageTableCompanion toCompanion(bool nullToAbsent) {
+    return ChatMessageTableCompanion(
+      id: Value(id),
+      diagnosisId: Value(diagnosisId),
+      role: Value(role),
+      content: Value(content),
+      languageCode: Value(languageCode),
+      status: Value(status),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ChatMessageTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChatMessageTableData(
+      id: serializer.fromJson<String>(json['id']),
+      diagnosisId: serializer.fromJson<String>(json['diagnosisId']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      languageCode: serializer.fromJson<String>(json['languageCode']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<String>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'diagnosisId': serializer.toJson<String>(diagnosisId),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'languageCode': serializer.toJson<String>(languageCode),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<String>(createdAt),
+    };
+  }
+
+  ChatMessageTableData copyWith({
+    String? id,
+    String? diagnosisId,
+    String? role,
+    String? content,
+    String? languageCode,
+    String? status,
+    String? createdAt,
+  }) => ChatMessageTableData(
+    id: id ?? this.id,
+    diagnosisId: diagnosisId ?? this.diagnosisId,
+    role: role ?? this.role,
+    content: content ?? this.content,
+    languageCode: languageCode ?? this.languageCode,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ChatMessageTableData copyWithCompanion(ChatMessageTableCompanion data) {
+    return ChatMessageTableData(
+      id: data.id.present ? data.id.value : this.id,
+      diagnosisId: data.diagnosisId.present
+          ? data.diagnosisId.value
+          : this.diagnosisId,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      languageCode: data.languageCode.present
+          ? data.languageCode.value
+          : this.languageCode,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatMessageTableData(')
+          ..write('id: $id, ')
+          ..write('diagnosisId: $diagnosisId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('languageCode: $languageCode, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    diagnosisId,
+    role,
+    content,
+    languageCode,
+    status,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChatMessageTableData &&
+          other.id == this.id &&
+          other.diagnosisId == this.diagnosisId &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.languageCode == this.languageCode &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt);
+}
+
+class ChatMessageTableCompanion extends UpdateCompanion<ChatMessageTableData> {
+  final Value<String> id;
+  final Value<String> diagnosisId;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<String> languageCode;
+  final Value<String> status;
+  final Value<String> createdAt;
+  final Value<int> rowid;
+  const ChatMessageTableCompanion({
+    this.id = const Value.absent(),
+    this.diagnosisId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.languageCode = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChatMessageTableCompanion.insert({
+    required String id,
+    required String diagnosisId,
+    required String role,
+    required String content,
+    required String languageCode,
+    this.status = const Value.absent(),
+    required String createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       diagnosisId = Value(diagnosisId),
+       role = Value(role),
+       content = Value(content),
+       languageCode = Value(languageCode),
+       createdAt = Value(createdAt);
+  static Insertable<ChatMessageTableData> custom({
+    Expression<String>? id,
+    Expression<String>? diagnosisId,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<String>? languageCode,
+    Expression<String>? status,
+    Expression<String>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (diagnosisId != null) 'diagnosis_id': diagnosisId,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (languageCode != null) 'language_code': languageCode,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChatMessageTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? diagnosisId,
+    Value<String>? role,
+    Value<String>? content,
+    Value<String>? languageCode,
+    Value<String>? status,
+    Value<String>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ChatMessageTableCompanion(
+      id: id ?? this.id,
+      diagnosisId: diagnosisId ?? this.diagnosisId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      languageCode: languageCode ?? this.languageCode,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (diagnosisId.present) {
+      map['diagnosis_id'] = Variable<String>(diagnosisId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (languageCode.present) {
+      map['language_code'] = Variable<String>(languageCode.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<String>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatMessageTableCompanion(')
+          ..write('id: $id, ')
+          ..write('diagnosisId: $diagnosisId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('languageCode: $languageCode, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7507,6 +7990,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $DiseaseExplanationTableTable(this);
   late final $DiseaseConfusionTableTable diseaseConfusionTable =
       $DiseaseConfusionTableTable(this);
+  late final $ChatMessageTableTable chatMessageTable = $ChatMessageTableTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7525,6 +8011,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncOperationTable,
     diseaseExplanationTable,
     diseaseConfusionTable,
+    chatMessageTable,
   ];
 }
 
@@ -11638,6 +12125,26 @@ final class $$DiagnosisTableTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ChatMessageTableTable, List<ChatMessageTableData>>
+  _chatMessageTableRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.chatMessageTable,
+    aliasName: 'diagnosis__id__chat_message__diagnosis_id',
+  );
+
+  $$ChatMessageTableTableProcessedTableManager get chatMessageTableRefs {
+    final manager = $$ChatMessageTableTableTableManager(
+      $_db,
+      $_db.chatMessageTable,
+    ).filter((f) => f.diagnosisId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _chatMessageTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$DiagnosisTableTableFilterComposer
@@ -11798,6 +12305,31 @@ class $$DiagnosisTableTableFilterComposer
           }) => $$EscalationTableTableFilterComposer(
             $db: $db,
             $table: $db.escalationTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> chatMessageTableRefs(
+    Expression<bool> Function($$ChatMessageTableTableFilterComposer f) f,
+  ) {
+    final $$ChatMessageTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.chatMessageTable,
+      getReferencedColumn: (t) => t.diagnosisId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChatMessageTableTableFilterComposer(
+            $db: $db,
+            $table: $db.chatMessageTable,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12114,6 +12646,31 @@ class $$DiagnosisTableTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> chatMessageTableRefs<T extends Object>(
+    Expression<T> Function($$ChatMessageTableTableAnnotationComposer a) f,
+  ) {
+    final $$ChatMessageTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.chatMessageTable,
+      getReferencedColumn: (t) => t.diagnosisId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChatMessageTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.chatMessageTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$DiagnosisTableTableTableManager
@@ -12135,6 +12692,7 @@ class $$DiagnosisTableTableTableManager
             bool modelVersionId,
             bool treatmentGuidelineId,
             bool escalationTableRefs,
+            bool chatMessageTableRefs,
           })
         > {
   $$DiagnosisTableTableTableManager(
@@ -12225,11 +12783,13 @@ class $$DiagnosisTableTableTableManager
                 modelVersionId = false,
                 treatmentGuidelineId = false,
                 escalationTableRefs = false,
+                chatMessageTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (escalationTableRefs) db.escalationTable,
+                    if (chatMessageTableRefs) db.chatMessageTable,
                   ],
                   addJoins:
                       <
@@ -12333,6 +12893,27 @@ class $$DiagnosisTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (chatMessageTableRefs)
+                        await $_getPrefetchedData<
+                          DiagnosisTableData,
+                          $DiagnosisTableTable,
+                          ChatMessageTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DiagnosisTableTableReferences
+                              ._chatMessageTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DiagnosisTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).chatMessageTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.diagnosisId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -12359,6 +12940,7 @@ typedef $$DiagnosisTableTableProcessedTableManager =
         bool modelVersionId,
         bool treatmentGuidelineId,
         bool escalationTableRefs,
+        bool chatMessageTableRefs,
       })
     >;
 typedef $$EscalationTableTableCreateCompanionBuilder =
@@ -14143,6 +14725,377 @@ typedef $$DiseaseConfusionTableTableProcessedTableManager =
       DiseaseConfusionTableData,
       PrefetchHooks Function({bool diseaseId, bool confusedWithDiseaseId})
     >;
+typedef $$ChatMessageTableTableCreateCompanionBuilder =
+    ChatMessageTableCompanion Function({
+      required String id,
+      required String diagnosisId,
+      required String role,
+      required String content,
+      required String languageCode,
+      Value<String> status,
+      required String createdAt,
+      Value<int> rowid,
+    });
+typedef $$ChatMessageTableTableUpdateCompanionBuilder =
+    ChatMessageTableCompanion Function({
+      Value<String> id,
+      Value<String> diagnosisId,
+      Value<String> role,
+      Value<String> content,
+      Value<String> languageCode,
+      Value<String> status,
+      Value<String> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ChatMessageTableTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ChatMessageTableTable,
+          ChatMessageTableData
+        > {
+  $$ChatMessageTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DiagnosisTableTable _diagnosisIdTable(_$AppDatabase db) => db
+      .diagnosisTable
+      .createAlias('chat_message__diagnosis_id__diagnosis__id');
+
+  $$DiagnosisTableTableProcessedTableManager get diagnosisId {
+    final $_column = $_itemColumn<String>('diagnosis_id')!;
+
+    final manager = $$DiagnosisTableTableTableManager(
+      $_db,
+      $_db.diagnosisTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_diagnosisIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ChatMessageTableTableFilterComposer
+    extends Composer<_$AppDatabase, $ChatMessageTableTable> {
+  $$ChatMessageTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languageCode => $composableBuilder(
+    column: $table.languageCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DiagnosisTableTableFilterComposer get diagnosisId {
+    final $$DiagnosisTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableFilterComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChatMessageTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChatMessageTableTable> {
+  $$ChatMessageTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languageCode => $composableBuilder(
+    column: $table.languageCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DiagnosisTableTableOrderingComposer get diagnosisId {
+    final $$DiagnosisTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChatMessageTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChatMessageTableTable> {
+  $$ChatMessageTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get languageCode => $composableBuilder(
+    column: $table.languageCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$DiagnosisTableTableAnnotationComposer get diagnosisId {
+    final $$DiagnosisTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.diagnosisId,
+      referencedTable: $db.diagnosisTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DiagnosisTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.diagnosisTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChatMessageTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChatMessageTableTable,
+          ChatMessageTableData,
+          $$ChatMessageTableTableFilterComposer,
+          $$ChatMessageTableTableOrderingComposer,
+          $$ChatMessageTableTableAnnotationComposer,
+          $$ChatMessageTableTableCreateCompanionBuilder,
+          $$ChatMessageTableTableUpdateCompanionBuilder,
+          (ChatMessageTableData, $$ChatMessageTableTableReferences),
+          ChatMessageTableData,
+          PrefetchHooks Function({bool diagnosisId})
+        > {
+  $$ChatMessageTableTableTableManager(
+    _$AppDatabase db,
+    $ChatMessageTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChatMessageTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChatMessageTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChatMessageTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> diagnosisId = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> languageCode = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatMessageTableCompanion(
+                id: id,
+                diagnosisId: diagnosisId,
+                role: role,
+                content: content,
+                languageCode: languageCode,
+                status: status,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String diagnosisId,
+                required String role,
+                required String content,
+                required String languageCode,
+                Value<String> status = const Value.absent(),
+                required String createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ChatMessageTableCompanion.insert(
+                id: id,
+                diagnosisId: diagnosisId,
+                role: role,
+                content: content,
+                languageCode: languageCode,
+                status: status,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ChatMessageTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({diagnosisId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (diagnosisId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.diagnosisId,
+                                referencedTable:
+                                    $$ChatMessageTableTableReferences
+                                        ._diagnosisIdTable(db),
+                                referencedColumn:
+                                    $$ChatMessageTableTableReferences
+                                        ._diagnosisIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ChatMessageTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChatMessageTableTable,
+      ChatMessageTableData,
+      $$ChatMessageTableTableFilterComposer,
+      $$ChatMessageTableTableOrderingComposer,
+      $$ChatMessageTableTableAnnotationComposer,
+      $$ChatMessageTableTableCreateCompanionBuilder,
+      $$ChatMessageTableTableUpdateCompanionBuilder,
+      (ChatMessageTableData, $$ChatMessageTableTableReferences),
+      ChatMessageTableData,
+      PrefetchHooks Function({bool diagnosisId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -14179,4 +15132,6 @@ class $AppDatabaseManager {
       );
   $$DiseaseConfusionTableTableTableManager get diseaseConfusionTable =>
       $$DiseaseConfusionTableTableTableManager(_db, _db.diseaseConfusionTable);
+  $$ChatMessageTableTableTableManager get chatMessageTable =>
+      $$ChatMessageTableTableTableManager(_db, _db.chatMessageTable);
 }

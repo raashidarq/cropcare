@@ -458,3 +458,42 @@ class DiseaseConfusionTable extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ============================================================
+// CHAT MESSAGE — follow-up questions about one diagnosis
+// ============================================================
+//
+// The local transcript is the authoritative one. The backend keeps no session:
+// the app is offline-first, so a conversation has to survive a dropped
+// connection, an app restart, and a device that has been in a field with no
+// signal for a week. Every read is by diagnosis.
+class ChatMessageTable extends Table {
+  @override
+  String get tableName => 'chat_message';
+
+  TextColumn get id => text()();
+
+  TextColumn get diagnosisId =>
+      text().references(DiagnosisTable, #id)();
+
+  /// 'USER' | 'ASSISTANT'
+  TextColumn get role => text()();
+
+  TextColumn get content => text()();
+
+  /// The language the exchange happened in. Kept per message because a farmer
+  /// can change language mid-conversation, and a Sinhala answer rendered under
+  /// a Tamil heading is worse than one that says which language it is in.
+  TextColumn get languageCode => text()();
+
+  /// 'PENDING' | 'SENT' | 'FAILED'
+  ///
+  /// Only ever non-SENT on a USER message: a question typed with no signal is
+  /// kept and marked, so it is visibly still there rather than silently lost.
+  TextColumn get status => text().withDefault(const Constant('SENT'))();
+
+  TextColumn get createdAt => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
