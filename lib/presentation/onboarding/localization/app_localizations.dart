@@ -181,7 +181,7 @@ class AppLocalizations {
           '1. Purpose\nCropCare is an AI-powered advisory tool designed to assist farmers in early disease detection. It does not replace professional agronomist advice.\n\n2. AI Accuracy & Advice\nDiagnosis results are probabilistic. Always verify chemical treatments with local agricultural extension officers before application.\n\n3. User Conduct\nYou agree to capture relevant plant leaf images and not misuse the cloud sync or WhatsApp escalation features.',
       'privacy_content_title': 'CropCare Privacy Policy',
       'privacy_content_body':
-          '1. Data Collection\nWe only collect crop photos you capture, diagnosis history, and account identifiers (email or phone number) if you choose to sign up.\n\n2. Local-First Processing\nYour scan history is stored locally on your device in an offline database. Data is only transmitted to the cloud when you choose to synchronize.\n\n3. No Third-Party Selling\nWe never sell your personal data, farm location, or scan history to third parties.',
+          '1. Data Collection\nWe only collect crop photos you capture, diagnosis history, and account identifiers (email or phone number) if you choose to sign up.\n\n2. Voice Input\nIf you speak your observations instead of typing them, your phone turns the speech into text. CropCare receives only that text, never a recording. No audio is saved on your phone or sent to us.\n\n3. Local-First Processing\nYour scan history is stored locally on your device in an offline database. Data is only transmitted to the cloud when you choose to synchronize.\n\n4. No Third-Party Selling\nWe never sell your personal data, farm location, or scan history to third parties.',
       'pick_from_gallery': 'Choose from Gallery',
       'gallery_button_label': 'Gallery',
       'export_data_title': 'Export Scan History',
@@ -383,6 +383,15 @@ class AppLocalizations {
       'chat_with_result_title': 'Ask about this result',
       'chat_with_result_desc': 'Ask follow-up questions about this diagnosis in your own words.',
       'speak_observations': 'Speak instead of typing',
+      'mic_stop': 'Stop',
+      'mic_permission_denied':
+          'CropCare needs the microphone to hear what you say. You can still type instead.',
+      'mic_permission_blocked':
+          'Microphone access is turned off for CropCare. Turn it on in settings, or type instead.',
+      'mic_unavailable':
+          'This phone cannot listen for speech. You can type instead.',
+      'mic_language_missing':
+          'This phone cannot yet listen in your language. You can type instead.',
       'coming_soon_msg': 'This feature is not ready yet.',
       'whatsapp_share_opened': 'WhatsApp opened. Send the message to share your scan.',
       'share_failed': 'Could not open sharing. Please try again.',
@@ -607,7 +616,7 @@ class AppLocalizations {
           '1. අරමුණ\nCropCare යනු ගොවීන්ට රෝග හඳුනාගැනීමට සහාය වන AI මෙවලමකි. එය වෘත්තීය කෘෂි උපදෙස් වෙනුවට සම්පූර්ණ ආදේශකයක් නොවේ.\n\n2. AI නිරවද්‍යතාව\nරසායනික ප්‍රතිකාර යෙදීමට පෙර ප්‍රාදේශීය කෘෂිකර්ම නිලධාරීන්ගෙන් තහවුරු කරගන්න.\n\n3. පරිශීලක වගකීම\nඔබ අදාළ බෝග ඡායාරූප පමණක් ලබා ගැනීමට එකඟ වේ.',
       'privacy_content_title': 'CropCare පෞද්ගලිකත්ව ප්‍රතිපත්තිය',
       'privacy_content_body':
-          '1. දත්ත රැස් කිරීම\nඅපි ඔබ ලබාගන්නා බෝග ඡායාරූප, රෝග ඉතිහාසය සහ ගිණුම් විස්තර පමණක් ලබා ගනිමු.\n\n2. දේශීය දත්ත ගබඩා කිරීම\nඔබේ ස්කෑන් ඉතිහාසය ඔබේ දුරකථනයේ ආරක්ෂිතව සුරැකේ.\n\n3. තෙවන පාර්ශවයන්ට ලබා නොදීම\nඅපි කිසිවිටෙකත් ඔබගේ පෞද්ගලික දත්ත තෙවන පාර්ශවයන්ට විකුණන්නේ නැත.',
+          '1. දත්ත රැස් කිරීම\nඅපි ඔබ ලබාගන්නා බෝග ඡායාරූප, රෝග ඉතිහාසය සහ ගිණුම් විස්තර පමණක් ලබා ගනිමු.\n\n2. හඬ ආදානය\nඔබ ටයිප් කරනවා වෙනුවට ඔබේ නිරීක්ෂණ කථා කරන්නේ නම්, ඔබේ දුරකථනය එය පෙළට හරවයි. CropCare හට ලැබෙන්නේ එම පෙළ පමණි, පටිගත කිරීමක් නොවේ. කිසිදු හඬක් ඔබේ දුරකථනයේ සුරැකෙන්නේ හෝ අප වෙත එවන්නේ නැත.\n\n3. දේශීය දත්ත ගබඩා කිරීම\nඔබේ ස්කෑන් ඉතිහාසය ඔබේ දුරකථනයේ ආරක්ෂිතව සුරැකේ.\n\n4. තෙවන පාර්ශවයන්ට ලබා නොදීම\nඅපි කිසිවිටෙකත් ඔබගේ පෞද්ගලික දත්ත තෙවන පාර්ශවයන්ට විකුණන්නේ නැත.',
       'pick_from_gallery': 'ගැලරියෙන් තෝරන්න',
       'gallery_button_label': 'ගැලරිය',
       'export_data_title': 'ස්කෑන් ඉතිහාසය පිටපත් කරන්න',
@@ -806,6 +815,15 @@ class AppLocalizations {
       'chat_with_result_title': 'මෙම ප්‍රතිඵලය ගැන අසන්න',
       'chat_with_result_desc': 'මෙම රෝග විනිශ්චය ගැන ඔබගේම වචන වලින් තවත් ප්‍රශ්න අසන්න.',
       'speak_observations': 'ටයිප් කරනවා වෙනුවට කථා කරන්න',
+      'mic_stop': 'නවත්වන්න',
+      'mic_permission_denied':
+          'ඔබ කියන දේ ඇසීමට CropCare හට මයික්‍රොෆෝනය අවශ්‍යයි. ඒ වෙනුවට ටයිප් කිරීමටද හැකිය.',
+      'mic_permission_blocked':
+          'CropCare සඳහා මයික්‍රොෆෝන ප්‍රවේශය අක්‍රියයි. සැකසුම්වලින් එය සක්‍රිය කරන්න, නැතහොත් ටයිප් කරන්න.',
+      'mic_unavailable':
+          'මෙම දුරකථනයට කථනය ඇසීමට නොහැක. ඒ වෙනුවට ටයිප් කරන්න.',
+      'mic_language_missing':
+          'මෙම දුරකථනයට තවම ඔබගේ භාෂාවෙන් ඇසීමට නොහැක. ඒ වෙනුවට ටයිප් කරන්න.',
       'coming_soon_msg': 'මෙම විශේෂාංගය තවම සූදානම් නැත.',
       'whatsapp_share_opened': 'WhatsApp විවෘත විය. ඔබගේ ස්කෑන් බෙදා ගැනීමට පණිවිඩය යවන්න.',
       'share_failed': 'බෙදාගැනීම විවෘත කළ නොහැකි විය. නැවත උත්සාහ කරන්න.',
@@ -1031,7 +1049,7 @@ class AppLocalizations {
           '1. நோக்கம்\nCropCare என்பது விவசாயிகளுக்கு ஆரம்பகால நோய் கண்டறிதலில் உதவும் AI கருவியாகும். இது தொழில்முறை விவசாய ஆலோசனையை மாற்றாது.\n\n2. AI துல்லியம்\nஇரசாயன சிகிச்சைகளைப் பயன்படுத்துவதற்கு முன் உள்ளூர் விவசாய அதிகாரிகளுடன் சரிபார்க்கவும்.\n\n3. பயனர் நடத்தை\nதொடர்புடைய இலை புகைப்படங்களை மட்டுமே எடுக்க ஒப்புக்கொள்கிறீர்கள்.',
       'privacy_content_title': 'CropCare தனியுரிமைக் கொள்கை',
       'privacy_content_body':
-          '1. தரவு சேகரிப்பு\nநீங்கள் எடுக்கும் பயிர் புகைப்படங்கள், நோய் வரலாறு மற்றும் கணக்கு விவரங்களை மட்டுமே சேகரிக்கிறோம்.\n\n2. சாதனத்திலேயே சேமிப்பு\nஉங்கள் ஸ்கேன் வரலாறு உங்கள் தொலைபேசியிலேயே பாதுகாப்பாக சேமிக்கப்படும்.\n\n3. மூன்றாம் தரப்பினருக்கு வழங்கப்படாது\nஉங்கள் தனிப்பட்ட தகவல்களை நாங்கள் ஒருபோதும் விற்பனை செய்வதில்லை.',
+          '1. தரவு சேகரிப்பு\nநீங்கள் எடுக்கும் பயிர் புகைப்படங்கள், நோய் வரலாறு மற்றும் கணக்கு விவரங்களை மட்டுமே சேகரிக்கிறோம்.\n\n2. குரல் உள்ளீடு\nநீங்கள் தட்டச்சு செய்வதற்குப் பதிலாக உங்கள் அவதானிப்புகளைப் பேசினால், உங்கள் தொலைபேசி அதை உரையாக மாற்றும். CropCare-க்கு அந்த உரை மட்டுமே கிடைக்கும், பதிவு அல்ல. எந்த ஒலிப்பதிவும் உங்கள் தொலைபேசியில் சேமிக்கப்படுவதில்லை, எங்களுக்கும் அனுப்பப்படுவதில்லை.\n\n3. சாதனத்திலேயே சேமிப்பு\nஉங்கள் ஸ்கேன் வரலாறு உங்கள் தொலைபேசியிலேயே பாதுகாப்பாக சேமிக்கப்படும்.\n\n4. மூன்றாம் தரப்பினருக்கு வழங்கப்படாது\nஉங்கள் தனிப்பட்ட தகவல்களை நாங்கள் ஒருபோதும் விற்பனை செய்வதில்லை.',
       'pick_from_gallery': 'கேலரியில் இருந்து தேர்ந்தெடுக்கவும்',
       'gallery_button_label': 'கேலரி',
       'export_data_title': 'ஸ்கேன் வரலாற்றை ஏற்றுமதி செய்க',
@@ -1230,6 +1248,15 @@ class AppLocalizations {
       'chat_with_result_title': 'இந்த முடிவு பற்றிக் கேளுங்கள்',
       'chat_with_result_desc': 'இந்த நோயறிதல் குறித்து உங்கள் சொந்த வார்த்தைகளில் கேள்விகள் கேளுங்கள்.',
       'speak_observations': 'தட்டச்சு செய்வதற்குப் பதிலாகப் பேசுங்கள்',
+      'mic_stop': 'நிறுத்து',
+      'mic_permission_denied':
+          'நீங்கள் சொல்வதைக் கேட்க CropCare-க்கு ஒலிவாங்கி தேவை. அதற்குப் பதிலாக தட்டச்சு செய்யவும் முடியும்.',
+      'mic_permission_blocked':
+          'CropCare-க்கான ஒலிவாங்கி அணுகல் முடக்கப்பட்டுள்ளது. அமைப்புகளில் இயக்கவும், அல்லது தட்டச்சு செய்யவும்.',
+      'mic_unavailable':
+          'இந்தத் தொலைபேசியால் பேச்சைக் கேட்க முடியாது. அதற்குப் பதிலாக தட்டச்சு செய்யவும்.',
+      'mic_language_missing':
+          'இந்தத் தொலைபேசியால் இன்னும் உங்கள் மொழியில் கேட்க முடியாது. அதற்குப் பதிலாக தட்டச்சு செய்யவும்.',
       'coming_soon_msg': 'இந்த அம்சம் இன்னும் தயாராகவில்லை.',
       'whatsapp_share_opened': 'WhatsApp திறக்கப்பட்டது. உங்கள் ஸ்கேனைப் பகிர செய்தியை அனுப்பவும்.',
       'share_failed': 'பகிர்வைத் திறக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',

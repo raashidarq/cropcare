@@ -16,6 +16,7 @@ import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/app_haptics.dart';
 import '../../data/local/database/app_database.dart';
+import '../../data/local/speech/speech_recognition_service.dart';
 import '../../data/local/tts/text_to_speech_service.dart';
 import '../../data/repositories/escalation_repository_impl.dart';
 import '../../data/repositories/scan_repository_impl.dart';
@@ -39,6 +40,7 @@ class DiagnosisResultScreen extends StatelessWidget {
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
+  final SpeechRecognitionService? speechService;
 
   const DiagnosisResultScreen({
     super.key,
@@ -49,6 +51,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
+    this.speechService,
   });
 
   @override
@@ -65,6 +68,7 @@ class DiagnosisResultScreen extends StatelessWidget {
           getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
           createEscalationUseCase: createEscalationUseCase,
           ttsService: ttsService,
+          speechService: speechService,
         ),
       );
     }
@@ -75,6 +79,7 @@ class DiagnosisResultScreen extends StatelessWidget {
       getDiseaseExplanationUseCase: getDiseaseExplanationUseCase,
       createEscalationUseCase: createEscalationUseCase,
       ttsService: ttsService,
+      speechService: speechService,
     );
   }
 }
@@ -85,6 +90,7 @@ class _DiagnosisResultView extends StatefulWidget {
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
+  final SpeechRecognitionService? speechService;
 
   const _DiagnosisResultView({
     required this.scan,
@@ -92,6 +98,7 @@ class _DiagnosisResultView extends StatefulWidget {
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
+    this.speechService,
   });
 
   @override
@@ -101,6 +108,7 @@ class _DiagnosisResultView extends StatefulWidget {
 class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   final TextEditingController _observationsController = TextEditingController();
   late final TtsService _ttsService;
+  late final SpeechRecognitionService _speechService;
 
   /// Offline explanation content, loaded once on open. A Future rather than
   /// cubit state because it is a single local read with no transitions worth
@@ -112,6 +120,8 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   void initState() {
     super.initState();
     _ttsService = widget.ttsService ?? TextToSpeechService();
+    _speechService =
+        widget.speechService ?? DeviceSpeechRecognitionService();
   }
 
   @override
@@ -156,6 +166,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
   @override
   void dispose() {
     _ttsService.dispose();
+    _speechService.dispose();
     _observationsController.dispose();
     super.dispose();
   }
@@ -298,6 +309,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
                       _ObservationsCard(
                         controller: _observationsController,
                         onSubmit: () => _fetchTreatment(context),
+                        speechService: _speechService,
                       ),
                       const SizedBox(height: AppSpacing.lg),
                     ],
@@ -648,69 +660,228 @@ class _HealthyCard extends StatelessWidget {
 /// anything, and the text only did something if they later pressed a separate
 /// button further down. It now sits below the guidance and carries the button
 /// that acts on it, so the box has a visible purpose at the point of asking.
-class _ObservationsCard extends StatelessWidget {
+///
+/// The mic is the more important of the two inputs. Typing is the worst
+/// interaction in this app for its audience — Sinhala and Tamil keyboards are
+/// slow, and the farmer is usually one-handed in a field — so speaking is the
+/// path this card is really built around. It is offered only when the device
+/// can actually transcribe the active language: an English-only mic button
+/// would serve exactly the users who least need it.
+class _ObservationsCard extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSubmit;
+  final SpeechRecognitionService? speechService;
 
-  const _ObservationsCard({required this.controller, required this.onSubmit});
+  const _ObservationsCard({
+    required this.controller,
+    required this.onSubmit,
+    this.speechService,
+  });
+
+  @override
+  State<_ObservationsCard> createState() => _ObservationsCardState();
+}
+
+class _ObservationsCardState extends State<_ObservationsCard> {
+  SpeechRecognitionService? _speech;
+
+  /// Null until the check completes; false means "do not offer the mic".
+  bool? _speechAvailable;
+
+  /// Text already in the field when recording began. Transcription appends to
+  /// it rather than replacing it, so someone can type a little and then speak
+  /// the rest without losing what they wrote.
+  String _textBeforeListening = '';
+
+  String? _errorKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = widget.speechService;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_speechAvailable != null) return;
+    _checkAvailability();
+  }
+
+  Future<void> _checkAvailability() async {
+    final service = _speech;
+    if (service == null) {
+      if (mounted) setState(() => _speechAvailable = false);
+      return;
+    }
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
+    final available = await service.localeAvailable(languageCode);
+    if (!mounted) return;
+    setState(() => _speechAvailable = available);
+  }
+
+  Future<void> _toggleRecording() async {
+    final service = _speech;
+    if (service == null) return;
+
+    if (service.isListening.value) {
+      await service.stopListening();
+      return;
+    }
+
+    setState(() => _errorKey = null);
+    _textBeforeListening = widget.controller.text.trimRight();
+    final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
+
+    try {
+      AppHaptics.recordingToggled(context);
+      await service.startListening(
+        languageCode: languageCode,
+        onResult: (words) {
+          if (words.isEmpty) return;
+          final prefix =
+              _textBeforeListening.isEmpty ? '' : '$_textBeforeListening ';
+          widget.controller.text = '$prefix$words';
+          widget.controller.selection = TextSelection.collapsed(
+            offset: widget.controller.text.length,
+          );
+        },
+      );
+    } on SpeechUnavailable catch (e) {
+      if (!mounted) return;
+      setState(() => _errorKey = _messageKeyFor(e.reason));
+    }
+  }
+
+  static String _messageKeyFor(SpeechUnavailableReason reason) {
+    switch (reason) {
+      case SpeechUnavailableReason.permissionDenied:
+        return 'mic_permission_denied';
+      case SpeechUnavailableReason.permissionPermanentlyDenied:
+        return 'mic_permission_blocked';
+      case SpeechUnavailableReason.unavailableOnDevice:
+        return 'mic_unavailable';
+      case SpeechUnavailableReason.languageNotInstalled:
+        return 'mic_language_missing';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final service = _speech;
 
     return AppCard(
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.edit_note_outlined,
-                    size: 20, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.edit_note_outlined,
+                size: 20,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
                   context.tr('treatment_observations_label'),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: theme.textTheme.titleSmall,
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: controller,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: context.tr('treatment_observations_hint'),
-                hintStyle: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.smPlus),
+          TextField(
+            controller: widget.controller,
+            maxLines: 3,
+            minLines: 2,
+            // Stays editable after transcription: recognition will get
+            // agricultural vocabulary and place names wrong.
+            decoration: InputDecoration(
+              hintText: context.tr('treatment_observations_hint'),
+              hintStyle: theme.textTheme.bodySmall,
+              border: const OutlineInputBorder(borderRadius: AppRadius.md),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.smPlus,
+                vertical: AppSpacing.sm,
               ),
             ),
+          ),
+          if (service != null && _speechAvailable == true) ...[
             const SizedBox(height: AppSpacing.smPlus),
-            SizedBox(
-              height: AppSpacing.minTouchTarget,
-              child: OutlinedButton.icon(
-                key: const Key('refine_guidance_button'),
-                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-                label: Text(context.tr('refine_guidance_btn')),
-                onPressed: onSubmit,
+            ValueListenableBuilder<bool>(
+              valueListenable: service.isListening,
+              builder: (context, listening, _) => _RecordButton(
+                listening: listening,
+                onTap: _toggleRecording,
               ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              context.tr('refine_guidance_hint'),
-              style: theme.textTheme.labelSmall,
             ),
           ],
+          if (_errorKey != null) ...[
+            const SizedBox(height: AppSpacing.smPlus),
+            AppBanner.warning(
+              message: context.tr(_errorKey!),
+              actionLabel:
+                  _errorKey == 'mic_permission_blocked' ? context.tr('open_app_settings') : null,
+              onAction: _errorKey == 'mic_permission_blocked'
+                  ? () => service?.openAppSettings()
+                  : null,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.smPlus),
+          SizedBox(
+            height: AppSpacing.minTouchTarget,
+            child: OutlinedButton.icon(
+              key: const Key('refine_guidance_button'),
+              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+              label: Text(context.tr('refine_guidance_btn')),
+              onPressed: widget.onSubmit,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr('refine_guidance_hint'),
+            style: theme.textTheme.labelSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Record / stop control.
+///
+/// Matched to the read-aloud button so the two read as a pair: same height,
+/// same full-width treatment, same "active" colour swap. An explicit stop is
+/// always available — silence detection alone is unreliable in wind and field
+/// noise.
+class _RecordButton extends StatelessWidget {
+  final bool listening;
+  final VoidCallback onTap;
+
+  const _RecordButton({required this.listening, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppSpacing.minTouchTarget,
+      child: ElevatedButton.icon(
+        key: const Key('observations_mic_button'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor:
+              listening ? AppColors.error : AppColors.surfaceVariant,
+          foregroundColor:
+              listening ? AppColors.onError : AppColors.onSurfaceVariant,
+          elevation: 0,
         ),
+        icon: Icon(listening ? Icons.stop_rounded : Icons.mic_rounded),
+        label: Text(
+          listening
+              ? context.tr('mic_stop')
+              : context.tr('speak_observations'),
+        ),
+        onPressed: onTap,
       ),
     );
   }

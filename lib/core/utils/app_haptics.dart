@@ -43,4 +43,13 @@ class AppHaptics {
   static void failure(BuildContext context) {
     if (_enabled(context)) HapticFeedback.heavyImpact();
   }
+
+  /// Voice recording started or stopped.
+  ///
+  /// The one confirmation that does not depend on looking at the screen, which
+  /// is the point: the farmer is holding the phone up and talking, not
+  /// watching a button change colour.
+  static void recordingToggled(BuildContext context) {
+    if (_enabled(context)) HapticFeedback.selectionClick();
+  }
 }

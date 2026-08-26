@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- RECEIVE_BOOT_COMPLETED lets WorkManager reschedule tasks after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Speaking observations instead of typing them. Sinhala and Tamil
+         on-screen keyboards are slow, and a farmer is usually holding the
+         phone one-handed in a field. Audio is transcribed by the platform
+         recognizer and never stored. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="CropCare"
@@ -56,6 +61,12 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- Android 11+ package visibility: without this the speech
+             recognizer is invisible to the app and initialize() fails with no
+             useful error. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>
