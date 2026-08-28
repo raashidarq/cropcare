@@ -73,23 +73,11 @@ class MlInferenceService {
   static const int _inputSize = 224;
 
   // Confidence threshold: results below this → LOW_CONFIDENCE result state.
-  // PROVISIONAL - see ml/README.md "Calibrating the thresholds".
-  //
-  // Raised from 0.60 with the field model, for two reasons that both point the
-  // same way:
-  //
-  //  * The new model trains with label smoothing (0.05), so its softmax is
-  //    deliberately less peaked. A given number means a STRONGER prediction
-  //    than the same number did on the old unsmoothed model - keeping 0.60
-  //    would quietly have made the app less cautious, not equally cautious.
-  //  * Measured field accuracy is ~61% top-1 (86% top-3). At that rate the app
-  //    should be reaching for "not sure, here are the other possibilities"
-  //    far more often than a 0.60 gate allows.
-  //
-  // This number is reasoned, not calibrated. The notebook's calibration cell
-  // computes the value that actually separates right from wrong answers on
-  // held-out field images; use that once you have run it.
-  static const double confidenceThreshold = 0.70;
+  // Calibrated 2026-08 (August)-29 against N field images (PlantDoc, held out from
+  // training). At this threshold: 85.8% precision, 95.5% coverage.
+  // See ml/build_calibration_notebook.py.
+
+  static const double confidenceThreshold = 0.45;
 
   // Normalized-entropy ceiling: results ABOVE this (i.e. distribution too
   // "spread out" to trust even if top-1 confidence cleared the threshold
