@@ -3,8 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cropcare/application/auth/auth_cubit.dart';
+import 'package:cropcare/application/sync/sync_cubit.dart';
 import 'package:cropcare/domain/entities/local_user.dart';
+import 'package:cropcare/domain/entities/sync_operation.dart';
 import 'package:cropcare/domain/repositories/auth_repository.dart';
+import 'package:cropcare/domain/repositories/sync_repository.dart';
 import 'package:cropcare/domain/usecases/auth/request_password_reset_use_case.dart';
 import 'package:cropcare/domain/usecases/auth/sign_in_use_case.dart';
 import 'package:cropcare/domain/usecases/auth/sign_out_use_case.dart';
@@ -40,6 +43,7 @@ class _FakeAuthRepository implements AuthRepository {
       remoteUserId: 'remote-123',
       email: email,
       isGuest: false,
+      sessionToken: 'fake-session-token',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -105,6 +109,70 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<LocalUser> verifyPhoneChangeOtp({required String currentUserId, required String newPhoneNumber, required String otpCode}) => throw UnimplementedError();
+}
+
+/// Records whether clearAuthHold() was actually called, and answers every
+/// other query with an empty/no-op result - enough for SyncCubit's syncNow
+/// to run to completion without a real database or network.
+class _FakeSyncRepository implements SyncRepository {
+  bool clearAuthHoldCalled = false;
+
+  @override
+  Future<void> clearAuthHold() async {
+    clearAuthHoldCalled = true;
+  }
+
+  @override
+  Future<void> enqueueOperation({
+    required String entityId,
+    required SyncEntityType entityType,
+    required Map<String, dynamic> payload,
+    String operationType = 'CREATE',
+  }) async {}
+
+  @override
+  Future<List<SyncOperation>> getPendingOperations({
+    int maxRetries = 3,
+    int? limit,
+  }) async => [];
+
+  @override
+  Future<int> getPendingCount() async => 0;
+
+  @override
+  Future<int> recoverStalledOperations() async => 0;
+
+  @override
+  Future<List<SyncOperation>> getFailedOperations() async => [];
+
+  @override
+  Future<void> retryOperation(String operationId) async {}
+
+  @override
+  Future<void> updateOperationStatus({
+    required String operationId,
+    required SyncOperationStatus status,
+    String? error,
+  }) async {}
+
+  @override
+  Future<void> syncPendingOperations({required String authToken}) async {}
+
+  @override
+  Future<void> syncReferenceData({required String authToken}) async {}
+
+  @override
+  Future<int> restoreScansFromCloud({
+    required String userId,
+    required String authToken,
+    void Function(int restored, int total)? onProgress,
+  }) async => 0;
+
+  @override
+  Future<bool> deleteRemoteScan({
+    required String remoteScanId,
+    required String authToken,
+  }) async => true;
 }
 
 void main() {
@@ -244,4 +312,77 @@ void main() {
     expect(find.byKey(const Key('consent_terms_link')), findsOneWidget);
     expect(find.byKey(const Key('consent_privacy_link')), findsOneWidget);
   });
+
+  testWidgets(
+    'A successful sign-in releases sync operations stuck waiting for a '
+    'session, not just a plain sync',
+    (tester) async {
+      // Regression test for a live bug: a normal sign-in called SyncCubit's
+      // plain syncNow(), which never releases operations the sync layer
+      // marked authRequired during a PRIOR session (a guest attempt, or an
+      // expired token) - retrying those with a dead token was deliberately
+      // never automatic, since it would just burn the retry budget. The
+      // effect: the "session expired" banner outlived every sign-in that
+      // was supposed to resolve it, because nothing every actually told the
+      // sync layer the session problem was over. resumeAfterReauth() is
+      // the one call that both clears that hold AND syncs - this asserts
+      // the hold-clearing half actually happens on a real sign-in, not
+      // just that a sync was attempted.
+      final fakeAuthRepo = _FakeAuthRepository();
+      final fakeSyncRepo = _FakeSyncRepository();
+      final guest = LocalUser(
+        id: 'guest-123',
+        isGuest: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final authCubit = AuthCubit(
+        initialUser: guest,
+        upgradeGuestUserUseCase: UpgradeGuestUserUseCase(fakeAuthRepo),
+        signInUseCase: SignInUseCase(fakeAuthRepo),
+        signOutUseCase: SignOutUseCase(fakeAuthRepo),
+      );
+      final syncCubit = SyncCubit(
+        syncRepository: fakeSyncRepo,
+        authRepository: fakeAuthRepo,
+      );
+
+      await tester.pumpWidget(
+        LocalizationProvider(
+          languageCode: 'en',
+          child: MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: authCubit),
+                BlocProvider.value(value: syncCubit),
+              ],
+              child: AuthScreen(currentUser: guest),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('signin_email_field')),
+        'farmer@example.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('signin_password_field')),
+        'correcthorse',
+      );
+      final submitButton = find.byKey(const Key('signin_submit_button'));
+      await tester.ensureVisible(submitButton);
+      await tester.pumpAndSettle();
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle();
+
+      expect(fakeSyncRepo.clearAuthHoldCalled, isTrue);
+
+      await authCubit.close();
+      await syncCubit.close();
+    },
+  );
 }

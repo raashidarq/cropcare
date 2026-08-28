@@ -309,11 +309,23 @@ class _AuthScreenState extends State<AuthScreen> {
 
   void _onStateChanged(BuildContext context, AuthState state) {
     if (state is AuthSuccess) {
-      // Newly authenticated: push whatever the guest accumulated offline.
+      // Newly authenticated: release anything a PRIOR session left stuck
+      // waiting for a sign-in (see SyncOperationStatus.authRequired), then
+      // push whatever the guest accumulated offline.
+      //
+      // Deliberately resumeAfterReauth, not a bare syncNow: a sync attempt
+      // made before this sign-in - as a guest, or with an expired token -
+      // can leave operations held in authRequired, which the pending-sync
+      // query does not retry on its own (retrying with a dead token would
+      // just burn the retry budget). Calling syncNow here left that hold in
+      // place forever: every ordinary sign-in fixed the CAUSE (no valid
+      // token) without ever clearing the EFFECT (rows still marked
+      // authRequired from before), so the "session expired" banner
+      // outlived every successful sign-in that was supposed to resolve it.
       final token = state.user.sessionToken;
       if (token != null && token.isNotEmpty) {
         try {
-          context.read<SyncCubit?>()?.syncNow(token: token);
+          context.read<SyncCubit?>()?.resumeAfterReauth(token: token);
         } catch (_) {}
       }
       ScaffoldMessenger.of(context).showSnackBar(
