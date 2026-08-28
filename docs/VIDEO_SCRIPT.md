@@ -2,7 +2,7 @@
 
 Written to be *spoken*, not read aloud verbatim. The sentences are a guide for
 what to say and how to pace it — say it in your own words once you've read
-through it twice. Total runtime target: **~18 minutes**, leaving margin under
+through it twice. Total runtime target: **~19 minutes**, leaving margin under
 the 20-minute cap. Timings are approximate; the demo section is allowed to run
 long if it's going well — that's genuinely the part judges weight most.
 
@@ -25,43 +25,65 @@ and a confident one-liner is a stronger opening than a long wind-up.
 
 ---
 
-## 2. Problem and solution — ~2.5 minutes
+## 2. Problem and solution — ~3.5 minutes
 
-*(Slides 2–5)*
+*(Slides 2–6)*
 
-> Farmers growing tomato, rice, chili, potato, cassava and maize in Sri Lanka
-> face crop diseases that spread fast, and by the time damage is visible to
-> the eye, it's often already too late to save the crop cheaply. The obvious
-> fix — a phone app that photographs a leaf and tells you what's wrong — runs
-> into a problem almost every existing tool ignores: **rural connectivity is
-> unreliable.** An app that needs the cloud to give you an answer is an app
-> that, right when you're standing in the field needing it most, often just
-> doesn't answer.
+This is the section where you prove you understand the *people*, not just the
+build. Slow down here. Short sentences. Let each fact land before the next
+one.
 
-> I know this isn't a marginal problem because of two specific facts.
-> [**Pause here and add your own grounding if you have it** — a conversation
-> with a farmer, an extension officer, personal experience. If you don't have
-> that, the next two points stand on their own.] First, models trained on the
-> standard lab-photo datasets score around 99% on their own test data and
-> collapse to roughly 31% on real field photographs — that's not a rounding
-> error, that's a different app in practice. Second, rice is Sri Lanka's
-> staple crop, and the dataset almost every plant-disease app is built on
-> contains zero rice classes. The tools that exist weren't built for this
-> user or this crop.
+> Here's what actually happens in a field in Sri Lanka. A farmer sees
+> something on a leaf. They're not sure what it is. So they guess. Sometimes
+> they spray before they're even sure a pest is there at all — just in case.
 
-> So CropCare's answer is: put the model **on the device**. A photo becomes a
-> diagnosis with the radio off. Treatment guidance for every disease the model
-> can name is already written and stored on the phone, so the answer doesn't
-> wait for a network call. When there *is* a connection, an AI-written version
-> of that guidance quietly replaces the local one — better, but never
-> required. And when the model genuinely isn't sure, one tap sends the photo
-> and result to WhatsApp, to an actual person.
+> That guess has a real cost. The World Bank's Pest Management Plan for Sri
+> Lanka puts a number on it: roughly sixteen thousand pesticide poisoning
+> cases a year. Close to seven hundred thousand kilograms of pesticide
+> imported annually. This isn't a rare event. Government dashboards track
+> crop loss from pests as an ongoing concern — not a bad season, a standing
+> one.
+
+> [**Pause. Add your own grounding here if you have it** — a conversation
+> with a farmer, an extension officer, personal experience with the crop. If
+> you don't have that, keep going — the next part stands on its own.]
+
+> So why does this keep happening? Two independent pieces of research answer
+> that the same way. University of Peradeniya, and a piloted government
+> system called Govi Vedaduru. Both found that many farmers can't reliably
+> diagnose these problems themselves. And the people who could help —
+> extension officers — are too few. A government hotline exists. 1920. But it
+> runs eight to four-fifteen. A farmer who finds a diseased leaf at dusk has
+> nowhere to turn until morning.
+
+> Now — I want to be upfront about something, because I think it matters more
+> than a polished pitch would. The government has already built a lot of
+> infrastructure here. A hotline. An officer directory. A digitized library.
+> Several apps — one of them, Krushi Advisor, is even offline-first, like
+> ours. One of those apps, National Pest Surveillance, might already do
+> image-based diagnosis. I haven't confirmed that yet. It's the single most
+> important open question I still have. So here's the honest position I'm
+> taking: CropCare isn't trying to replace any of that. It's decision
+> support. It sits *alongside* the officer, the hotline, the library.
+
+> And there's real evidence people will actually use something like this.
+> Govi Vedaduru — the closest precedent to this idea — found that farmers
+> called the advice "timely, useful, and trustworthy." That's not a
+> hypothesis. That's a farmer's own words, after using it.
+
+> So: CropCare puts the model **on the device**. A photo becomes a diagnosis
+> with the radio off. Treatment guidance for every disease the model can name
+> is already written and stored on the phone — the answer doesn't wait for a
+> network call. When there *is* a connection, an AI-written version quietly
+> replaces the local one. Better, but never required. And when the model
+> genuinely isn't sure, one tap sends the photo to WhatsApp — to an actual
+> person.
 
 ---
 
 ## 3. AI-assisted development — ~2.5 minutes
 
-*(Slide 7)*
+*(Slide 8)*
 
 > This whole project — the Flutter app, the FastAPI backend, and the machine
 > learning training pipeline — was built working with **Claude Code** as an
@@ -137,7 +159,7 @@ own flow guide you more than this list:
 
 ### 4b. Technical implementation — ~1.5 minutes
 
-*(Slide 8 — or narrate over the app if you'd rather not cut away)*
+*(Slide 9 — or narrate over the app if you'd rather not cut away)*
 
 > Under the hood: Flutter for the app, FastAPI on Render for the backend,
 > Supabase for accounts and cloud storage, and Gemini for the two things that
@@ -167,31 +189,45 @@ own flow guide you more than this list:
 > tests — which is actually how I found that account creation was returning a
 > 404 in production before any other signal caught it.
 
-### 4d. Challenges and current limitations — ~1 minute
+### 4d. Challenges and current limitations — ~1.5 minutes
 
-> Being direct about what isn't finished: the Sinhala and Tamil translations
-> haven't been reviewed by a native speaker yet. The confidence threshold for
-> the field-trained model is a reasoned starting value, not yet calibrated
-> against measured predictions. And this has been validated technically —
-> tested, smoke-tested, verified against the live backend — but it hasn't
-> been field-tested with real farmers yet. That's an honest gap, not an
-> oversight I'm hoping nobody notices.
+*(Slide 11)*
+
+> Being direct about what isn't finished. Two kinds of gap here, and they're
+> different.
+
+> On the technical side: the Sinhala and Tamil translations haven't been
+> reviewed by a native speaker yet. The confidence threshold for the
+> field-trained model is a reasoned starting value, not yet calibrated
+> against measured predictions.
+
+> On the market side — and this is the one I think is more important to say
+> out loud: I don't yet know whether this outperforms the DOA's own National
+> Pest Surveillance app. I haven't been able to confirm what that app
+> actually does. Whether better diagnosis actually reduces pesticide misuse
+> in practice — that's a plausible outcome, not a proven one. And there's a
+> farmer behavior this tool may simply not reach at all: spraying
+> pre-emptively, before any symptom appears. If there's nothing to see yet,
+> there's nothing to photograph. That's a real limit of the whole approach,
+> not just this build of it.
 
 ---
 
 ## 5. Future roadmap — ~1.5 minutes
 
-*(Slide 11)*
+*(Slide 12)*
 
-> Before this is ready for real-world use, three things come first:
-> calibrating that confidence threshold on real measured data, getting a
-> native speaker to review the Sinhala and Tamil content, and running an
-> actual pilot with farmers rather than relying on automated tests alone.
-> After that: broader pest coverage, treatment-reminder notifications so a
-> farmer gets nudged to recheck a plant on the day the guidance suggests, and
-> the packaging work — a signed release build and a Play Store submission.
+> Before this is ready for real-world use, four things come first: closing
+> that open question about National Pest Surveillance, and checking whether
+> Govi Vedaduru is still active; calibrating the confidence threshold on real
+> measured data; getting a native speaker to review the Sinhala and Tamil
+> content; and running an actual pilot with farmers rather than relying on
+> automated tests alone. After that: broader pest coverage, treatment-reminder
+> notifications so a farmer gets nudged to recheck a plant on the day the
+> guidance suggests, and the packaging work — a signed release build and a
+> Play Store submission.
 
-*(Slide 12 — close)*
+*(Slide 13 — close)*
 
 > That's CropCare. Thanks for watching — links to both repositories, the live
 > backend, and a downloadable build are in the submission materials.
