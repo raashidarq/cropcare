@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/diagnosis.dart';
+import '../../domain/entities/treatment.dart';
 import '../../domain/repositories/diagnosis_repository.dart';
 import '../local/database/app_database.dart';
 import '../local/ml/ml_inference_service.dart';
@@ -131,6 +132,36 @@ class DiagnosisRepositoryImpl implements DiagnosisRepository {
               updatedAt: nowIso,
             ),
           );
+    }
+  }
+
+  @override
+  Future<void> cacheAiTreatment(
+    String diagnosisId,
+    TreatmentResponse treatment,
+  ) async {
+    await (db.update(db.diagnosisTable)..where((t) => t.id.equals(diagnosisId)))
+        .write(DiagnosisTableCompanion(
+      aiTreatmentJson: Value(jsonEncode(treatment.toJson())),
+      aiTreatmentFetchedAt: Value(DateTime.now().toIso8601String()),
+    ));
+  }
+
+  @override
+  Future<TreatmentResponse?> getCachedAiTreatment(String diagnosisId) async {
+    final row = await (db.select(db.diagnosisTable)
+          ..where((t) => t.id.equals(diagnosisId)))
+        .getSingleOrNull();
+    final raw = row?.aiTreatmentJson;
+    if (raw == null) return null;
+
+    try {
+      return TreatmentResponse.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      // A cache row that fails to parse is worth ignoring, not crashing
+      // over — the screen falls back to the on-device guideline, and a
+      // fresh fetch overwrites this row with something readable.
+      return null;
     }
   }
 

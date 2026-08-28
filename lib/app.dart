@@ -15,6 +15,7 @@ import 'domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
 import 'domain/usecases/chat/delete_chat_message_use_case.dart';
 import 'domain/usecases/chat/get_chat_history_use_case.dart';
 import 'domain/usecases/chat/send_chat_message_use_case.dart';
+import 'domain/usecases/diagnosis/get_cached_ai_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import 'domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import 'domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -41,6 +42,7 @@ class CropCareApp extends StatelessWidget {
   final RunDiagnosisUseCase runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetCachedAiTreatmentUseCase? getCachedAiTreatmentUseCase;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
   final SendChatMessageUseCase? sendChatMessageUseCase;
   final DeleteChatMessageUseCase? deleteChatMessageUseCase;
@@ -63,6 +65,7 @@ class CropCareApp extends StatelessWidget {
     required this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getCachedAiTreatmentUseCase,
     this.getChatHistoryUseCase,
     this.sendChatMessageUseCase,
     this.deleteChatMessageUseCase,
@@ -132,6 +135,7 @@ class CropCareApp extends StatelessWidget {
                               runDiagnosisUseCase: runDiagnosisUseCase,
                               resolveTreatmentUseCase: resolveTreatmentUseCase,
                               getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
+                              getCachedAiTreatmentUseCase: getCachedAiTreatmentUseCase,
                               getChatHistoryUseCase: getChatHistoryUseCase,
                               sendChatMessageUseCase: sendChatMessageUseCase,
                               deleteChatMessageUseCase: deleteChatMessageUseCase,

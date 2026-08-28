@@ -47,6 +47,16 @@ class ResolveTreatmentUseCase {
       llmInterpretationId: response.interpretationId,
     );
 
+    // Cache the AI-written answer on-device so re-opening this diagnosis
+    // reads it back instead of re-asking the LLM. Only when it's genuinely
+    // the LLM's own answer — caching the on-device fallback here would be
+    // pointless (GetLocalTreatmentGuidanceUseCase already reads it directly
+    // from the guideline table for free) and would mislabel a local answer
+    // as the "already fetched" AI one on the next open.
+    if (source == TreatmentSource.llm) {
+      await diagnosisRepository.cacheAiTreatment(diagnosisId, response);
+    }
+
     return response;
   }
 }

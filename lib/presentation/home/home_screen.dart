@@ -31,6 +31,7 @@ import '../../domain/usecases/diagnosis/get_disease_explanation_use_case.dart';
 import '../../domain/usecases/chat/delete_chat_message_use_case.dart';
 import '../../domain/usecases/chat/get_chat_history_use_case.dart';
 import '../../domain/usecases/chat/send_chat_message_use_case.dart';
+import '../../domain/usecases/diagnosis/get_cached_ai_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/run_diagnosis_use_case.dart';
@@ -117,6 +118,7 @@ class HomeScreen extends StatefulWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetCachedAiTreatmentUseCase? getCachedAiTreatmentUseCase;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
   final SendChatMessageUseCase? sendChatMessageUseCase;
   final DeleteChatMessageUseCase? deleteChatMessageUseCase;
@@ -142,6 +144,7 @@ class HomeScreen extends StatefulWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getCachedAiTreatmentUseCase,
     this.getChatHistoryUseCase,
     this.sendChatMessageUseCase,
     this.deleteChatMessageUseCase,
@@ -201,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
         runDiagnosisUseCase: widget.runDiagnosisUseCase,
         resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
         getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+        getCachedAiTreatmentUseCase: widget.getCachedAiTreatmentUseCase,
         getChatHistoryUseCase: widget.getChatHistoryUseCase,
         sendChatMessageUseCase: widget.sendChatMessageUseCase,
         deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
@@ -224,6 +228,7 @@ class _AppShell extends StatefulWidget {
   final RunDiagnosisUseCase? runDiagnosisUseCase;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetCachedAiTreatmentUseCase? getCachedAiTreatmentUseCase;
   final GetChatHistoryUseCase? getChatHistoryUseCase;
   final SendChatMessageUseCase? sendChatMessageUseCase;
   final DeleteChatMessageUseCase? deleteChatMessageUseCase;
@@ -243,6 +248,7 @@ class _AppShell extends StatefulWidget {
     this.runDiagnosisUseCase,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getCachedAiTreatmentUseCase,
     this.getChatHistoryUseCase,
     this.sendChatMessageUseCase,
     this.deleteChatMessageUseCase,
@@ -294,6 +300,7 @@ class _AppShellState extends State<_AppShell> {
           runDiagnosisUseCase: widget.runDiagnosisUseCase,
           resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
           getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+          getCachedAiTreatmentUseCase: widget.getCachedAiTreatmentUseCase,
           getChatHistoryUseCase: widget.getChatHistoryUseCase,
           sendChatMessageUseCase: widget.sendChatMessageUseCase,
           deleteChatMessageUseCase: widget.deleteChatMessageUseCase,
@@ -318,6 +325,7 @@ class _AppShellState extends State<_AppShell> {
                 onScanAgain: (_) => _startScan(),
                 resolveTreatmentUseCase: widget.resolveTreatmentUseCase,
                 getLocalTreatmentGuidanceUseCase: widget.getLocalTreatmentGuidanceUseCase,
+                getCachedAiTreatmentUseCase: widget.getCachedAiTreatmentUseCase,
                 getChatHistoryUseCase: widget.getChatHistoryUseCase,
                 sendChatMessageUseCase: widget.sendChatMessageUseCase,
                 deleteChatMessageUseCase: widget.deleteChatMessageUseCase,

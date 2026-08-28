@@ -30,6 +30,7 @@ import '../../domain/usecases/chat/delete_chat_message_use_case.dart';
 import '../../domain/usecases/chat/get_chat_history_use_case.dart';
 import '../../domain/usecases/chat/send_chat_message_use_case.dart';
 import '../chat/chat_screen.dart';
+import '../../domain/usecases/diagnosis/get_cached_ai_treatment_use_case.dart';
 import '../../domain/usecases/diagnosis/get_local_treatment_guidance_use_case.dart';
 import '../../domain/usecases/diagnosis/resolve_treatment_use_case.dart';
 import '../../domain/usecases/escalation/create_escalation_use_case.dart';
@@ -42,6 +43,7 @@ class DiagnosisResultScreen extends StatelessWidget {
   final Diagnosis diagnosis;
   final ResolveTreatmentUseCase? resolveTreatmentUseCase;
   final GetLocalTreatmentGuidanceUseCase? getLocalTreatmentGuidanceUseCase;
+  final GetCachedAiTreatmentUseCase? getCachedAiTreatmentUseCase;
   final GetDiseaseExplanationUseCase? getDiseaseExplanationUseCase;
   final CreateEscalationUseCase? createEscalationUseCase;
   final TtsService? ttsService;
@@ -64,6 +66,7 @@ class DiagnosisResultScreen extends StatelessWidget {
     required this.diagnosis,
     this.resolveTreatmentUseCase,
     this.getLocalTreatmentGuidanceUseCase,
+    this.getCachedAiTreatmentUseCase,
     this.getDiseaseExplanationUseCase,
     this.createEscalationUseCase,
     this.ttsService,
@@ -81,6 +84,7 @@ class DiagnosisResultScreen extends StatelessWidget {
         create: (_) => DiagnosisCubit(
           resolveTreatmentUseCase: resolveTreatmentUseCase!,
           getLocalTreatmentGuidanceUseCase: getLocalTreatmentGuidanceUseCase,
+          getCachedAiTreatmentUseCase: getCachedAiTreatmentUseCase,
         )..checkDiagnosis(diagnosis),
         child: _DiagnosisResultView(
           scan: scan,
@@ -171,29 +175,26 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
 
     final languageCode = LocalizationProvider.of(context)?.languageCode ?? 'en';
 
-    // Two passes. The guidance shipped with the app is a local read - no
-    // network, no cost, no waiting, and already translated - so it paints
-    // first and the screen is never blank. The AI answer is the better one:
-    // short ordered steps written for this crop and this confidence level. It
-    // now fetches on its own rather than waiting for a tap, because the
-    // earlier reasoning ("it costs mobile data") conflated a megabyte photo
-    // upload with a text request and a page of JSON back.
+    // Two reads, neither one a network call. The guidance shipped with the
+    // app paints first - no network, no cost, no waiting, and already
+    // translated - so the screen is never blank. Then a check for an AI
+    // answer this SAME diagnosis already got in an earlier visit, read
+    // straight off the device; if one exists, it replaces the on-device
+    // guidance with no request at all.
     //
-    // If the AI call fails, the local guidance stays on screen. The farmer is
-    // never left with less than they started with.
+    // Asking the LLM for a NEW answer is never automatic here - see the
+    // "Get AI Recommendation" button below, which is the only thing that
+    // calls DiagnosisCubit.fetchTreatmentGuidance. It used to fire the
+    // instant local guidance finished loading, which meant a farmer who
+    // left the screen mid-request had no way to know one was even in
+    // flight, and every re-open of an already-answered diagnosis silently
+    // spent another real request on a question already asked.
     final cubit = context.read<DiagnosisCubit?>();
     cubit
         ?.loadLocalGuidance(diseaseId: diseaseId, languageCode: languageCode)
         .then((_) {
       if (!mounted) return;
-      cubit.autoFetchAiGuidance(
-        diagnosisId: widget.diagnosis.id,
-        cropId: widget.scan.cropId,
-        diseaseId: diseaseId,
-        confidence: widget.diagnosis.confidence,
-        severity: widget.diagnosis.severity,
-        languageCode: languageCode,
-      );
+      cubit.loadCachedAiTreatment(diagnosisId: widget.diagnosis.id);
     });
 
     final useCase = widget.getDiseaseExplanationUseCase;
@@ -362,6 +363,7 @@ class _DiagnosisResultViewState extends State<_DiagnosisResultView> {
                       _GuidanceSection(
                         ttsService: _ttsService,
                         onFetch: () => _fetchTreatment(context),
+                        observationsController: _observationsController,
                       ),
                       _OtherPossibilities(diagnosis: widget.diagnosis),
                     ],
@@ -1020,8 +1022,13 @@ class _HealthyNote extends StatelessWidget {
 class _GuidanceSection extends StatelessWidget {
   final VoidCallback onFetch;
   final TtsService? ttsService;
+  final TextEditingController observationsController;
 
-  const _GuidanceSection({required this.onFetch, this.ttsService});
+  const _GuidanceSection({
+    required this.onFetch,
+    required this.observationsController,
+    this.ttsService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1054,23 +1061,19 @@ class _GuidanceSection extends StatelessWidget {
         treatment: state.treatment,
         ttsService: ttsService,
         onFetch: onFetch,
+        observationsController: observationsController,
         isAi: state.isAi,
         isRefreshing: state.isRefreshing,
         refreshFailed: state.refreshFailed,
       );
     }
 
-    // Nothing on the device for this disease AND the automatic attempt has
-    // not produced anything, so asking is the only route left. This one keeps
-    // "Get AI recommendation": for this farmer it really is a first request.
-    return SizedBox(
-      height: AppSpacing.minTouchTarget,
-      child: ElevatedButton.icon(
-        key: const Key('get_treatment_guidance_button'),
-        icon: const Icon(Icons.medical_information_outlined),
-        label: Text(context.tr('get_treatment_btn')),
-        onPressed: onFetch,
-      ),
+    // Nothing on the device for this disease, and nothing cached from an
+    // earlier visit either — asking is the only route left.
+    return _AiRequestPrompt(
+      observationsController: observationsController,
+      isRefreshing: false,
+      onFetch: onFetch,
     );
   }
 }
@@ -1079,6 +1082,7 @@ class _GuidanceBody extends StatelessWidget {
   final TreatmentResponse treatment;
   final TtsService? ttsService;
   final VoidCallback onFetch;
+  final TextEditingController observationsController;
   final bool isAi;
   final bool isRefreshing;
   final bool refreshFailed;
@@ -1086,6 +1090,7 @@ class _GuidanceBody extends StatelessWidget {
   const _GuidanceBody({
     required this.treatment,
     required this.onFetch,
+    required this.observationsController,
     this.ttsService,
     this.isAi = false,
     this.isRefreshing = false,
@@ -1191,16 +1196,6 @@ class _GuidanceBody extends StatelessWidget {
                 style: theme.textTheme.labelSmall,
               ),
             ),
-            // Offered only when there is something to gain: the guidance is
-            // not AI-written and nothing is in flight. "Retry AI" rather than
-            // "Get AI recommendation" - the fetch already happened on its own,
-            // so this is a second attempt, not a first request.
-            if (!isAi && !isRefreshing)
-              TextButton(
-                key: const Key('refresh_treatment_guidance_button'),
-                onPressed: onFetch,
-                child: Text(context.tr('retry_ai_btn')),
-              ),
           ],
         ),
 
@@ -1215,6 +1210,97 @@ class _GuidanceBody extends StatelessWidget {
             ),
           ),
         ],
+
+        // The one place this screen asks the farmer for anything, and the
+        // only thing that calls DiagnosisCubit.fetchTreatmentGuidance -
+        // never automatic, see didChangeDependencies above. Offered only
+        // when there is something to gain: the guidance on screen is not
+        // already AI-written and nothing is already in flight.
+        if (!isAi && !isRefreshing) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _AiRequestPrompt(
+            observationsController: observationsController,
+            isRefreshing: isRefreshing,
+            onFetch: onFetch,
+            // The on-device guidance is already showing above, so this is a
+            // second, better request, not a first one - "Retry AI" rather
+            // than "Get AI recommendation".
+            isRetry: true,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The one place this screen asks the farmer for anything: an optional note
+/// about what they're seeing, and a button that actually sends the request.
+///
+/// This used to fire on its own the moment on-device guidance finished
+/// loading — a farmer who left the screen mid-request had no way to know a
+/// request was even in flight, and re-opening an already-answered diagnosis
+/// silently spent another real request on a question already asked (see
+/// DiagnosisCubit's own docs for the fuller history). Asking first, then
+/// answering, is also the only shape that makes the observations field
+/// worth having at all: text typed after guidance already loaded is
+/// something the farmer chose to add, not a field they were asked to fill
+/// in before being told anything.
+class _AiRequestPrompt extends StatelessWidget {
+  final TextEditingController observationsController;
+  final bool isRefreshing;
+  final VoidCallback onFetch;
+  final bool isRetry;
+
+  const _AiRequestPrompt({
+    required this.observationsController,
+    required this.isRefreshing,
+    required this.onFetch,
+    this.isRetry = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.tr('treatment_observations_label'),
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          key: const Key('treatment_observations_field'),
+          controller: observationsController,
+          minLines: 2,
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+          enabled: !isRefreshing,
+          decoration: InputDecoration(
+            hintText: context.tr('treatment_observations_hint'),
+            border: OutlineInputBorder(
+              borderRadius: AppRadius.md,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.smPlus),
+        SizedBox(
+          height: AppSpacing.minTouchTarget,
+          child: ElevatedButton.icon(
+            key: const Key('get_treatment_guidance_button'),
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.medical_information_outlined),
+            label: Text(
+              context.tr(isRetry ? 'retry_ai_btn' : 'get_treatment_btn'),
+            ),
+            onPressed: isRefreshing ? null : onFetch,
+          ),
+        ),
       ],
     );
   }

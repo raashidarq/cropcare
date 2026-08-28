@@ -50,6 +50,16 @@ class _FakeDiagnosisRepository implements DiagnosisRepository {
     String? guidelineId,
     String? llmInterpretationId,
   }) async {}
+
+  @override
+  Future<void> cacheAiTreatment(
+    String diagnosisId,
+    TreatmentResponse treatment,
+  ) async {}
+
+  @override
+  Future<TreatmentResponse?> getCachedAiTreatment(String diagnosisId) async =>
+      null;
 }
 
 void main() {
@@ -142,5 +152,43 @@ void main() {
 
       await subscription.cancel();
     });
+
+    test(
+      'a fetch that outlives the cubit does not throw '
+      '(StateError: Cannot emit new states after calling close)',
+      () async {
+        // Regression test for a live crash: the diagnosis result screen used
+        // to fire an AI fetch automatically, and a farmer leaving the screen
+        // mid-request disposed the cubit while that fetch was still
+        // in-flight. The network call resolved afterwards and tried to
+        // emit() into an already-closed Cubit, which flutter_bloc throws
+        // for rather than silently ignoring.
+        fakeTreatmentRepo.response = const TreatmentResponse(
+          summary: 'Treatment summary text',
+          whatToDo: 'Prune leaves',
+          whatToAvoid: 'Don’t overwater',
+          recheckAfterDays: 5,
+          interpretationId: 'interp-1',
+        );
+
+        final cubit = DiagnosisCubit(resolveTreatmentUseCase: resolveTreatmentUseCase);
+
+        final fetch = cubit.fetchTreatmentGuidance(
+          diagnosisId: 'd1',
+          cropId: 'tomato',
+          diseaseId: 'tomato_early_blight',
+          confidence: 0.85,
+          severity: 'moderate',
+          languageCode: 'en',
+        );
+        // The screen is left before the network call (a real Future.value
+        // here, so already scheduled but not yet resolved) completes.
+        await cubit.close();
+
+        // Must not throw StateError - the emit inside fetchTreatmentGuidance
+        // is expected to see isClosed and skip itself.
+        await fetch;
+      },
+    );
   });
 }

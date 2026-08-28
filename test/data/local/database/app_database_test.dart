@@ -49,6 +49,16 @@ Future<void> _rewindToV4(File dbFile) async {
   await seed.customStatement(
     'ALTER TABLE app_state DROP COLUMN sync_locked_at',
   );
+  // Same for every column added in a LATER version - the seed database was
+  // created via the current onCreate, so it already has everything up to
+  // v8. Each new schema version needs the earlier rewinds updated to strip
+  // it too, or onUpgrade's ADD COLUMN hits a column that's already there.
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_json',
+  );
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_fetched_at',
+  );
   // Assert the rewind actually took effect on THIS connection. It cannot be
   // checked after reopening, because any query on a new connection triggers
   // the migration we are trying to observe.
@@ -70,6 +80,13 @@ Future<void> _rewindToV6(File dbFile) async {
 
   await seed.customStatement('DROP INDEX IF EXISTS idx_chat_message_diagnosis');
   await seed.customStatement('DROP TABLE IF EXISTS chat_message');
+  // Same reasoning as _rewindToV4: strip everything added after v6 too.
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_json',
+  );
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_fetched_at',
+  );
 
   // Assert the rewind took on THIS connection; it cannot be checked after
   // reopening, because any query on a new connection triggers the migration
@@ -82,6 +99,32 @@ Future<void> _rewindToV6(File dbFile) async {
   }
 
   await seed.customStatement('PRAGMA user_version = 6');
+  await seed.close();
+}
+
+/// Rewinds a freshly-created database at [dbFile] so it looks like a genuine
+/// v7 install: the AI-treatment cache columns are dropped from `diagnosis`
+/// and user_version is set back, so reopening runs a real onUpgrade(7 -> 8).
+Future<void> _rewindToV7(File dbFile) async {
+  final seed = AppDatabase.forTesting(NativeDatabase(dbFile));
+  await seed.customSelect('SELECT 1').get();
+
+  // Columns added in v8 must be absent, or onUpgrade's ADD COLUMN fails.
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_json',
+  );
+  await seed.customStatement(
+    'ALTER TABLE diagnosis DROP COLUMN ai_treatment_fetched_at',
+  );
+
+  final remaining = (await _columnsOf(seed, 'diagnosis')).intersection(
+    {'ai_treatment_json', 'ai_treatment_fetched_at'},
+  );
+  if (remaining.isNotEmpty) {
+    throw StateError('rewind failed, columns still present: $remaining');
+  }
+
+  await seed.customStatement('PRAGMA user_version = 7');
   await seed.close();
 }
 
@@ -98,8 +141,15 @@ void main() {
       await db.close();
     });
 
-    test('schemaVersion is 7', () {
-      expect(db.schemaVersion, 7);
+    test('schemaVersion is 8', () {
+      expect(db.schemaVersion, 8);
+    });
+
+    test('diagnosis has the AI-treatment cache columns', () async {
+      expect(
+        await _columnsOf(db, 'diagnosis'),
+        containsAll(<String>['ai_treatment_json', 'ai_treatment_fetched_at']),
+      );
     });
 
     test('chat_message exists with the columns the chat feature reads',
@@ -233,6 +283,37 @@ void main() {
         final rows =
             await upgraded.customSelect('SELECT id FROM local_user').get();
         expect(rows.map((r) => r.read<String>('id')), contains('user-v6'));
+
+        await upgraded.close();
+      },
+    );
+
+    test(
+      'upgrading from v7 adds the AI-treatment cache columns to diagnosis, '
+      'keeping prior rows',
+      () async {
+        final seed = AppDatabase.forTesting(NativeDatabase(dbFile));
+        await seed.customSelect('SELECT 1').get();
+        await seed.customStatement(
+          "INSERT INTO local_user (id, is_guest, created_at, updated_at) "
+          "VALUES ('user-v7', 1, '2026-01-01', '2026-01-01')",
+        );
+        await seed.close();
+
+        await _rewindToV7(dbFile);
+
+        // Reopening runs the real onUpgrade(7 -> 8).
+        final upgraded = AppDatabase.forTesting(NativeDatabase(dbFile));
+        await upgraded.customSelect('SELECT 1').get();
+
+        expect(
+          await _columnsOf(upgraded, 'diagnosis'),
+          containsAll(<String>['ai_treatment_json', 'ai_treatment_fetched_at']),
+        );
+
+        final rows =
+            await upgraded.customSelect('SELECT id FROM local_user').get();
+        expect(rows.map((r) => r.read<String>('id')), contains('user-v7'));
 
         await upgraded.close();
       },

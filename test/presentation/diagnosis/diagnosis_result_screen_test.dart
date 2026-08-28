@@ -55,6 +55,16 @@ class _FakeDiagnosisRepository implements DiagnosisRepository {
     String? guidelineId,
     String? llmInterpretationId,
   }) async {}
+
+  @override
+  Future<void> cacheAiTreatment(
+    String diagnosisId,
+    TreatmentResponse treatment,
+  ) async {}
+
+  @override
+  Future<TreatmentResponse?> getCachedAiTreatment(String diagnosisId) async =>
+      null;
 }
 
 void main() {
@@ -157,9 +167,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // No tap: AI guidance is fetched automatically when the screen opens. It
-    // is the better answer, and it is a text request, so making the farmer
-    // ask for it bought them nothing.
+    // AI guidance is never fetched automatically - ask for it, the same way
+    // a farmer taps "Get AI Recommendation".
+    final askButton = find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(askButton);
+    await tester.pumpAndSettle();
+    await tester.tap(askButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Tomato Early Blight'), findsOneWidget);
@@ -274,9 +287,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // No tap: AI guidance is fetched automatically when the screen opens. It
-    // is the better answer, and it is a text request, so making the farmer
-    // ask for it bought them nothing.
+    // AI guidance is never fetched automatically - ask for it, the same way
+    // a farmer taps "Get AI Recommendation".
+    final askButton = find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(askButton);
+    await tester.pumpAndSettle();
+    await tester.tap(askButton);
     await tester.pumpAndSettle();
 
     // Read-aloud sits beside the steps it reads, as an icon button, rather
@@ -330,9 +346,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // No tap: AI guidance is fetched automatically when the screen opens. It
-    // is the better answer, and it is a text request, so making the farmer
-    // ask for it bought them nothing.
+    // AI guidance is never fetched automatically - the farmer taps "Get AI
+    // Recommendation" to ask for it.
+    final askButton = find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(askButton);
+    await tester.pumpAndSettle();
+    await tester.tap(askButton);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
@@ -385,9 +404,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // No tap: AI guidance is fetched automatically when the screen opens. It
-    // is the better answer, and it is a text request, so making the farmer
-    // ask for it bought them nothing.
+    // AI guidance is never fetched automatically - the farmer taps "Get AI
+    // Recommendation" to ask for it. This repository has nothing on-device
+    // for this disease either, so the button is the only thing on screen
+    // until it's tapped.
+    final askButton = find.byKey(const Key('get_treatment_guidance_button'));
+    await tester.ensureVisible(askButton);
+    await tester.pumpAndSettle();
+    await tester.tap(askButton);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('treatment_source_badge')), findsOneWidget);
@@ -443,23 +467,29 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // The AI answer wins once it arrives - it is written for this crop and
-      // confidence - but the on-device guideline is what paints first, so the
-      // screen is never blank while the request is in flight.
-      expect(find.text('Remote summary'), findsOneWidget);
+      // The on-device guideline paints first, with no network call at all -
+      // the screen is never blank, and nothing is requested before the
+      // farmer asks for it.
+      expect(find.text('Seeded on-device summary'), findsOneWidget);
       expect(find.text('Do this now'), findsOneWidget);
+      expect(repository.remoteCallCount, 0);
 
-      // The AI fetch happened without being asked.
+      // Ask for the AI answer.
+      final askButton = find.byKey(const Key('get_treatment_guidance_button'));
+      await tester.ensureVisible(askButton);
+      await tester.pumpAndSettle();
+      await tester.tap(askButton);
+      await tester.pumpAndSettle();
+
+      // The AI answer wins once it arrives - it is written for this crop and
+      // confidence.
+      expect(find.text('Remote summary'), findsOneWidget);
       expect(repository.remoteCallCount, 1);
 
-      // No prompt to request guidance: it already arrived.
+      // No prompt to request guidance anymore: it already arrived, and the
+      // guidance on screen is already the AI-written one.
       expect(
         find.byKey(const Key('get_treatment_guidance_button')),
-        findsNothing,
-      );
-      // And no "Retry AI" either, because the AI version is what is showing.
-      expect(
-        find.byKey(const Key('refresh_treatment_guidance_button')),
         findsNothing,
       );
     },

@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,6 +75,18 @@ class AppDatabase extends _$AppDatabase {
             // Follow-up chat about a diagnosis. Nothing to backfill: a device
             // upgrading has no prior conversations.
             await m.createTable(chatMessageTable);
+          }
+          if (from < 8) {
+            // On-device cache of the AI-written treatment response, so
+            // re-opening a diagnosis doesn't re-ask the LLM for something
+            // already answered. Nothing to backfill: a device upgrading has
+            // no prior cached responses to migrate in, it just starts
+            // caching from the next fetch onward.
+            await m.addColumn(diagnosisTable, diagnosisTable.aiTreatmentJson);
+            await m.addColumn(
+              diagnosisTable,
+              diagnosisTable.aiTreatmentFetchedAt,
+            );
           }
 
           // Indexes were previously only created in onCreate, so ANY device

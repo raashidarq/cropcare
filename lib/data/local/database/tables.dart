@@ -276,6 +276,21 @@ class DiagnosisTable extends Table {
   /// (llm_interpretation table is not part of this scope).
   TextColumn get llmInterpretationId => text().nullable()();
 
+  /// The AI-written TreatmentResponse (see domain/entities/treatment.dart's
+  /// toJson/fromJson), cached the moment it's fetched so re-opening this
+  /// diagnosis never re-asks the LLM for something already answered. Before
+  /// this column existed, the response lived only in DiagnosisCubit's
+  /// in-memory state and was gone the instant the screen was disposed - a
+  /// re-open re-ran the full request every time, spending real API quota on
+  /// a question already asked and answered.
+  TextColumn get aiTreatmentJson => text().nullable()();
+
+  /// When [aiTreatmentJson] was cached. Not currently used to expire the
+  /// cache — this treatment is tied to one immutable diagnosis, not a value
+  /// that goes stale — kept for the same reason [inferredAt] is: an audit
+  /// trail costs one column and answers "when" questions later for free.
+  TextColumn get aiTreatmentFetchedAt => text().nullable()();
+
   TextColumn get inferredAt => text()();
 
   @override

@@ -38,6 +38,9 @@ class FakeDiagnosisRepository implements DiagnosisRepository {
   String? updatedDiagnosisId;
   TreatmentSource? updatedSource;
   String? updatedLlmInterpretationId;
+  int cacheWrites = 0;
+  String? cachedDiagnosisId;
+  TreatmentResponse? cachedTreatment;
 
   @override
   Future<Diagnosis> createDiagnosis(Diagnosis diagnosis) async => diagnosis;
@@ -56,6 +59,20 @@ class FakeDiagnosisRepository implements DiagnosisRepository {
     updatedSource = source;
     updatedLlmInterpretationId = llmInterpretationId;
   }
+
+  @override
+  Future<void> cacheAiTreatment(
+    String diagnosisId,
+    TreatmentResponse treatment,
+  ) async {
+    cacheWrites++;
+    cachedDiagnosisId = diagnosisId;
+    cachedTreatment = treatment;
+  }
+
+  @override
+  Future<TreatmentResponse?> getCachedAiTreatment(String diagnosisId) async =>
+      cachedTreatment;
 }
 
 void main() {
@@ -94,6 +111,12 @@ void main() {
       expect(fakeDiagRepo.updatedDiagnosisId, equals('diag-1'));
       expect(fakeDiagRepo.updatedSource, equals(TreatmentSource.llm));
       expect(fakeDiagRepo.updatedLlmInterpretationId, equals('interp-uuid-999'));
+
+      // The AI-written answer is cached on-device, so re-opening this
+      // diagnosis later doesn't have to ask the LLM again.
+      expect(fakeDiagRepo.cacheWrites, equals(1));
+      expect(fakeDiagRepo.cachedDiagnosisId, equals('diag-1'));
+      expect(fakeDiagRepo.cachedTreatment?.summary, equals('Test summary'));
     });
 
     test('resolves offline fallback treatment and updates source to offlineFallback', () async {
@@ -127,6 +150,11 @@ void main() {
       expect(fakeDiagRepo.updatedDiagnosisId, equals('diag-2'));
       expect(fakeDiagRepo.updatedSource, equals(TreatmentSource.localFallback));
       expect(fakeDiagRepo.updatedLlmInterpretationId, isNull);
+
+      // Caching the on-device fallback would be pointless (the local
+      // guideline table already answers that for free) and would mislabel
+      // a local answer as "already fetched from the LLM" on the next open.
+      expect(fakeDiagRepo.cacheWrites, equals(0));
     });
   });
 }

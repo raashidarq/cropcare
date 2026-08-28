@@ -4227,6 +4227,28 @@ class $DiagnosisTableTable extends DiagnosisTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _aiTreatmentJsonMeta = const VerificationMeta(
+    'aiTreatmentJson',
+  );
+  @override
+  late final GeneratedColumn<String> aiTreatmentJson = GeneratedColumn<String>(
+    'ai_treatment_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiTreatmentFetchedAtMeta =
+      const VerificationMeta('aiTreatmentFetchedAt');
+  @override
+  late final GeneratedColumn<String> aiTreatmentFetchedAt =
+      GeneratedColumn<String>(
+        'ai_treatment_fetched_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _inferredAtMeta = const VerificationMeta(
     'inferredAt',
   );
@@ -4251,6 +4273,8 @@ class $DiagnosisTableTable extends DiagnosisTable
     treatmentSource,
     treatmentGuidelineId,
     llmInterpretationId,
+    aiTreatmentJson,
+    aiTreatmentFetchedAt,
     inferredAt,
   ];
   @override
@@ -4358,6 +4382,24 @@ class $DiagnosisTableTable extends DiagnosisTable
         ),
       );
     }
+    if (data.containsKey('ai_treatment_json')) {
+      context.handle(
+        _aiTreatmentJsonMeta,
+        aiTreatmentJson.isAcceptableOrUnknown(
+          data['ai_treatment_json']!,
+          _aiTreatmentJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ai_treatment_fetched_at')) {
+      context.handle(
+        _aiTreatmentFetchedAtMeta,
+        aiTreatmentFetchedAt.isAcceptableOrUnknown(
+          data['ai_treatment_fetched_at']!,
+          _aiTreatmentFetchedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('inferred_at')) {
       context.handle(
         _inferredAtMeta,
@@ -4419,6 +4461,14 @@ class $DiagnosisTableTable extends DiagnosisTable
         DriftSqlType.string,
         data['${effectivePrefix}llm_interpretation_id'],
       ),
+      aiTreatmentJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_treatment_json'],
+      ),
+      aiTreatmentFetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_treatment_fetched_at'],
+      ),
       inferredAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}inferred_at'],
@@ -4463,6 +4513,21 @@ class DiagnosisTableData extends DataClass
   /// FK to llm_interpretation is intentionally omitted per schema spec
   /// (llm_interpretation table is not part of this scope).
   final String? llmInterpretationId;
+
+  /// The AI-written TreatmentResponse (see domain/entities/treatment.dart's
+  /// toJson/fromJson), cached the moment it's fetched so re-opening this
+  /// diagnosis never re-asks the LLM for something already answered. Before
+  /// this column existed, the response lived only in DiagnosisCubit's
+  /// in-memory state and was gone the instant the screen was disposed - a
+  /// re-open re-ran the full request every time, spending real API quota on
+  /// a question already asked and answered.
+  final String? aiTreatmentJson;
+
+  /// When [aiTreatmentJson] was cached. Not currently used to expire the
+  /// cache — this treatment is tied to one immutable diagnosis, not a value
+  /// that goes stale — kept for the same reason [inferredAt] is: an audit
+  /// trail costs one column and answers "when" questions later for free.
+  final String? aiTreatmentFetchedAt;
   final String inferredAt;
   const DiagnosisTableData({
     required this.id,
@@ -4476,6 +4541,8 @@ class DiagnosisTableData extends DataClass
     required this.treatmentSource,
     this.treatmentGuidelineId,
     this.llmInterpretationId,
+    this.aiTreatmentJson,
+    this.aiTreatmentFetchedAt,
     required this.inferredAt,
   });
   @override
@@ -4501,6 +4568,12 @@ class DiagnosisTableData extends DataClass
     }
     if (!nullToAbsent || llmInterpretationId != null) {
       map['llm_interpretation_id'] = Variable<String>(llmInterpretationId);
+    }
+    if (!nullToAbsent || aiTreatmentJson != null) {
+      map['ai_treatment_json'] = Variable<String>(aiTreatmentJson);
+    }
+    if (!nullToAbsent || aiTreatmentFetchedAt != null) {
+      map['ai_treatment_fetched_at'] = Variable<String>(aiTreatmentFetchedAt);
     }
     map['inferred_at'] = Variable<String>(inferredAt);
     return map;
@@ -4529,6 +4602,12 @@ class DiagnosisTableData extends DataClass
       llmInterpretationId: llmInterpretationId == null && nullToAbsent
           ? const Value.absent()
           : Value(llmInterpretationId),
+      aiTreatmentJson: aiTreatmentJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiTreatmentJson),
+      aiTreatmentFetchedAt: aiTreatmentFetchedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiTreatmentFetchedAt),
       inferredAt: Value(inferredAt),
     );
   }
@@ -4554,6 +4633,10 @@ class DiagnosisTableData extends DataClass
       llmInterpretationId: serializer.fromJson<String?>(
         json['llmInterpretationId'],
       ),
+      aiTreatmentJson: serializer.fromJson<String?>(json['aiTreatmentJson']),
+      aiTreatmentFetchedAt: serializer.fromJson<String?>(
+        json['aiTreatmentFetchedAt'],
+      ),
       inferredAt: serializer.fromJson<String>(json['inferredAt']),
     );
   }
@@ -4572,6 +4655,8 @@ class DiagnosisTableData extends DataClass
       'treatmentSource': serializer.toJson<String>(treatmentSource),
       'treatmentGuidelineId': serializer.toJson<String?>(treatmentGuidelineId),
       'llmInterpretationId': serializer.toJson<String?>(llmInterpretationId),
+      'aiTreatmentJson': serializer.toJson<String?>(aiTreatmentJson),
+      'aiTreatmentFetchedAt': serializer.toJson<String?>(aiTreatmentFetchedAt),
       'inferredAt': serializer.toJson<String>(inferredAt),
     };
   }
@@ -4588,6 +4673,8 @@ class DiagnosisTableData extends DataClass
     String? treatmentSource,
     Value<String?> treatmentGuidelineId = const Value.absent(),
     Value<String?> llmInterpretationId = const Value.absent(),
+    Value<String?> aiTreatmentJson = const Value.absent(),
+    Value<String?> aiTreatmentFetchedAt = const Value.absent(),
     String? inferredAt,
   }) => DiagnosisTableData(
     id: id ?? this.id,
@@ -4607,6 +4694,12 @@ class DiagnosisTableData extends DataClass
     llmInterpretationId: llmInterpretationId.present
         ? llmInterpretationId.value
         : this.llmInterpretationId,
+    aiTreatmentJson: aiTreatmentJson.present
+        ? aiTreatmentJson.value
+        : this.aiTreatmentJson,
+    aiTreatmentFetchedAt: aiTreatmentFetchedAt.present
+        ? aiTreatmentFetchedAt.value
+        : this.aiTreatmentFetchedAt,
     inferredAt: inferredAt ?? this.inferredAt,
   );
   DiagnosisTableData copyWithCompanion(DiagnosisTableCompanion data) {
@@ -4636,6 +4729,12 @@ class DiagnosisTableData extends DataClass
       llmInterpretationId: data.llmInterpretationId.present
           ? data.llmInterpretationId.value
           : this.llmInterpretationId,
+      aiTreatmentJson: data.aiTreatmentJson.present
+          ? data.aiTreatmentJson.value
+          : this.aiTreatmentJson,
+      aiTreatmentFetchedAt: data.aiTreatmentFetchedAt.present
+          ? data.aiTreatmentFetchedAt.value
+          : this.aiTreatmentFetchedAt,
       inferredAt: data.inferredAt.present
           ? data.inferredAt.value
           : this.inferredAt,
@@ -4656,6 +4755,8 @@ class DiagnosisTableData extends DataClass
           ..write('treatmentSource: $treatmentSource, ')
           ..write('treatmentGuidelineId: $treatmentGuidelineId, ')
           ..write('llmInterpretationId: $llmInterpretationId, ')
+          ..write('aiTreatmentJson: $aiTreatmentJson, ')
+          ..write('aiTreatmentFetchedAt: $aiTreatmentFetchedAt, ')
           ..write('inferredAt: $inferredAt')
           ..write(')'))
         .toString();
@@ -4674,6 +4775,8 @@ class DiagnosisTableData extends DataClass
     treatmentSource,
     treatmentGuidelineId,
     llmInterpretationId,
+    aiTreatmentJson,
+    aiTreatmentFetchedAt,
     inferredAt,
   );
   @override
@@ -4691,6 +4794,8 @@ class DiagnosisTableData extends DataClass
           other.treatmentSource == this.treatmentSource &&
           other.treatmentGuidelineId == this.treatmentGuidelineId &&
           other.llmInterpretationId == this.llmInterpretationId &&
+          other.aiTreatmentJson == this.aiTreatmentJson &&
+          other.aiTreatmentFetchedAt == this.aiTreatmentFetchedAt &&
           other.inferredAt == this.inferredAt);
 }
 
@@ -4706,6 +4811,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
   final Value<String> treatmentSource;
   final Value<String?> treatmentGuidelineId;
   final Value<String?> llmInterpretationId;
+  final Value<String?> aiTreatmentJson;
+  final Value<String?> aiTreatmentFetchedAt;
   final Value<String> inferredAt;
   final Value<int> rowid;
   const DiagnosisTableCompanion({
@@ -4720,6 +4827,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
     this.treatmentSource = const Value.absent(),
     this.treatmentGuidelineId = const Value.absent(),
     this.llmInterpretationId = const Value.absent(),
+    this.aiTreatmentJson = const Value.absent(),
+    this.aiTreatmentFetchedAt = const Value.absent(),
     this.inferredAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4735,6 +4844,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
     required String treatmentSource,
     this.treatmentGuidelineId = const Value.absent(),
     this.llmInterpretationId = const Value.absent(),
+    this.aiTreatmentJson = const Value.absent(),
+    this.aiTreatmentFetchedAt = const Value.absent(),
     required String inferredAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -4756,6 +4867,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
     Expression<String>? treatmentSource,
     Expression<String>? treatmentGuidelineId,
     Expression<String>? llmInterpretationId,
+    Expression<String>? aiTreatmentJson,
+    Expression<String>? aiTreatmentFetchedAt,
     Expression<String>? inferredAt,
     Expression<int>? rowid,
   }) {
@@ -4773,6 +4886,9 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
         'treatment_guideline_id': treatmentGuidelineId,
       if (llmInterpretationId != null)
         'llm_interpretation_id': llmInterpretationId,
+      if (aiTreatmentJson != null) 'ai_treatment_json': aiTreatmentJson,
+      if (aiTreatmentFetchedAt != null)
+        'ai_treatment_fetched_at': aiTreatmentFetchedAt,
       if (inferredAt != null) 'inferred_at': inferredAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4790,6 +4906,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
     Value<String>? treatmentSource,
     Value<String?>? treatmentGuidelineId,
     Value<String?>? llmInterpretationId,
+    Value<String?>? aiTreatmentJson,
+    Value<String?>? aiTreatmentFetchedAt,
     Value<String>? inferredAt,
     Value<int>? rowid,
   }) {
@@ -4805,6 +4923,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
       treatmentSource: treatmentSource ?? this.treatmentSource,
       treatmentGuidelineId: treatmentGuidelineId ?? this.treatmentGuidelineId,
       llmInterpretationId: llmInterpretationId ?? this.llmInterpretationId,
+      aiTreatmentJson: aiTreatmentJson ?? this.aiTreatmentJson,
+      aiTreatmentFetchedAt: aiTreatmentFetchedAt ?? this.aiTreatmentFetchedAt,
       inferredAt: inferredAt ?? this.inferredAt,
       rowid: rowid ?? this.rowid,
     );
@@ -4850,6 +4970,14 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
         llmInterpretationId.value,
       );
     }
+    if (aiTreatmentJson.present) {
+      map['ai_treatment_json'] = Variable<String>(aiTreatmentJson.value);
+    }
+    if (aiTreatmentFetchedAt.present) {
+      map['ai_treatment_fetched_at'] = Variable<String>(
+        aiTreatmentFetchedAt.value,
+      );
+    }
     if (inferredAt.present) {
       map['inferred_at'] = Variable<String>(inferredAt.value);
     }
@@ -4873,6 +5001,8 @@ class DiagnosisTableCompanion extends UpdateCompanion<DiagnosisTableData> {
           ..write('treatmentSource: $treatmentSource, ')
           ..write('treatmentGuidelineId: $treatmentGuidelineId, ')
           ..write('llmInterpretationId: $llmInterpretationId, ')
+          ..write('aiTreatmentJson: $aiTreatmentJson, ')
+          ..write('aiTreatmentFetchedAt: $aiTreatmentFetchedAt, ')
           ..write('inferredAt: $inferredAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -11998,6 +12128,8 @@ typedef $$DiagnosisTableTableCreateCompanionBuilder =
       required String treatmentSource,
       Value<String?> treatmentGuidelineId,
       Value<String?> llmInterpretationId,
+      Value<String?> aiTreatmentJson,
+      Value<String?> aiTreatmentFetchedAt,
       required String inferredAt,
       Value<int> rowid,
     });
@@ -12014,6 +12146,8 @@ typedef $$DiagnosisTableTableUpdateCompanionBuilder =
       Value<String> treatmentSource,
       Value<String?> treatmentGuidelineId,
       Value<String?> llmInterpretationId,
+      Value<String?> aiTreatmentJson,
+      Value<String?> aiTreatmentFetchedAt,
       Value<String> inferredAt,
       Value<int> rowid,
     });
@@ -12188,6 +12322,16 @@ class $$DiagnosisTableTableFilterComposer
 
   ColumnFilters<String> get llmInterpretationId => $composableBuilder(
     column: $table.llmInterpretationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiTreatmentJson => $composableBuilder(
+    column: $table.aiTreatmentJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiTreatmentFetchedAt => $composableBuilder(
+    column: $table.aiTreatmentFetchedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12384,6 +12528,16 @@ class $$DiagnosisTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get aiTreatmentJson => $composableBuilder(
+    column: $table.aiTreatmentJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiTreatmentFetchedAt => $composableBuilder(
+    column: $table.aiTreatmentFetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get inferredAt => $composableBuilder(
     column: $table.inferredAt,
     builder: (column) => ColumnOrderings(column),
@@ -12520,6 +12674,16 @@ class $$DiagnosisTableTableAnnotationComposer
 
   GeneratedColumn<String> get llmInterpretationId => $composableBuilder(
     column: $table.llmInterpretationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiTreatmentJson => $composableBuilder(
+    column: $table.aiTreatmentJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiTreatmentFetchedAt => $composableBuilder(
+    column: $table.aiTreatmentFetchedAt,
     builder: (column) => column,
   );
 
@@ -12721,6 +12885,8 @@ class $$DiagnosisTableTableTableManager
                 Value<String> treatmentSource = const Value.absent(),
                 Value<String?> treatmentGuidelineId = const Value.absent(),
                 Value<String?> llmInterpretationId = const Value.absent(),
+                Value<String?> aiTreatmentJson = const Value.absent(),
+                Value<String?> aiTreatmentFetchedAt = const Value.absent(),
                 Value<String> inferredAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DiagnosisTableCompanion(
@@ -12735,6 +12901,8 @@ class $$DiagnosisTableTableTableManager
                 treatmentSource: treatmentSource,
                 treatmentGuidelineId: treatmentGuidelineId,
                 llmInterpretationId: llmInterpretationId,
+                aiTreatmentJson: aiTreatmentJson,
+                aiTreatmentFetchedAt: aiTreatmentFetchedAt,
                 inferredAt: inferredAt,
                 rowid: rowid,
               ),
@@ -12751,6 +12919,8 @@ class $$DiagnosisTableTableTableManager
                 required String treatmentSource,
                 Value<String?> treatmentGuidelineId = const Value.absent(),
                 Value<String?> llmInterpretationId = const Value.absent(),
+                Value<String?> aiTreatmentJson = const Value.absent(),
+                Value<String?> aiTreatmentFetchedAt = const Value.absent(),
                 required String inferredAt,
                 Value<int> rowid = const Value.absent(),
               }) => DiagnosisTableCompanion.insert(
@@ -12765,6 +12935,8 @@ class $$DiagnosisTableTableTableManager
                 treatmentSource: treatmentSource,
                 treatmentGuidelineId: treatmentGuidelineId,
                 llmInterpretationId: llmInterpretationId,
+                aiTreatmentJson: aiTreatmentJson,
+                aiTreatmentFetchedAt: aiTreatmentFetchedAt,
                 inferredAt: inferredAt,
                 rowid: rowid,
               ),
