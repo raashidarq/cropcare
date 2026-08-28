@@ -33,6 +33,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // These were both off. proguard-rules.pro exists specifically for
+            // WorkManager/Room reflection, TFLite's native bindings, and
+            // sqlite3 - none of which had anything to keep, because nothing
+            // was being shrunk or obfuscated in the first place. Every
+            // release build up to now shipped full, unshrunk, unobfuscated
+            // bytecode.
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
 }

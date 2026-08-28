@@ -2,12 +2,13 @@
 //
 // On-device TFLite inference using tflite_flutter ^0.12.0.
 //
-// Model: plant_disease_mobilenetv2_float32.tflite
-//   - Input:  [1, 224, 224, 3]  float32  NHWC  (onnx2tf converts NCHW→NHWC)
-//   - Output: [1, 38]           float32  raw logits (NOT softmax)
+// Model: cropcare_field_mobilenetv3_fp16.tflite (see ml/README.md)
+//   - Input:  [1, 224, 224, 3]  float32  NHWC, values [0,1]
+//   - Output: [1, 34]           float32  raw logits (NOT softmax)
 //   - Preprocessing: resize to 224×224, normalize to [0,1] (divide by 255)
 //
-// CLASS_NAMES order matches the 38-element output vector.
+// CLASS_NAMES order matches the 34-element output vector, defined by
+// ml/taxonomy.py and regenerated via `python ml/build_notebook.py`.
 // All 38 output classes map to a disease ID in our DB (see TD-006) — the
 // `isSupported`/`unsupported` result state is therefore no longer reachable
 // from a normal model prediction; it only exists as a safety net for a
