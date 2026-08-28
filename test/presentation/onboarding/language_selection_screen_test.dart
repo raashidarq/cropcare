@@ -33,44 +33,41 @@ class FakeAppStateRepository implements AppStateRepository {
 }
 
 void main() {
-  testWidgets(
-    'selecting a language applies it and continues into onboarding',
-    (WidgetTester tester) async {
-      final repository = FakeAppStateRepository();
-      final cubit = AppStateCubit(
-        getAppStateUseCase: GetAppStateUseCase(repository),
-        completeOnboardingUseCase: CompleteOnboardingUseCase(repository),
-        setLanguageUseCase: SetLanguageUseCase(repository),
-      );
+  testWidgets('selecting a language applies it and continues into onboarding', (
+    WidgetTester tester,
+  ) async {
+    final repository = FakeAppStateRepository();
+    final cubit = AppStateCubit(
+      getAppStateUseCase: GetAppStateUseCase(repository),
+      completeOnboardingUseCase: CompleteOnboardingUseCase(repository),
+      setLanguageUseCase: SetLanguageUseCase(repository),
+    );
 
-      await tester.pumpWidget(
-        BlocProvider.value(
-          value: cubit,
-          child: LocalizationProvider(
-            languageCode: 'en',
-            child: const MaterialApp(
-              home: LanguageSelectionScreen(),
-            ),
-          ),
+    await tester.pumpWidget(
+      BlocProvider.value(
+        value: cubit,
+        child: LocalizationProvider(
+          languageCode: 'en',
+          child: const MaterialApp(home: LanguageSelectionScreen()),
         ),
-      );
+      ),
+    );
 
-      await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('lang_si')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('lang_si')));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('confirm_language')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_language')));
+    await tester.pumpAndSettle();
 
-      // Language selection now runs BEFORE the introduction, so the
-      // introduction is shown already translated. It applies the language
-      // but does not yet mark onboarding complete — that happens at the end
-      // of the flow, after the account-or-guest choice.
-      expect(find.byType(OnboardingScreen), findsOneWidget);
+    // Language selection now runs BEFORE the introduction, so the
+    // introduction is shown already translated. It applies the language
+    // but does not yet mark onboarding complete — that happens at the end
+    // of the flow, after the account-or-guest choice.
+    expect(find.byType(OnboardingScreen), findsOneWidget);
 
-      expect(repository.appState.languageCode, equals('si'));
-      expect(repository.appState.onboardingCompleted, isFalse);
-    },
-  );
+    expect(repository.appState.languageCode, equals('si'));
+    expect(repository.appState.onboardingCompleted, isFalse);
+  });
 }

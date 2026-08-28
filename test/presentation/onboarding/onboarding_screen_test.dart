@@ -8,6 +8,7 @@ import 'package:cropcare/domain/repositories/app_state_repository.dart';
 import 'package:cropcare/domain/usecases/onboarding/complete_onboarding_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/get_app_state_use_case.dart';
 import 'package:cropcare/domain/usecases/onboarding/set_language_use_case.dart';
+import 'package:cropcare/presentation/home/home_screen.dart';
 import 'package:cropcare/presentation/onboarding/localization/localization_provider.dart';
 import 'package:cropcare/presentation/onboarding/onboarding_screen.dart';
 
@@ -72,6 +73,60 @@ void main() {
         find.byKey(const Key('onboarding_continue_guest_button')),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'Tapping Create Account at the final step completes onboarding without '
+    'throwing',
+    (WidgetTester tester) async {
+      // Regression test for a live crash: completing onboarding used to be
+      // done via a BuildContext captured by LanguageSelectionScreen and
+      // handed to this screen as a callback. LanguageSelectionScreen is
+      // replaced - and its context torn down - the instant navigation lands
+      // here, so by the time a farmer actually reached this final step and
+      // tapped Create Account, that captured context was already
+      // deactivated. Navigator.of(context) on it threw
+      // "Null check operator used on a null value". Completing onboarding
+      // now uses THIS screen's own context instead, which stays valid for as
+      // long as its own buttons are tappable.
+      final repository = FakeAppStateRepository();
+      final cubit = AppStateCubit(
+        getAppStateUseCase: GetAppStateUseCase(repository),
+        completeOnboardingUseCase: CompleteOnboardingUseCase(repository),
+        setLanguageUseCase: SetLanguageUseCase(repository),
+      );
+
+      await tester.pumpWidget(
+        BlocProvider.value(
+          value: cubit,
+          child: LocalizationProvider(
+            languageCode: 'en',
+            child: const MaterialApp(
+              home: OnboardingScreen(languageCode: 'en'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('onboarding_skip_button')));
+      await tester.pumpAndSettle();
+
+      final errors = <FlutterErrorDetails>[];
+      final originalOnError = FlutterError.onError;
+      FlutterError.onError = errors.add;
+
+      await tester.tap(
+        find.byKey(const Key('onboarding_create_account_button')),
+      );
+      await tester.pumpAndSettle();
+
+      FlutterError.onError = originalOnError;
+
+      expect(errors, isEmpty);
+      expect(repository.appState.onboardingCompleted, isTrue);
+      expect(find.byType(HomeScreen), findsOneWidget);
     },
   );
 }

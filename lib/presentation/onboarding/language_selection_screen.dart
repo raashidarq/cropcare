@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_text_styles.dart';
 
 import '../../application/onboarding/app_state_cubit.dart';
-import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
 import 'onboarding_screen.dart';
 
@@ -18,19 +17,6 @@ class LanguageSelectionScreen extends StatefulWidget {
 
 class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   String _selectedLanguage = 'en';
-
-  /// Completes onboarding and enters the app. [openAuth] routes straight to
-  /// account creation; otherwise the user lands on Home as a guest.
-  Future<void> _finish(BuildContext context, {required bool openAuth}) async {
-    final navigator = Navigator.of(context);
-    await context.read<AppStateCubit>().completeOnboarding(_selectedLanguage);
-    if (!context.mounted) return;
-    navigator.pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(openAccountOnLaunch: openAuth),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,21 +113,14 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                   // Apply the language now so the introduction that follows
                   // is already translated, but do NOT mark onboarding
                   // complete — that happens at the end of the flow.
-                  await context
-                      .read<AppStateCubit>()
-                      .setLanguage(_selectedLanguage);
+                  await context.read<AppStateCubit>().setLanguage(
+                    _selectedLanguage,
+                  );
                   if (!context.mounted) return;
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
                       builder: (_) => OnboardingScreen(
-                        onCreateAccount: () => _finish(
-                          context,
-                          openAuth: true,
-                        ),
-                        onContinueAsGuest: () => _finish(
-                          context,
-                          openAuth: false,
-                        ),
+                        languageCode: _selectedLanguage,
                       ),
                     ),
                   );

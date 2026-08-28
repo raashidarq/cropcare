@@ -93,7 +93,7 @@ one.
 > anything about whether the output can be trusted. Three things:
 
 > First, nothing landed without passing the project's own tests. There are
-> **227 automated tests on the Flutter side and 144 on the backend**, and
+> **228 automated tests on the Flutter side and 163 on the backend**, and
 > both are green right now, at submission time.
 
 > Second, non-obvious decisions are written down, not just made silently.
@@ -181,7 +181,7 @@ own flow guide you more than this list:
 
 ### 4c. Testing and validation — ~1 minute
 
-> Beyond the 227 and 144 automated tests, I did two things worth mentioning
+> Beyond the 228 and 163 automated tests, I did two things worth mentioning
 > specifically. I smoke-tested every release build on a physical Android
 > device — installed it, launched it, checked the logs for the kind of silent
 > failures that code shrinking can cause. And I verified the live backend by

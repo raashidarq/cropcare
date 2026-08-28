@@ -17,18 +17,20 @@
 //     it says nothing is lost by doing so.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../application/onboarding/app_state_cubit.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
+import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  /// Called when the user finishes and wants an account.
-  final VoidCallback? onCreateAccount;
-
-  /// Called when the user finishes and wants to continue as a guest.
-  final VoidCallback? onContinueAsGuest;
+  /// The language chosen on the previous screen. Completing onboarding needs
+  /// it, and this screen - not its caller - is the one that's still mounted
+  /// when the user actually makes that choice, several slides later.
+  final String languageCode;
 
   /// Preview mode: shown from Settings to review the flow. Hides the final
   /// account step (there is nothing to decide) and just pops when done.
@@ -36,8 +38,7 @@ class OnboardingScreen extends StatefulWidget {
 
   const OnboardingScreen({
     super.key,
-    this.onCreateAccount,
-    this.onContinueAsGuest,
+    this.languageCode = 'en',
     this.isPreview = false,
   });
 
@@ -101,7 +102,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       Navigator.of(context).pop();
       return;
     }
-    widget.onContinueAsGuest?.call();
+    _completeAndEnter(openAuth: false);
+  }
+
+  /// Completes onboarding and enters the app. [openAuth] routes straight to
+  /// account creation; otherwise the user lands on Home as a guest.
+  ///
+  /// Deliberately uses THIS widget's own `context`, not one handed in from
+  /// the screen that pushed this one. That screen (LanguageSelectionScreen)
+  /// is replaced - and its context torn down - the moment navigation lands
+  /// here; capturing its context in a callback and calling it later, once
+  /// the user reaches this final step, used it after it was already
+  /// deactivated. `OnboardingScreen`'s own context stays valid for exactly as
+  /// long as its buttons are tappable, which is what this needs.
+  Future<void> _completeAndEnter({required bool openAuth}) async {
+    final navigator = Navigator.of(context);
+    await context.read<AppStateCubit>().completeOnboarding(widget.languageCode);
+    if (!context.mounted) return;
+    navigator.pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(openAccountOnLaunch: openAuth),
+      ),
+    );
   }
 
   void _skip() {
@@ -143,8 +165,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 itemBuilder: (context, i) {
                   if (showAccountStep && i == _slides.length) {
                     return _AccountStep(
-                      onCreateAccount: widget.onCreateAccount,
-                      onContinueAsGuest: widget.onContinueAsGuest,
+                      onCreateAccount: () => _completeAndEnter(openAuth: true),
+                      onContinueAsGuest: () => _completeAndEnter(openAuth: false),
                     );
                   }
                   return _SlideView(slide: _slides[i]);
