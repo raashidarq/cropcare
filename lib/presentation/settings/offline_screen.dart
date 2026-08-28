@@ -47,7 +47,7 @@ class OfflineScreen extends StatelessWidget {
           TextButton(
             key: const Key('cancel_delete_button'),
             onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(context.tr('cancel_btn')),
+            child: Text(context.tr('cancel')),
           ),
           ElevatedButton(
             key: const Key('sync_first_button'),
@@ -93,7 +93,7 @@ class OfflineScreen extends StatelessWidget {
           TextButton(
             key: const Key('cancel_delete_button'),
             onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(context.tr('cancel_btn')),
+            child: Text(context.tr('cancel')),
           ),
           ElevatedButton(
             key: const Key('confirm_delete_button'),
