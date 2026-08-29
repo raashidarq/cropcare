@@ -622,6 +622,35 @@ pre-fix code (reverted it, re-ran, reverted back), not just assumed to.
 
 ---
 
+### TD-031 · Phone Sign-In Sent the Wrong JSON Keys — Never Actually Worked
+
+**Date:** 2026-08-29
+**Decision:** `AuthApiClient.requestPhoneOtp`/`verifyPhoneOtp` now send
+`phone`/`code`, matching the backend's real `OtpRequestBody`/`OtpVerifyBody`
+schema, instead of `phone_number`/`otp_code`.
+
+**Rationale:** found live, testing phone sign-in for the first time this
+session (`PHONE_AUTH_ENABLED` had been off since TD-003 until tonight).
+Creating an account with a phone number threw `AuthApiException status
+400`, always. The backend's Pydantic schema doesn't recognise
+`phone_number`/`otp_code` as fields — an unrecognised JSON key is silently
+ignored, not rejected — so both `email` and `phone` ended up `None`, which
+the backend's own "exactly one of email/phone must be supplied" check then
+rejected with a genuine 400, just not the one the error message suggested.
+Distinct from the phone-*change* endpoints
+(`/auth/change-phone/request-otp`, `/verify-otp`), which legitimately use
+`phone_number`/`otp_code` and were never affected — most likely this
+client code was written by analogy to that schema rather than checked
+against the sign-in endpoints' actual one.
+
+Zero test coverage existed for these two methods before this — every
+other `AuthApiClient` method has a test asserting its exact payload shape;
+these two didn't, which is exactly how a key-name mismatch survives
+untouched through every other test run. This means phone sign-in has
+likely never worked, at any point, until tonight.
+
+---
+
 ## Personal Notes
 
 ### 2026-08-24 — Gradle JVM Build Issue

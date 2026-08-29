@@ -2,7 +2,7 @@
 
 > **Purpose:** Compact, accurate description of the **current** Flutter codebase for future AI coding agents.
 > **Source hierarchy:** Actual code > `CropCare_System_Architecture.md` > `CropCare_Build_Checklist.md`
-> **Last updated:** 2026-08-29 (manual AI-fetch trigger + on-device caching, sync bug fixes — see TD-027 through TD-030)
+> **Last updated:** 2026-08-29 (manual AI-fetch trigger + on-device caching, sync bug fixes, phone sign-in fix — see TD-027 through TD-031)
 
 ---
 
@@ -47,7 +47,7 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | Reorganized Settings Screen (Profile & Account, Preferences, Data & Storage, Support & Legal, App Version) | Done |
 | SQLite schema (14 Drift tables + migrations, schemaVersion=8) | Done |
 | Full localization string tables (EN/SI/TA — 341 keys, parity enforced by review) | Done |
-| Full automated test suite (240 Flutter tests passing) | Done |
+| Full automated test suite (242 Flutter tests passing) | Done |
 | Design system (`lib/core/theme/`: colours, type, spacing, radius; bundled Noto EN/SI/TA fonts) | Done |
 | Bottom-navigation shell (Home / History / Account, lazily built tabs) | Done |
 | Live camera viewfinder with leaf-framing guide (`camera` package) | Done |
@@ -479,3 +479,9 @@ SyncCubit.syncNow(token?):
     actually exists** (`main.dart` seeds exactly one: `'cropcare-v1.0'`) —
     it's a real foreign key, and any other value throws on insert and
     aborts the whole restore batch, not just that one scan (TD-030).
+32. **`AuthApiClient.requestPhoneOtp`/`verifyPhoneOtp` send `phone`/`code`,
+    NOT `phone_number`/`otp_code`.** That's the *change*-phone endpoints'
+    schema, not the sign-in one — matching the wrong one meant phone
+    sign-in never actually worked (TD-031). Any new phone-auth client code
+    must check the specific backend schema it targets, not copy the
+    naming convention from a different endpoint.
