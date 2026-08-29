@@ -43,7 +43,6 @@ import '../../domain/usecases/history/delete_scan_use_case.dart';
 import '../../domain/usecases/history/get_scan_history_use_case.dart';
 import '../auth/auth_screen.dart';
 import '../diagnosis/diagnosis_result_screen.dart';
-import '../../data/local/preferences/tutorial_preferences.dart';
 import '../shared/widgets/tutorial_overlay.dart';
 import '../onboarding/localization/localization_provider.dart';
 import '../scan/capture_screen.dart';
@@ -276,7 +275,10 @@ class _AppShellState extends State<_AppShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+    // Auto-launching the walkthrough on first Home visit is disabled for
+    // now (explicit ask: it was interrupting first use rather than helping
+    // it). _maybeShowTutorial/_runTutorial are left in place - Settings'
+    // "replay tutorial" entry point still calls them directly.
 
     if (widget.openAccountOnLaunch) {
       // Deferred to the first frame: the shell has to exist before anything
@@ -374,21 +376,11 @@ class _AppShellState extends State<_AppShell> {
   final GlobalKey _scanButtonKey = GlobalKey();
   final GlobalKey _navKey = GlobalKey();
 
-  final TutorialPreferences _tutorialPrefs = TutorialPreferences();
-  bool _tutorialChecked = false;
-
-  /// Runs once, after the first frame, so the targets have been laid out and
-  /// have rects to point at.
-  Future<void> _maybeShowTutorial() async {
-    if (_tutorialChecked) return;
-    _tutorialChecked = true;
-    if (await _tutorialPrefs.hasSeenHomeTutorial()) return;
-    if (!mounted) return;
-    await _tutorialPrefs.setHomeTutorialSeen(true);
-    if (!mounted) return;
-    await _runTutorial();
-  }
-
+  /// Triggered only from Settings' "replay tutorial" row now - it no longer
+  /// auto-runs on first Home visit (see initState). The seen/not-seen
+  /// tracking that used to gate the automatic run lived in
+  /// TutorialPreferences and has no reader left; a manual replay does not
+  /// need it.
   Future<void> _runTutorial() async {
     // Home first: the walkthrough points at the real screen, so it has to be
     // the one on display.
