@@ -8,7 +8,9 @@ expert over WhatsApp when the model isn't sure.
 Backend: [`cropcare-backend`](https://github.com/raashidarq/cropcare-backend)
 — live at `https://cropcare-backend-xy88.onrender.com`.
 
-Latest release APK: https://github.com/raashidarq/cropcare/actions/runs/33242626255
+Latest release APK: 
+https://github.com/raashidarq/cropcare/actions/runs/33242626255
+
 ---
 
 ## Testing this without setting anything up
