@@ -124,8 +124,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// grey screen with no visible error (Flutter's release-mode default
   /// `ErrorWidget`); in debug it would have shown the usual red error
   /// screen. Confirmed live via `adb logcat` against a real release build
-  /// (TD-032): `Provider<SyncCubit> not found for BlocConsumer<SyncCubit,
-  /// SyncState>`. `openAuth` now travels through `AppStateCubit` instead,
+  /// (TD-032): "Provider&lt;SyncCubit&gt; not found for
+  /// BlocConsumer&lt;SyncCubit, SyncState&gt;". `openAuth` now travels
+  /// through `AppStateCubit` instead,
   /// as a one-shot, non-persisted flag on the emitted state, so the real
   /// HomeScreen can act on it with all of its dependencies intact.
   Future<void> _completeAndEnter({required bool openAuth}) async {
