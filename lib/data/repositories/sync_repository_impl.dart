@@ -276,19 +276,22 @@ class SyncRepositoryImpl implements SyncRepository {
           if (imagePath != null && imagePath.isNotEmpty) {
             final file = File(imagePath);
             if (await file.exists()) {
-              final signedUrl = await _apiClient.getSignedUploadUrl(
+              final signed = await _apiClient.getSignedUploadUrl(
                 scanId: op.entityId,
                 authToken: authToken,
               );
               final bytes = await file.readAsBytes();
               await _apiClient.uploadImageBinary(
-                signedUrl: signedUrl,
+                signedUrl: signed.uploadUrl,
                 imageBytes: bytes,
               );
-              final uri = Uri.tryParse(signedUrl);
-              if (uri != null) {
-                remoteImageUrl = '${uri.scheme}://${uri.host}${uri.path}';
-              }
+              // The plain storage path the backend computed, NOT something
+              // parsed back out of the signed upload URL - that URL's own
+              // path segment is an internal storage API route, not the
+              // bucket-relative path restore later needs to read this same
+              // object back. See SignedUploadUrl's own docs for why these
+              // two are not interchangeable.
+              remoteImageUrl = signed.path;
               // Persist BEFORE the metadata POST — that is the whole point.
               await (db.update(db.syncOperationTable)
                     ..where((t) => t.id.equals(op.id)))
@@ -300,6 +303,17 @@ class SyncRepositoryImpl implements SyncRepository {
               );
             }
           }
+        }
+
+        // The uploaded image's storage path must reach the metadata POST -
+        // without this, the image genuinely does upload to Supabase Storage
+        // and the app knows its path locally (scan.image_remote_url above),
+        // but Supabase's own scan.image_url column stays NULL forever, and
+        // restore (which reads exactly that column) has nothing to pull
+        // back. This was a live bug: sync appeared to succeed, but a
+        // restored scan came back with no photo.
+        if (remoteImageUrl != null) {
+          payload['image_url'] = remoteImageUrl;
         }
 
         await _apiClient.syncScan(scanData: payload, authToken: authToken);

@@ -16,6 +16,24 @@ class SyncApiException implements Exception {
   String toString() => 'SyncApiException: $message (code: $statusCode)';
 }
 
+/// A signed upload URL, and the storage path it uploads to.
+///
+/// Both matter, and they are NOT interchangeable: [uploadUrl] is a
+/// short-lived presigned URL for one PUT, carrying signing query params and
+/// an internal API path segment (.../storage/v1/object/upload/sign/...).
+/// [path] is the plain bucket-relative path (`{user_id}/{scan_id}.jpg`) the
+/// backend already computed server-side — the exact value it later needs
+/// back on `scan.image_url` to generate a signed READ url for restore. The
+/// two look similar enough that reconstructing one from the other by
+/// parsing the URL is an easy, wrong shortcut - the backend already knows
+/// both, so ask it for both instead of deriving.
+class SignedUploadUrl {
+  final String uploadUrl;
+  final String path;
+
+  const SignedUploadUrl({required this.uploadUrl, required this.path});
+}
+
 class SyncApiClient {
   final String baseUrl;
   final http.Client _httpClient;
@@ -30,7 +48,7 @@ class SyncApiClient {
         _httpClient = httpClient ?? http.Client();
 
   /// Requests a signed upload URL for direct storage upload.
-  Future<String> getSignedUploadUrl({
+  Future<SignedUploadUrl> getSignedUploadUrl({
     required String scanId,
     required String authToken,
   }) async {
@@ -47,8 +65,9 @@ class SyncApiClient {
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final url = data['upload_url'] ?? data['url'] ?? data['signed_url'];
-      if (url != null && url is String) {
-        return url;
+      final path = data['path'];
+      if (url != null && url is String && path != null && path is String) {
+        return SignedUploadUrl(uploadUrl: url, path: path);
       }
       throw SyncApiException('Invalid upload URL response from server');
     } else {

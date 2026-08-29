@@ -19,13 +19,28 @@ class _FakeSyncApiClient extends SyncApiClient {
 
   Object? syncScanError;
 
+  /// Every scanData map syncScan was actually called with, so tests can
+  /// assert what really reached the "server" - not just that a call
+  /// happened.
+  final List<Map<String, dynamic>> syncedScanPayloads = [];
+
   @override
-  Future<String> getSignedUploadUrl({
+  Future<SignedUploadUrl> getSignedUploadUrl({
     required String scanId,
     required String authToken,
   }) async {
     signedUrlCalls++;
-    return 'https://storage.example.com/scans/$scanId.jpg?token=abc';
+    // Deliberately a DIFFERENT shape from the real storage path, the same
+    // way a real signed upload URL is: an internal storage API route, not
+    // the plain bucket-relative path. A fix that accidentally parses this
+    // URL instead of using SignedUploadUrl.path would produce the wrong
+    // value and this fake would not catch it - the regression test below
+    // asserts the actual path value for exactly that reason.
+    return SignedUploadUrl(
+      uploadUrl: 'https://storage.example.com/object/upload/sign/'
+          'scan-images/user-1/$scanId.jpg?token=abc',
+      path: 'user-1/$scanId.jpg',
+    );
   }
 
   @override
@@ -43,6 +58,7 @@ class _FakeSyncApiClient extends SyncApiClient {
     required String authToken,
   }) async {
     syncScanCalls++;
+    syncedScanPayloads.add(scanData);
     if (syncScanError != null) throw syncScanError!;
   }
 
@@ -152,6 +168,50 @@ void main() {
         expect(api.uploadCalls, 1, reason: 'image re-uploaded on retry');
         expect(api.syncScanCalls, 2);
         expect((await opRow()).status, 'COMPLETED');
+      },
+    );
+  });
+
+  group('the uploaded image reaches the metadata sync, not just storage', () {
+    // Live bug: the image genuinely uploaded to Supabase Storage, and the
+    // app knew its remote path locally (scan.image_remote_url) - but
+    // scan.image_url on the metadata POST was never set, so Supabase's own
+    // scan row had a NULL image_url forever. Sync looked successful; a
+    // restore on another device came back with no photo, because restore
+    // reads exactly that column.
+    test(
+      'a fresh upload sends the storage path (not the signed upload URL) '
+      'as image_url',
+      () async {
+        await insertScanOp();
+        await repo.syncPendingOperations(authToken: 'token');
+
+        expect(api.syncedScanPayloads, hasLength(1));
+        expect(
+          api.syncedScanPayloads.single['image_url'],
+          'user-1/$scanId.jpg',
+          reason: 'must be the plain storage path the backend computed, '
+              'not the signed upload URL (which carries a different, '
+              'internal API path plus a signing token) and not missing',
+        );
+      },
+    );
+
+    test(
+      'a retry that reuses a previously uploaded image still includes its '
+      'path on the metadata payload',
+      () async {
+        await insertScanOp();
+        api.syncScanError = SyncApiException('server exploded', 500);
+        await repo.syncPendingOperations(authToken: 'token');
+
+        api.syncScanError = null;
+        await repo.syncPendingOperations(authToken: 'token');
+
+        expect(api.syncedScanPayloads, hasLength(2));
+        for (final payload in api.syncedScanPayloads) {
+          expect(payload['image_url'], 'user-1/$scanId.jpg');
+        }
       },
     );
   });
