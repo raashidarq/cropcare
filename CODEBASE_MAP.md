@@ -2,7 +2,7 @@
 
 > **Purpose:** Compact, accurate description of the **current** Flutter codebase for future AI coding agents.
 > **Source hierarchy:** Actual code > `CropCare_System_Architecture.md` > `CropCare_Build_Checklist.md`
-> **Last updated:** 2026-08-26 (design system, camera-first capture, bottom-nav shell, OOD image gate, sync-failure UI)
+> **Last updated:** 2026-08-29 (manual AI-fetch trigger + on-device caching, sync bug fixes — see TD-027 through TD-029)
 
 ---
 
@@ -45,17 +45,19 @@ A Flutter mobile app (Android primary) that lets a guest or registered farmer se
 | App-level connectivity listener (auto-sync on network recovery, 3 s debounce, offline→online transition only) | Done |
 | Background periodic WorkManager worker (15-min interval, `NETWORK_CONNECTED` constraint, Dart background isolate via `workmanager` plugin) | Done |
 | Reorganized Settings Screen (Profile & Account, Preferences, Data & Storage, Support & Legal, App Version) | Done |
-| SQLite schema (14 Drift tables + migrations, schemaVersion=7) | Done |
+| SQLite schema (14 Drift tables + migrations, schemaVersion=8) | Done |
 | Full localization string tables (EN/SI/TA — 341 keys, parity enforced by review) | Done |
-| Full automated test suite (147 Flutter tests passing) | Done |
+| Full automated test suite (238 Flutter tests passing) | Done |
 | Design system (`lib/core/theme/`: colours, type, spacing, radius; bundled Noto EN/SI/TA fonts) | Done |
 | Bottom-navigation shell (Home / History / Account, lazily built tabs) | Done |
 | Live camera viewfinder with leaf-framing guide (`camera` package) | Done |
 | Pre-inference image content gate (exposure, blur, vegetation) — rejects non-plant photos | Done |
 | Offline disease-explanation schema + UI (**ships with no content**) | Schema + UI only |
 | Failed-sync & session-expired UI in `OfflineScreen` | Done |
-| "Ask about this result" (chat) | Placeholder entry point + brief only |
-| Speak-your-observations (voice transcription) | Placeholder entry point + brief only |
+| "Ask about this result" (chat, scoped to one diagnosis, `/chat-about-diagnosis`) | Done (TD-023) |
+| Speak-your-observations (voice transcription, chat input) | Done (TD-024) |
+| Manual "Get AI Recommendation" trigger + observations field on the result screen | Done (TD-027) — AI treatment guidance is no longer fetched automatically |
+| On-device AI treatment caching (`diagnosis.ai_treatment_json`, schema v8) | Done (TD-027) |
 
 ### What is not implemented
 - Push notifications.
@@ -132,7 +134,7 @@ cropcare/
 │   │   ├── local/
 │   │   │   ├── database/
 │   │   │   │   ├── tables.dart          # All 11 Drift table definitions (schema source of truth)
-│   │   │   │   ├── app_database.dart    # Drift DB class, schemaVersion=7, migrations
+│   │   │   │   ├── app_database.dart    # Drift DB class, schemaVersion=8, migrations
 │   │   │   │   └── app_database.g.dart  # Generated; do not edit
 │   │   │   ├── ml/
 │   │   │   │   └── ml_inference_service.dart # TFLite model load, 224x224 NHWC preprocess, inference
@@ -229,7 +231,7 @@ cropcare/
 | `lib/main.dart` | Entry point; DB init, seed crops/diseases, load ML model, wire all repos, use cases & Cubits | `main()` | — | `AppDatabase`, all `RepositoryImpl`s, `MlInferenceService`, all use cases, Cubits | None (root) |
 | `lib/app.dart` | Root widget; routing via `AppStateCubit`; wraps `LocalizationProvider` | `CropCareApp` | Presentation | `AppStateCubit`, `LocalizationProvider`, `HomeScreen` | `main.dart` |
 | `lib/data/local/database/tables.dart` | Drift table definitions — schema source of truth (11 tables) | 11 table classes | Local Data | `drift` | `app_database.dart` |
-| `lib/data/local/database/app_database.dart` | Drift DB class; migrations up to schemaVersion=7; index creation | `AppDatabase`, `AppDatabase.forTesting()` | Local Data | `drift`, `sqlite3_flutter_libs`, `path_provider` | All `RepositoryImpl` files |
+| `lib/data/local/database/app_database.dart` | Drift DB class; migrations up to schemaVersion=8; index creation | `AppDatabase`, `AppDatabase.forTesting()` | Local Data | `drift`, `sqlite3_flutter_libs`, `path_provider` | All `RepositoryImpl` files |
 | `lib/data/local/ml/ml_inference_service.dart` | Loads bundled TFLite model, preprocesses image (224x224 NHWC), runs inference, applies softmax, maps class index to disease ID | `MlInferenceService`, `InferenceResult` | Local Data / ML | `tflite_flutter`, `image` | `RunDiagnosisUseCase`, `main.dart` |
 | `lib/data/local/tts/text_to_speech_service.dart` | Audio speech synthesis for localized treatment guidance | `TtsService`, `TextToSpeechService` | Local Data / Audio | `flutter_tts` | `DiagnosisResultScreen` |
 | `lib/data/remote/sync_api_client.dart` | Signed URL generation, image binary upload, idempotent REST sync, reference data fetch | `SyncApiClient` | Remote Data | `http` | `SyncRepositoryImpl` |
@@ -353,7 +355,7 @@ SyncCubit.syncNow(token?):
 - **`TreatmentResponse`**: `summary`, `whatToDo`, `whatToAvoid`, `recheckAfterDays`, `interpretationId`
 - **`ScanHistoryItem`**: `scan`, `diagnosis`, `crop`
 
-### SQLite Tables (Drift — `schemaVersion = 7`)
+### SQLite Tables (Drift — `schemaVersion = 8`)
 1. **`app_state`**: Singleton app configuration row.
 2. **`local_user`**: Guest and authenticated user profiles & tokens.
 3. **`crop`**: 15 seeded crop records.
@@ -362,7 +364,10 @@ SyncCubit.syncNow(token?):
 6. **`model_version`**: Model registry table.
 7. **`scan`**: Image path, crop FK, status lifecycle, imageRemoteUrl, remoteScanId.
 8. **`image_validation`**: On-device image quality validation results.
-9. **`diagnosis`**: Inference results, confidence scores, treatment source, and interpretation IDs.
+9. **`diagnosis`**: Inference results, confidence scores, treatment source, and
+    interpretation IDs. Gained `ai_treatment_json` / `ai_treatment_fetched_at`
+    in v8 — caches the AI-written treatment response so re-opening a
+    diagnosis reads it back instead of re-asking the LLM (TD-027).
 10. **`escalation`**: Expert escalation & WhatsApp share records (added in v3).
 11. **`sync_operation`**: Outbox for offline cloud sync operations (added in v4).
     Gained `uploaded_image_url` in v5 so a retry does not re-upload an image
@@ -374,6 +379,9 @@ SyncCubit.syncNow(token?):
     distinguishing symptoms (added in v6). **Ships empty** —
     `confused_with_disease_id` is nullable because the most dangerous
     look-alikes are often not diseases at all.
+14. **`chat_message`**: Follow-up conversation transcript, scoped to one
+    diagnosis (added in v7, TD-023). The local copy is authoritative — the
+    backend keeps no session, only a write-only audit log.
 
 ---
 
@@ -444,3 +452,26 @@ SyncCubit.syncNow(token?):
     do not remove the pre-inference content gate in `ValidateImageUseCase`.
 21. `disease_explanation` / `disease_confusion` are intentionally empty. Do not
     add seed content to satisfy a test — assert the empty path instead.
+27. **AI treatment guidance is fetched only when the farmer taps "Get AI
+    Recommendation" / "Retry AI" — never automatically.** It used to fire the
+    instant on-device guidance finished loading; that meant a farmer who left
+    the screen mid-request had no way to know a request was in flight, and
+    re-opening an already-answered diagnosis silently re-billed a real
+    request every time. Do not reintroduce an automatic fetch (TD-027).
+28. **Every `Cubit.emit()` that follows an `await` must be guarded with
+    `isClosed`.** A cubit disposed while an async call is in flight (the
+    farmer navigated away) throws `StateError` on the next `emit()` otherwise
+    — a live crash, not a hypothetical one. See `DiagnosisCubit` for the
+    pattern (TD-027).
+29. **A successful sign-in must call `SyncCubit.resumeAfterReauth()`, never a
+    bare `syncNow()`.** Only `resumeAfterReauth()` clears sync operations a
+    PRIOR session left stuck in `AUTH_REQUIRED` (`clearAuthHold()`) before
+    syncing — a plain `syncNow()` fixes the cause (no valid token) without
+    ever releasing the effect, and the "session expired" banner outlives
+    every sign-in that was supposed to resolve it (TD-028).
+30. **`SyncApiClient.getSignedUploadUrl()` returns a `SignedUploadUrl` (both
+    `uploadUrl` and `path`), not a bare URL string.** The plain storage
+    `path` the backend already computed is what must reach
+    `scan.image_url` on the metadata sync — never reconstruct it by parsing
+    the signed upload URL, which carries a different, internal API path
+    segment plus a signing token (TD-029).

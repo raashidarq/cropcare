@@ -1,7 +1,7 @@
 # CropCare — DECISIONS.md
 
 > **Purpose:** Track technical decisions, trade-offs, and personal notes during development.
-> **Last updated:** 2026-08-26
+> **Last updated:** 2026-08-29
 
 ---
 
@@ -493,6 +493,101 @@ nothing complains until someone is standing in a field.
 names come from international sources and should be checked against Department
 of Agriculture / RRDI recommendations; and `cassava_green_mottle` may not
 occur in Sri Lanka at all.
+
+---
+
+### TD-027 · AI Treatment Fetch Is Explicit, Not Automatic, and Is Cached On-Device
+
+**Date:** 2026-08-29
+**Decision:**
+- AI treatment guidance is fetched only when the farmer taps "Get AI
+  Recommendation" / "Retry AI" on the diagnosis result screen —
+  `DiagnosisCubit.fetchTreatmentGuidance` is the only thing that ever calls
+  it. It previously fired automatically the instant on-device guidance
+  finished loading (`autoFetchAiGuidance`, now removed).
+- The observations text field is back on the result screen and actually
+  wired to a visible `TextField` this time — the controller already existed
+  (read from in three places) but was never bound to anything, dead UI left
+  behind from an earlier removal.
+- The AI-written response is now cached on-device
+  (`diagnosis.ai_treatment_json` / `ai_treatment_fetched_at`, schema v7→v8)
+  and read back with `DiagnosisCubit.loadCachedAiTreatment` on the next
+  visit — no network call, no repeat spend. Only genuinely LLM-sourced
+  answers are cached; the on-device fallback is never cached as if it were
+  one.
+- Every `emit()` in `DiagnosisCubit` that follows an `await` is now guarded
+  with `isClosed`.
+
+**Rationale:** the previous automatic-fetch design had two real costs, found
+live rather than reasoned about in advance: a farmer who left the result
+screen mid-request had no way to know a request was even in flight (and the
+observations field, removed earlier for exactly this reason — asking before
+showing any diagnosis felt premature — could not gate a request that fired
+before the farmer could type anything into it); and re-opening an
+already-answered diagnosis (from history, or after backgrounding the app)
+silently spent another real request on a question already asked, which
+matters on a 20-per-day free-tier quota. Making the fetch explicit also made
+the observations field well-motivated again, not a reversal for no reason —
+fetching is now something the farmer explicitly asks for, so a field to add
+context to that exact request makes sense in a way it didn't when the
+request fired on its own.
+
+The crash this surfaced (`StateError: Cannot emit new states after calling
+close`) was found via a live user report, not a test: a farmer opened a
+scan, left the screen while treatment guidance was still loading, and the
+network call resolved into an already-disposed cubit. The fix is generic —
+guard every emit, not just the one that happened to crash — since a
+manually-triggered fetch can just as easily outlive the screen as an
+automatic one could.
+
+---
+
+### TD-028 · A Sign-In Must Release Sync Operations a Prior Session Left Stuck
+
+**Date:** 2026-08-29
+**Decision:** `AuthScreen`'s sign-in success handler calls
+`SyncCubit.resumeAfterReauth(token: token)`, not a bare `syncNow(token:
+token)`.
+
+**Rationale:** found live — the "session expired" banner outlived every
+sign-in that was supposed to resolve it. A sync operation gets marked
+`AUTH_REQUIRED` when a 401 hits mid-sync (a guest-session attempt, or an
+expired token) and is deliberately never retried automatically — retrying
+with a dead token would just burn the retry budget. The only thing that
+clears that hold is `clearAuthHold()`, which only `resumeAfterReauth()`
+calls. A plain `syncNow()` syncs, but never clears the hold first — every
+ordinary sign-in fixed the CAUSE (no valid token) without ever clearing the
+EFFECT (rows already marked `AUTH_REQUIRED` from before). Only the separate
+"sign in again" flow already in Settings → Offline & Storage happened to
+call the right method.
+
+---
+
+### TD-029 · The Uploaded Scan Image's Storage Path Must Reach the Metadata Sync
+
+**Date:** 2026-08-29
+**Decision:** `SyncApiClient.getSignedUploadUrl()` returns a
+`SignedUploadUrl` (`uploadUrl` for the PUT, `path` for everything after),
+not a bare URL string — the backend already computes and returns the plain
+bucket-relative storage path (`{user_id}/{scan_id}.jpg`) alongside the
+signed upload URL; the client just needs to keep and use it, not
+reconstruct it. `sync_repository_impl.dart` uses that `path` directly and
+assigns it onto the metadata payload's `image_url` before every `syncScan`
+call, including on a retry that reuses a previously uploaded image.
+
+**Rationale:** found live while testing restore. A scan's photo genuinely
+uploaded to Supabase Storage, and the app knew its remote path locally
+(`scan.image_remote_url`) — but the metadata POST to `/scans` never
+included it, so Supabase's own `scan.image_url` column stayed `NULL`
+forever. Sync looked successful; restoring that same scan on another
+device came back with the crop name but no photo, because restore reads
+exactly that column. Two compounding bugs, both in how the upload's result
+was used AFTER a successful upload, not in the upload itself: the API
+client discarded the `path` field the backend already returned, and the
+repository then tried to reconstruct a path by parsing the signed upload
+URL's own scheme+host+path — the wrong value even when it ran, since a
+signed upload URL's path segment is an internal storage API route plus a
+signing token, not the plain path restore needs back.
 
 ---
 
