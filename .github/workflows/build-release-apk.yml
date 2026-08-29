@@ -1,0 +1,63 @@
+name: Build Release APK
+
+# Manual trigger only - this is a submission/demo artifact, not something
+# that should rebuild on every push. Run it from the Actions tab when you
+# actually want a fresh APK.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & publish release APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the GitHub Release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      # Release currently signs with the debug keystore (documented in
+      # android/app/build.gradle.kts, so `flutter run --release` works
+      # without a real signing setup) - this is fine to install and demo,
+      # not intended for Play Store distribution.
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Read app version
+        id: appversion
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cropcare-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 90
+
+      - name: Publish a GitHub Release with the APK attached
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: CropCare ${{ steps.appversion.outputs.version }} (build ${{ github.run_number }})
+          body: |
+            Automated release build from commit ${{ github.sha }}.
+            Signed with the debug keystore — installable for testing/demo,
+            not a Play Store release build.
+          files: build/app/outputs/flutter-apk/app-release.apk
+          draft: false
+          prerelease: true
