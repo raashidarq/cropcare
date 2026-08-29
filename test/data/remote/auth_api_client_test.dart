@@ -88,6 +88,77 @@ void main() {
       );
     });
 
+    test(
+      'requestPhoneOtp sends POST to /auth/request-otp with key "phone", '
+      'not "phone_number"',
+      () async {
+        // Regression test for a live bug: this used to send "phone_number",
+        // a key the backend's OtpRequestBody does not recognise (it wants
+        // "phone"). An unrecognised JSON key is just silently ignored by
+        // Pydantic, so both email and phone ended up None, which the
+        // backend's own "exactly one of email/phone must be supplied" check
+        // then rejected with a 400 - phone sign-in never actually worked
+        // until this matched the real schema. Distinct from the *change*-
+        // phone endpoints, which do use "phone_number"/"otp_code" and were
+        // never affected — see the tests below.
+        final mockClient = MockClient((request) async {
+          expect(request.url.path, equals('/auth/request-otp'));
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['phone'], equals('+94771234567'));
+          expect(
+            body.containsKey('phone_number'),
+            isFalse,
+            reason: 'the backend schema has no such field',
+          );
+
+          return http.Response(
+            jsonEncode({'message': 'If that identifier is registered, an OTP has been sent.'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final apiClient = AuthApiClient(client: mockClient);
+        await expectLater(
+          apiClient.requestPhoneOtp(phoneNumber: '+94771234567'),
+          completes,
+        );
+      },
+    );
+
+    test(
+      'verifyPhoneOtp sends POST to /auth/verify-otp with keys "phone" and '
+      '"code", not "phone_number"/"otp_code"',
+      () async {
+        final mockClient = MockClient((request) async {
+          expect(request.url.path, equals('/auth/verify-otp'));
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['phone'], equals('+94771234567'));
+          expect(body['code'], equals('123456'));
+          expect(body.containsKey('phone_number'), isFalse);
+          expect(body.containsKey('otp_code'), isFalse);
+
+          return http.Response(
+            jsonEncode({
+              'user_id': 'user-remote-123',
+              'phone_number': '+94771234567',
+              'access_token': 'mock-access-token',
+              'refresh_token': 'mock-refresh-token',
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final apiClient = AuthApiClient(client: mockClient);
+        final response = await apiClient.verifyPhoneOtp(
+          phoneNumber: '+94771234567',
+          otpCode: '123456',
+        );
+        expect(response.accessToken, equals('mock-access-token'));
+      },
+    );
+
     test('requestPasswordReset sends POST to /auth/forgot-password with email', () async {
       final mockClient = MockClient((request) async {
         expect(request.url.path, equals('/auth/forgot-password'));

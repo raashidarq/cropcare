@@ -101,8 +101,17 @@ class AuthApiClient {
     required String phoneNumber,
   }) async {
     final uri = Uri.parse('$baseUrl/auth/request-otp');
+    // The backend's OtpRequestBody expects exactly 'phone' (or 'email'),
+    // not 'phone_number' — an unrecognised JSON key is just ignored by
+    // Pydantic, so this used to leave BOTH email and phone as None, which
+    // the backend's own "exactly one of email/phone must be supplied"
+    // check then rejected with a 400. Phone sign-in never actually worked
+    // until this matched the real schema (routers/auth.py's
+    // OtpRequestBody/OtpVerifyBody — distinct from the *change*-phone
+    // endpoints' schema, which does use phone_number/otp_code and was
+    // never affected by this).
     return _sendAuthRequest(uri, {
-      'phone_number': phoneNumber.trim(),
+      'phone': phoneNumber.trim(),
     });
   }
 
@@ -111,9 +120,10 @@ class AuthApiClient {
     required String otpCode,
   }) async {
     final uri = Uri.parse('$baseUrl/auth/verify-otp');
+    // See requestPhoneOtp above — OtpVerifyBody expects 'phone' and 'code'.
     return _sendAuthRequest(uri, {
-      'phone_number': phoneNumber.trim(),
-      'otp_code': otpCode.trim(),
+      'phone': phoneNumber.trim(),
+      'code': otpCode.trim(),
     });
   }
 
