@@ -591,6 +591,37 @@ signing token, not the plain path restore needs back.
 
 ---
 
+### TD-030 · Restoring a Diagnosis Must Reference a `model_version` Row That Actually Exists
+
+**Date:** 2026-08-29
+**Decision:** `restoreScansFromCloud()` inserts restored diagnosis rows
+with `modelVersionId: 'cropcare-v1.0'` — the one real row `main.dart` seeds
+— instead of the literal string `'restored'`, which was never a seeded row
+anywhere.
+
+**Rationale:** found live, immediately after TD-029 shipped.
+`diagnosis.model_version_id` is a real foreign key against
+`model_version.id`. Every restored diagnosis threw a foreign key violation
+on that insert, uncaught (only the image download in the same loop has its
+own try/catch), which aborted the *entire* restore batch — "Restore failed"
+for the whole account, not one row. This stayed invisible through everything
+tested earlier in the same session because it needed `disease_id` to come
+back non-null from the backend, which needed the crop/disease Supabase seed
+fix (TD-021 in the backend repo) first — before that, diagnosis sync itself
+was failing, so this insert rarely ran, and restore looked like it "worked"
+with fields missing (the symptom TD-029 fixed). Once diagnosis sync started
+succeeding, this ran on nearly every restored scan and turned "some fields
+missing" into "restore fails outright."
+
+No existing test caught this because no test exercised the real
+`SyncRepositoryImpl.restoreScansFromCloud` against a real database with a
+non-null `disease_id` — every "restore" fake elsewhere in the test suite
+stands in for a higher-level cubit/UI test, not the repository logic
+itself. The new test for this was confirmed to actually fail against the
+pre-fix code (reverted it, re-ran, reverted back), not just assumed to.
+
+---
+
 ## Personal Notes
 
 ### 2026-08-24 — Gradle JVM Build Issue
