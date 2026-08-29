@@ -634,7 +634,16 @@ class SyncRepositoryImpl implements SyncRepository {
                 DiagnosisTableCompanion.insert(
                   id: _uuid(),
                   scanId: localScanId,
-                  modelVersionId: 'restored',
+                  // diagnosis.model_version_id is a real foreign key against
+                  // model_version.id - 'restored' was never a seeded row
+                  // there (main.dart seeds exactly one: 'cropcare-v1.0'), so
+                  // every restored diagnosis threw a foreign key violation
+                  // here, uncaught (only the image download above has its
+                  // own try/catch), aborting the WHOLE restore batch. This
+                  // stayed invisible until disease_id started coming back
+                  // non-null on a real device, which needed the crop/disease
+                  // Supabase seed fix first.
+                  modelVersionId: 'cropcare-v1.0',
                   confidence: (row['confidence'] as num?)?.toDouble() ?? 0.0,
                   resultState: (row['result_state'] as String?) ?? 'CONFIDENT',
                   treatmentSource: 'LOCAL_FALLBACK',

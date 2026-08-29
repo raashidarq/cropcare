@@ -4,11 +4,26 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'package:cropcare/data/local/database/app_database.dart';
 import 'package:cropcare/data/remote/sync_api_client.dart';
 import 'package:cropcare/data/repositories/sync_repository_impl.dart';
 import 'package:cropcare/domain/entities/sync_operation.dart';
+
+/// restoreScansFromCloud() calls getApplicationDocumentsDirectory() (to know
+/// where to save a restored photo), which goes through a platform channel -
+/// unavailable in a plain `test()` (no widget binding). This fake answers it
+/// with a real temp directory instead.
+class _FakePathProviderPlatform extends PathProviderPlatform
+    with MockPlatformInterfaceMixin {
+  final String path;
+  _FakePathProviderPlatform(this.path);
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => path;
+}
 
 /// Records calls and can be told to fail a specific step, so the tests can
 /// reproduce partial failures (upload succeeds, metadata POST does not).
@@ -68,6 +83,18 @@ class _FakeSyncApiClient extends SyncApiClient {
     required String authToken,
   }) async =>
       <String, dynamic>{};
+
+  /// Set by individual tests to control what a restore pulls down.
+  List<Map<String, dynamic>> scansToRestore = [];
+
+  @override
+  Future<RestorePage> fetchScans({
+    required String authToken,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    return RestorePage(scans: scansToRestore, total: scansToRestore.length, hasMore: false);
+  }
 }
 
 void main() {
@@ -88,6 +115,7 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('cropcare_sync_test_');
     imageFile = File('${tempDir.path}/leaf.jpg');
     await imageFile.writeAsBytes(List.filled(2048, 7));
+    PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
 
     // app_state singleton is required for the advisory lock.
     await db.into(db.appStateTable).insertOnConflictUpdate(
@@ -212,6 +240,102 @@ void main() {
         for (final payload in api.syncedScanPayloads) {
           expect(payload['image_url'], 'user-1/$scanId.jpg');
         }
+      },
+    );
+  });
+
+  group('restore', () {
+    // Live bug: restoring a scan WITH a diagnosis threw and aborted the
+    // entire batch, every time - "Restore failed" for the whole account,
+    // not just one row. diagnosis.model_version_id is a real foreign key
+    // against model_version.id, and the restore code inserted the literal
+    // string 'restored', which was never a seeded row anywhere (the app
+    // seeds exactly one, 'cropcare-v1.0', in main.dart). This stayed
+    // invisible in every prior test because no existing restore test
+    // exercised the real repository against a real database with a
+    // non-null disease_id - every "restore" test elsewhere in this repo is
+    // a fake standing in for a higher-level cubit/UI test.
+    setUp(() async {
+      await db.into(db.cropTable).insertOnConflictUpdate(
+            CropTableCompanion.insert(id: 'tomato', nameEn: 'Tomato'),
+          );
+      await db.into(db.diseaseTable).insertOnConflictUpdate(
+            DiseaseTableCompanion.insert(
+              id: 'tomato_early_blight',
+              cropId: 'tomato',
+              nameEn: 'Early Blight',
+            ),
+          );
+      await db.into(db.modelVersionTable).insertOnConflictUpdate(
+            ModelVersionTableCompanion.insert(id: 'cropcare-v1.0'),
+          );
+    });
+
+    test(
+      'a scan with a diagnosis restores without throwing, and the '
+      'diagnosis references a model_version row that actually exists',
+      () async {
+        api.scansToRestore = [
+          {
+            'id': 'remote-scan-1',
+            'local_scan_id': 'local-scan-1',
+            'crop_id': 'tomato',
+            'image_url': null,
+            'status': 'DIAGNOSED',
+            'captured_at': '2026-08-29T10:00:00Z',
+            'disease_id': 'tomato_early_blight',
+            'confidence': 0.91,
+            'severity': 'moderate',
+            'result_state': 'CONFIDENT',
+            'diagnosed_at': '2026-08-29T10:00:05Z',
+          },
+        ];
+
+        final restored = await repo.restoreScansFromCloud(
+          userId: 'user-1',
+          authToken: 'token',
+        );
+
+        expect(restored, 1);
+
+        final diagnosisRow = await (db.select(db.diagnosisTable)
+              ..where((t) => t.scanId.equals('local-scan-1')))
+            .getSingle();
+        expect(diagnosisRow.diseaseId, 'tomato_early_blight');
+        expect(
+          diagnosisRow.modelVersionId,
+          'cropcare-v1.0',
+          reason: 'must reference a model_version row that actually '
+              'exists locally, or this insert throws a foreign key '
+              'violation and aborts the whole restore batch',
+        );
+      },
+    );
+
+    test(
+      'restoring several scans with diagnoses in one batch does not abort '
+      'partway through',
+      () async {
+        api.scansToRestore = List.generate(
+          3,
+          (i) => {
+            'id': 'remote-scan-$i',
+            'local_scan_id': 'local-scan-$i',
+            'crop_id': 'tomato',
+            'status': 'DIAGNOSED',
+            'captured_at': '2026-08-29T10:00:00Z',
+            'disease_id': 'tomato_early_blight',
+            'confidence': 0.9,
+            'result_state': 'CONFIDENT',
+          },
+        );
+
+        final restored = await repo.restoreScansFromCloud(
+          userId: 'user-1',
+          authToken: 'token',
+        );
+
+        expect(restored, 3);
       },
     );
   });
