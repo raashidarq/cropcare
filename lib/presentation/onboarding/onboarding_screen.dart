@@ -23,7 +23,6 @@ import '../../application/onboarding/app_state_cubit.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
-import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -108,21 +107,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Completes onboarding and enters the app. [openAuth] routes straight to
   /// account creation; otherwise the user lands on Home as a guest.
   ///
-  /// Deliberately uses THIS widget's own `context`, not one handed in from
-  /// the screen that pushed this one. That screen (LanguageSelectionScreen)
-  /// is replaced - and its context torn down - the moment navigation lands
-  /// here; capturing its context in a callback and calling it later, once
-  /// the user reaches this final step, used it after it was already
-  /// deactivated. `OnboardingScreen`'s own context stays valid for exactly as
-  /// long as its buttons are tappable, which is what this needs.
+  /// Does NOT navigate itself. `AppStateCubit.completeOnboarding` emits
+  /// `AppStateOnboardingComplete`, and app.dart's own root `BlocBuilder`
+  /// reacts to that by swapping `MaterialApp.home` to the real, fully-wired
+  /// `HomeScreen` (the one built with `authCubit`, `syncCubit` and every
+  /// real use case - see app.dart). This screen was only ever reached via
+  /// `pushReplacement`, so it is still the Navigator's one and only route;
+  /// that reactive swap is enough on its own to put HomeScreen on screen.
+  ///
+  /// This used to also push its own, separately-constructed
+  /// `HomeScreen(openAccountOnLaunch: openAuth)` here. That copy had no
+  /// `authCubit`/`syncCubit` (or any of the use cases) in its subtree, so
+  /// screens that read them via `context.read` — e.g. Settings > Offline &
+  /// Storage reading `SyncCubit` — threw `ProviderNotFoundException` the
+  /// moment they were opened. In release builds that renders as a blank
+  /// grey screen with no visible error (Flutter's release-mode default
+  /// `ErrorWidget`); in debug it would have shown the usual red error
+  /// screen. Confirmed live via `adb logcat` against a real release build
+  /// (TD-032): `Provider<SyncCubit> not found for BlocConsumer<SyncCubit,
+  /// SyncState>`. `openAuth` now travels through `AppStateCubit` instead,
+  /// as a one-shot, non-persisted flag on the emitted state, so the real
+  /// HomeScreen can act on it with all of its dependencies intact.
   Future<void> _completeAndEnter({required bool openAuth}) async {
-    final navigator = Navigator.of(context);
-    await context.read<AppStateCubit>().completeOnboarding(widget.languageCode);
-    if (!context.mounted) return;
-    navigator.pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(openAccountOnLaunch: openAuth),
-      ),
+    await context.read<AppStateCubit>().completeOnboarding(
+      widget.languageCode,
+      openAccountOnLaunch: openAuth,
     );
   }
 

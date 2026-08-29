@@ -28,10 +28,16 @@ class AppStateCubit extends Cubit<AppStateState> {
     }
   }
 
-  Future<void> completeOnboarding(String languageCode) async {
+  Future<void> completeOnboarding(
+    String languageCode, {
+    bool openAccountOnLaunch = false,
+  }) async {
     await completeOnboardingUseCase(languageCode);
     final updatedState = await getAppStateUseCase();
-    emit(AppStateOnboardingComplete(updatedState));
+    emit(AppStateOnboardingComplete(
+      updatedState,
+      openAccountOnLaunch: openAccountOnLaunch,
+    ));
   }
 
   Future<void> setLanguage(String languageCode) async {

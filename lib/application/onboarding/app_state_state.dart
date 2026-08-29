@@ -35,7 +35,14 @@ class AppStateOnboardingNeeded extends AppStateState {
 class AppStateOnboardingComplete extends AppStateState {
   final AppState appState;
 
-  AppStateOnboardingComplete(this.appState)
+  /// Not persisted - a one-shot signal for the frame that completes
+  /// onboarding. Set when the user tapped "Create an account" on the final
+  /// onboarding step, so app.dart's HomeScreen can open the account screen
+  /// on launch without onboarding_screen.dart having to construct its own,
+  /// separately-wired HomeScreen to do it (see TD-032).
+  final bool openAccountOnLaunch;
+
+  AppStateOnboardingComplete(this.appState, {this.openAccountOnLaunch = false})
       : super(languageCode: appState.languageCode);
 
   @override

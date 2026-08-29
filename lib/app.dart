@@ -145,6 +145,7 @@ class CropCareApp extends StatelessWidget {
                               deleteScanUseCase: deleteScanUseCase,
                               exportScanHistoryUseCase: exportScanHistoryUseCase,
                               submitFeedbackUseCase: submitFeedbackUseCase,
+                              openAccountOnLaunch: state.openAccountOnLaunch,
                             )
                           : const SplashScreen(),
                 ),

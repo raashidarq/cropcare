@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../application/onboarding/app_state_cubit.dart';
 import '../../application/onboarding/app_state_state.dart';
-import '../home/home_screen.dart';
 import 'localization/localization_provider.dart';
 import 'language_selection_screen.dart';
 
@@ -42,17 +41,23 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final cubitState = context.read<AppStateCubit>().state;
     if (cubitState is AppStateOnboardingComplete) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } else {
-      // Language first: the introduction that follows is written in the
-      // user's language, and choosing it is the one thing they can do
-      // before understanding any of the copy.
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LanguageSelectionScreen()),
-      );
+      // Onboarding finished while the splash timer was still running.
+      // app.dart's own root BlocBuilder<AppStateCubit, ...> has already
+      // reacted to that by swapping MaterialApp.home to the real,
+      // fully-wired HomeScreen (user, authCubit, syncCubit, every real use
+      // case - see app.dart). This used to also push a second, completely
+      // bare `HomeScreen()` here, with NONE of those dependencies - the
+      // same "Provider not found" class of bug fixed in
+      // onboarding_screen.dart (TD-032), just with fewer of the
+      // constructor's optional params filled in. Nothing further to do.
+      return;
     }
+    // Language first: the introduction that follows is written in the
+    // user's language, and choosing it is the one thing they can do
+    // before understanding any of the copy.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LanguageSelectionScreen()),
+    );
   }
 
   @override
